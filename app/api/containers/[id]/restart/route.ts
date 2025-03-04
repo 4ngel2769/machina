@@ -1,0 +1,38 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { restartContainer, isDockerAvailable } from '@/lib/docker';
+
+/**
+ * POST /api/containers/[id]/restart - Restart a container
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const dockerAvailable = await isDockerAvailable();
+    if (!dockerAvailable) {
+      return NextResponse.json(
+        { success: false, error: 'Docker daemon is not running' },
+        { status: 503 }
+      );
+    }
+
+    await restartContainer(id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Container restarted successfully',
+    });
+  } catch (error) {
+    console.error('Error restarting container:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to restart container',
+      },
+      { status: 500 }
+    );
+  }
+}
