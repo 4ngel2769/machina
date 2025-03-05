@@ -31,7 +31,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import osImagesData from '@/config/os-images.json';
-import { generateVMName } from '@/lib/vm-helpers';
+
+// Client-side VM name generator
+function generateVMName(osVariant?: string): string {
+  const prefix = osVariant ? osVariant.split(/[0-9]/)[0] : 'vm';
+  const random = Math.random().toString(36).substring(2, 6);
+  return `vm-${prefix}-${random}`;
+}
 
 interface CreateVMDialogProps {
   open: boolean;
