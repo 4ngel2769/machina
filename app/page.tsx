@@ -1,28 +1,16 @@
 'use client';
 
-import { useStats } from '@/hooks/use-stats';
 import { useContainers } from '@/hooks/use-containers';
 import { useVMs } from '@/hooks/use-vms';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Cpu, MemoryStick, HardDrive, Network, Box, Monitor } from 'lucide-react';
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
 
 export default function DashboardPage() {
-  const { stats, loading: statsLoading } = useStats();
   const { containers, loading: containersLoading } = useContainers();
-  const { vms, loading: vmsLoading } = useVMs();
+  const { vms, isLoading: vmsLoading } = useVMs();
 
   const runningContainers = containers.filter(c => c.status === 'running');
   const runningVMs = vms.filter(vm => vm.status === 'running');
+
+  const isLoading = containersLoading || vmsLoading;
 
   return (
     <div className="space-y-6">
@@ -32,6 +20,29 @@ export default function DashboardPage() {
           Overview of your system resources and running services
         </p>
       </div>
+
+      {isLoading ? (
+        <div className="text-muted-foreground">Loading...</div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border bg-card p-6">
+            <div className="text-2xl font-bold">{containers.length}</div>
+            <div className="text-sm text-muted-foreground">Total Containers</div>
+          </div>
+          <div className="rounded-lg border bg-card p-6">
+            <div className="text-2xl font-bold">{runningContainers.length}</div>
+            <div className="text-sm text-muted-foreground">Running Containers</div>
+          </div>
+          <div className="rounded-lg border bg-card p-6">
+            <div className="text-2xl font-bold">{vms.length}</div>
+            <div className="text-sm text-muted-foreground">Total VMs</div>
+          </div>
+          <div className="rounded-lg border bg-card p-6">
+            <div className="text-2xl font-bold">{runningVMs.length}</div>
+            <div className="text-sm text-muted-foreground">Running VMs</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
