@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// GET /api/vms/[name]/snapshots - List all snapshots
+// GET /api/vms/[id]/snapshots - List all snapshots
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(
@@ -65,12 +66,13 @@ export async function GET(
   }
 }
 
-// POST /api/vms/[name]/snapshots - Create a new snapshot
+// POST /api/vms/[id]/snapshots - Create a new snapshot
 export async function POST(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(
