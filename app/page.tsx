@@ -58,7 +58,8 @@ export default function DashboardPage() {
       ...prev.slice(-59),
       { timestamp, value: networkPercent },
     ]);
-  }, [stats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats?.timestamp]); // Only depend on timestamp to avoid excessive updates
 
   const runningContainers = containers.filter(c => c.status === 'running');
   const runningVMs = vms.filter(vm => vm.status === 'running');
