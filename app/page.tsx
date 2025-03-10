@@ -108,8 +108,8 @@ export default function DashboardPage() {
           chartData={cpuHistory}
           chartType="area"
           chartColor={
-            stats?.host.cpu.usage >= 90 ? '#ef4444' :
-            stats?.host.cpu.usage >= 80 ? '#eab308' :
+            (stats?.host.cpu.usage ?? 0) >= 90 ? '#ef4444' :
+            (stats?.host.cpu.usage ?? 0) >= 80 ? '#eab308' :
             '#3b82f6'
           }
           colorTheme={stats ? getColorTheme(stats.host.cpu.usage) : 'default'}
@@ -128,8 +128,8 @@ export default function DashboardPage() {
           chartData={memoryHistory}
           chartType="area"
           chartColor={
-            stats?.host.memory.percentage >= 95 ? '#ef4444' :
-            stats?.host.memory.percentage >= 90 ? '#eab308' :
+            (stats?.host.memory.percentage ?? 0) >= 95 ? '#ef4444' :
+            (stats?.host.memory.percentage ?? 0) >= 90 ? '#eab308' :
             '#10b981'
           }
           colorTheme={stats ? getColorTheme(stats.host.memory.percentage) : 'default'}
