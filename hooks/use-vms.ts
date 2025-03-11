@@ -18,9 +18,11 @@ interface VMStore {
   
   // Auto-refresh
   autoRefresh: boolean;
+  refreshInterval: NodeJS.Timeout | null;
   
   // VM Actions
   fetchVMs: () => Promise<void>;
+  refreshVMsStats: () => Promise<void>;
   setSelectedVM: (vm: VirtualMachine | null) => void;
   createVM: (data: Record<string, unknown>) => Promise<void>;
   startVM: (id: string) => Promise<void>;
@@ -49,6 +51,8 @@ interface VMStore {
   
   // Settings
   setAutoRefresh: (enabled: boolean) => void;
+  startPolling: (interval?: number) => void;
+  stopPolling: () => void;
 }
 
 export const useVMs = create<VMStore>((set, get) => ({
@@ -61,7 +65,8 @@ export const useVMs = create<VMStore>((set, get) => ({
   poolsLoading: false,
   networks: [],
   networksLoading: false,
-  autoRefresh: true,
+  autoRefresh: false,
+  refreshInterval: null,
   
   // Fetch all VMs
   fetchVMs: async () => {
@@ -79,6 +84,19 @@ export const useVMs = create<VMStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to fetch VMs',
         isLoading: false,
       });
+    }
+  },
+
+  // Refresh VMs stats without loading state
+  refreshVMsStats: async () => {
+    try {
+      const response = await fetch('/api/vms');
+      if (response.ok) {
+        const data = await response.json();
+        set({ vms: data.vms || [] });
+      }
+    } catch (error) {
+      console.error('Error refreshing VM stats:', error);
     }
   },
   
@@ -462,5 +480,33 @@ export const useVMs = create<VMStore>((set, get) => ({
   },
   
   // Set auto-refresh
-  setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
+  setAutoRefresh: (enabled) => {
+    set({ autoRefresh: enabled });
+    if (enabled) {
+      get().startPolling();
+    } else {
+      get().stopPolling();
+    }
+  },
+
+  startPolling: (interval = 3000) => {
+    const state = get();
+    if (state.refreshInterval) {
+      clearInterval(state.refreshInterval);
+    }
+    
+    const intervalId = setInterval(() => {
+      get().refreshVMsStats();
+    }, interval);
+    
+    set({ refreshInterval: intervalId, autoRefresh: true });
+  },
+
+  stopPolling: () => {
+    const state = get();
+    if (state.refreshInterval) {
+      clearInterval(state.refreshInterval);
+      set({ refreshInterval: null, autoRefresh: false });
+    }
+  },
 }));
