@@ -243,15 +243,61 @@ export default function VirtualMachinesPage() {
             </TabsList>
           </Tabs>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search VMs by name or OS..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          {/* Search and Filters */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search VMs by name or OS..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* OS Filter */}
+            {osTypes.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Filter className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Filter by OS</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {osTypes.map((os) => (
+                    <DropdownMenuCheckboxItem
+                      key={os}
+                      checked={osFilter.includes(os)}
+                      onCheckedChange={(checked) => {
+                        setOsFilter(
+                          checked
+                            ? [...osFilter, os]
+                            : osFilter.filter((o) => o !== os)
+                        );
+                      }}
+                    >
+                      {os?.charAt(0).toUpperCase() + os?.slice(1)}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Sort */}
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[180px]">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                <SelectItem value="cpu-desc">Highest CPU</SelectItem>
+                <SelectItem value="memory-desc">Highest Memory</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
