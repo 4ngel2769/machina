@@ -35,9 +35,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-// Dynamically import VNCConsole to avoid SSR issues with noVNC
-const VNCConsole = dynamic(
-  () => import('@/components/vms/vnc-console').then(mod => ({ default: mod.VNCConsole })),
+// Dynamically import VMConsole to avoid SSR issues with noVNC/SPICE
+const VMConsole = dynamic(
+  () => import('@/components/vms/vm-console').then(mod => ({ default: mod.VMConsole })),
   { 
     ssr: false,
     loading: () => (
@@ -323,9 +323,11 @@ export default function VMDetailsPage() {
             <CardContent className="p-0">
               {isRunning ? (
                 <div className="h-[600px]">
-                  <VNCConsole
+                  <VMConsole
                     vmName={vm.name}
-                    wsUrl={`ws://localhost:5900`}
+                    vncUrl={`ws://localhost:5900`}
+                    spiceHost="localhost"
+                    spicePort={5900}
                     className="h-full"
                   />
                 </div>
