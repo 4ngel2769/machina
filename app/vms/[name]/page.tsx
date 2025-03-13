@@ -56,6 +56,7 @@ export default function VMDetailsPage() {
   const { vms, startVM, stopVM, pauseVM, resumeVM, deleteVM, fetchVMs } = useVMs();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [displayConfig, setDisplayConfig] = useState<{ vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } | null>(null);
 
   // Derive VM from vms array instead of storing in state
   const vm = vms.find(v => v.name === vmName || v.id === vmName) || null;
@@ -64,6 +65,31 @@ export default function VMDetailsPage() {
   useEffect(() => {
     fetchVMs();
   }, [fetchVMs]);
+
+  // Fetch display configuration when VM is running
+  useEffect(() => {
+    const fetchDisplayConfig = async () => {
+      if (!vm || vm.status !== 'running') {
+        setTimeout(() => setDisplayConfig(null), 0);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/display`);
+        if (response.ok) {
+          const config = await response.json();
+          setTimeout(() => setDisplayConfig(config), 0);
+          console.log('[Display Config]', config);
+        } else {
+          console.error('Failed to fetch display config:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching display config:', error);
+      }
+    };
+
+    fetchDisplayConfig();
+  }, [vm]);
 
   const handleStart = async () => {
     if (!vm) return;
@@ -321,15 +347,27 @@ export default function VMDetailsPage() {
         <TabsContent value="console" className="space-y-4">
           <Card className="overflow-hidden">
             <CardContent className="p-0">
-              {isRunning ? (
+              {isRunning && displayConfig ? (
                 <div className="h-[600px]">
                   <VMConsole
                     vmName={vm.name}
-                    vncUrl={`ws://localhost:5900`}
-                    spiceHost="localhost"
-                    spicePort={5900}
+                    vncUrl={displayConfig.vnc ? `ws://localhost:${displayConfig.vnc.port}` : undefined}
+                    spiceHost={displayConfig.spice ? displayConfig.spice.listen : undefined}
+                    spicePort={displayConfig.spice?.port}
                     className="h-full"
                   />
+                </div>
+              ) : isRunning && !displayConfig ? (
+                <div className="flex items-center justify-center h-[600px] bg-muted">
+                  <div className="text-center">
+                    <Monitor className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-lg font-medium text-muted-foreground mb-2">
+                      Loading display configuration...
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Detecting VNC/SPICE settings
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-[600px] bg-muted">

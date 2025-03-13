@@ -392,3 +392,36 @@ export function getVMStats(name: string): { cpu_usage?: number; memory_usage?: n
     return {};
   }
 }
+
+/**
+ * Get VM display configuration (VNC/SPICE)
+ */
+export function getVMDisplayConfig(name: string): { vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } | null {
+  try {
+    const xml = execVirsh(['dumpxml', name]);
+    const displayConfig: { vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } = {};
+    
+    // Parse VNC configuration
+    const vncMatch = xml.match(/<graphics type='vnc'[^>]*port='(\d+)'[^>]*listen='([^']*)'[^>]*>/);
+    if (vncMatch) {
+      displayConfig.vnc = {
+        port: parseInt(vncMatch[1]),
+        listen: vncMatch[2],
+      };
+    }
+    
+    // Parse SPICE configuration
+    const spiceMatch = xml.match(/<graphics type='spice'[^>]*port='(\d+)'[^>]*listen='([^']*)'[^>]*>/);
+    if (spiceMatch) {
+      displayConfig.spice = {
+        port: parseInt(spiceMatch[1]),
+        listen: spiceMatch[2],
+      };
+    }
+    
+    return Object.keys(displayConfig).length > 0 ? displayConfig : null;
+  } catch (error) {
+    console.error(`Error getting display config for VM ${name}:`, error);
+    return null;
+  }
+}
