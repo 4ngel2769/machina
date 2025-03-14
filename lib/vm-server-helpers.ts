@@ -95,8 +95,8 @@ export function generateVMXML(options: {
     <console type='pty'>
       <target type='serial' port='0'/>
     </console>
-    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'>
-      <listen type='address' address='127.0.0.1'/>
+    <graphics type='vnc' port='-1' autoport='yes' listen='${process.env.VM_DISPLAY_LISTEN || '0.0.0.0'}'>
+      <listen type='address' address='${process.env.VM_DISPLAY_LISTEN || '0.0.0.0'}'/>
     </graphics>
     <video>
       <model type='qxl' vram='16384'/>

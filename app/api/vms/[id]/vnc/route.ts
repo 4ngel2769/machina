@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({
       vmName: name,
       vncPort,
-      vncHost: 'localhost',
+      vncHost: process.env.PUBLIC_HOST || 'localhost',
     });
   } catch (error) {
     console.error('Failed to get VNC info:', error);
