@@ -9,6 +9,9 @@ const next = require('next');
 const { WebSocketServer } = require('ws');
 const Docker = require('dockerode');
 
+// Import proxy manager
+const proxyManager = require('./lib/proxy-manager');
+
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -193,5 +196,19 @@ app.prepare().then(() => {
     if (err) throw err;
     console.log(`> Ready on http://${hostname}:${port}`);
     console.log(`> WebSocket terminal support enabled`);
+    console.log(`> Automatic VNC proxy management enabled`);
+  });
+
+  // Cleanup on shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, cleaning up...');
+    proxyManager.stopAll();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, cleaning up...');
+    proxyManager.stopAll();
+    process.exit(0);
   });
 });
