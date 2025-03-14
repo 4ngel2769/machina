@@ -18,7 +18,7 @@ interface VMConsoleProps {
 export function VMConsole({ 
   vmName, 
   vncUrl, 
-  spiceHost = 'localhost', 
+  spiceHost, 
   spicePort = 5900,
   spicePassword,
   onDisconnect, 
@@ -26,9 +26,17 @@ export function VMConsole({
 }: VMConsoleProps) {
   const [protocol, setProtocol] = useState<'vnc' | 'spice'>(vncUrl ? 'vnc' : 'spice');
 
+  // Use PUBLIC_HOST from environment if spiceHost is not provided or is a local address
+  const effectiveSpiceHost = spiceHost && 
+    spiceHost !== '0.0.0.0' && 
+    spiceHost !== '127.0.0.1' && 
+    spiceHost !== 'localhost' 
+      ? spiceHost 
+      : (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
+
   // Check if both protocols are available
   const hasVnc = !!vncUrl;
-  const hasSpice = !!spiceHost && !!spicePort;
+  const hasSpice = !!effectiveSpiceHost && !!spicePort;
   const hasBoth = hasVnc && hasSpice;
 
   if (!hasVnc && !hasSpice) {
@@ -62,7 +70,7 @@ export function VMConsole({
         ) : (
           <SpiceConsoleWrapper
             vmName={vmName}
-            host={spiceHost}
+            host={effectiveSpiceHost}
             port={spicePort}
             password={spicePassword}
             onDisconnect={onDisconnect}
@@ -92,7 +100,7 @@ export function VMConsole({
         <TabsContent value="spice" className="mt-0">
           <SpiceConsoleWrapper
             vmName={vmName}
-            host={spiceHost}
+            host={effectiveSpiceHost}
             port={spicePort}
             password={spicePassword}
             onDisconnect={onDisconnect}

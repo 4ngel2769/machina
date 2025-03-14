@@ -55,7 +55,10 @@ export default function VMDetailsPage() {
   const { vms, startVM, stopVM, pauseVM, resumeVM, deleteVM, fetchVMs } = useVMs();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [displayConfig, setDisplayConfig] = useState<{ vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } | null>(null);
+  const [displayConfig, setDisplayConfig] = useState<{ 
+    vnc?: { port: number; listen: string; host?: string }; 
+    spice?: { port: number; listen: string; host?: string } 
+  } | null>(null);
   const [proxyInfo, setProxyInfo] = useState<{ wsPort?: number; wsUrl?: string } | null>(null);
   const [isStartingProxy, setIsStartingProxy] = useState(false);
   const [hasInitializedProxy, setHasInitializedProxy] = useState(false);
@@ -422,7 +425,7 @@ export default function VMDetailsPage() {
                     <VMConsole
                       vmName={vm.name}
                       vncUrl={proxyInfo.wsUrl}
-                      spiceHost={displayConfig.spice ? displayConfig.spice.listen : undefined}
+                      spiceHost={displayConfig.spice?.host}
                       spicePort={displayConfig.spice?.port}
                       className="h-full"
                     />
