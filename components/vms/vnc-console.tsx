@@ -40,6 +40,22 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   const [showSettings, setShowSettings] = useState(false);
   const [noVNCLoaded, setNoVNCLoaded] = useState(false);
 
+  // Debug: Log wsUrl whenever it changes
+  useEffect(() => {
+    console.log('[VNC] Component mounted/updated. wsUrl:', wsUrl);
+  }, [wsUrl]);
+
+  // Auto-connect when wsUrl and noVNC are ready
+  useEffect(() => {
+    if (wsUrl && noVNCLoaded && canvasRef.current && connectionState === 'disconnected') {
+      console.log('[VNC] Auto-connecting...');
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        connectVNC();
+      }, 100);
+    }
+  }, [wsUrl, noVNCLoaded, connectionState]);
+
   // Load noVNC dynamically from CDN
   useEffect(() => {
     if (typeof window === 'undefined') return;
