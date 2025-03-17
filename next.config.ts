@@ -2,6 +2,18 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {},
+  // Reduce aggressive HMR recompilation in development
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      // Reduce watchOptions polling to prevent constant recompiles
+      config.watchOptions = {
+        ...config.watchOptions,
+        poll: undefined, // Disable polling
+        ignored: /node_modules/,
+      };
+    }
+    return config;
+  },
   // Allow dev server access from local network
   allowedDevOrigins: [
     'http://192.168.1.200:3000',
