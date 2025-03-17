@@ -20,6 +20,14 @@ import {
   Settings,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import type RFB from '@novnc/novnc/lib/rfb.js';
+import type { RFBEvent } from '@novnc/novnc/lib/rfb.js';
+
+// Dynamically import RFB from noVNC (client-side only)
+const loadRFB = async () => {
+  const RFB = (await import('@novnc/novnc/lib/rfb.js')).default;
+  return RFB;
+};
 
 interface VNCConsoleProps {
   vmName: string;
@@ -33,7 +41,7 @@ type ScaleMode = 'remote' | 'local' | 'none';
 
 export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsoleProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<any>(null);
+  const rfbRef = useRef<RFB | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [scaleMode, setScaleMode] = useState<ScaleMode>('remote');
@@ -56,36 +64,23 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     }
   }, [wsUrl, noVNCLoaded, connectionState]);
 
-  // Load noVNC dynamically from CDN
+  // Load noVNC from npm package
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Check if RFB is already loaded
-    if ((window as any).RFB) {
-      setNoVNCLoaded(true);
-      return;
-    }
-
-    // Load noVNC from CDN
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/noVNC/1.4.0/core/rfb.min.js';
-    script.async = true;
-    script.onload = () => {
-      console.log('[VNC] noVNC library loaded successfully');
-      setNoVNCLoaded(true);
-    };
-    script.onerror = () => {
-      console.error('[VNC] Failed to load noVNC library from CDN');
-      toast.error('Failed to load VNC library');
-      setConnectionState('failed');
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
+    // Load RFB dynamically
+    loadRFB()
+      .then((RFB) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).RFB = RFB;
+        console.log('[VNC] noVNC library loaded successfully from npm');
+        setNoVNCLoaded(true);
+      })
+      .catch((error) => {
+        console.error('[VNC] Failed to load noVNC library:', error);
+        toast.error('Failed to load VNC library');
+        setConnectionState('failed');
+      });
   }, []);
 
   const handleDisconnect = useCallback(() => {
@@ -120,6 +115,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       setConnectionState('connecting');
 
       // Get RFB from window (loaded dynamically)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const RFB = (window as any).RFB;
       if (!RFB) {
         throw new Error('noVNC RFB not available');
@@ -141,16 +137,16 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
         toast.success(`Connected to ${vmName}`);
       });
 
-      rfb.addEventListener('disconnect', (e: any) => {
+      rfb.addEventListener('disconnect', (e: RFBEvent) => {
         console.log('[VNC] Disconnected:', e.detail);
         setConnectionState('disconnected');
         
-        if (!e.detail?.clean) {
+        if (!e.detail) {
           toast.error('VNC connection lost');
         }
       });
 
-      rfb.addEventListener('securityfailure', (e: any) => {
+      rfb.addEventListener('securityfailure', (e: RFBEvent) => {
         console.error('[VNC] Security failure:', e.detail);
         setConnectionState('failed');
         toast.error('VNC authentication failed');
