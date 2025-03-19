@@ -1,43 +1,4 @@
-import { auth } from '@/lib/auth/config';
-import { NextResponse } from 'next/server';
-
-// Force Node.js runtime (not Edge) so we can use fs/path
-export const runtime = 'nodejs';
-
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
-
-  // Public routes that don't require authentication
-  const publicRoutes = ['/login'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-
-  // API auth routes
-  const isAuthApi = pathname.startsWith('/api/auth');
-
-  // Allow public routes and auth API
-  if (isPublicRoute || isAuthApi) {
-    return NextResponse.next();
-  }
-
-  // Redirect to login if not authenticated
-  if (!isLoggedIn) {
-    const url = new URL('/login', req.url);
-    url.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // Check admin-only routes
-  const adminRoutes = ['/settings/users'];
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-
-  if (isAdminRoute && req.auth?.user?.role !== 'admin') {
-    // Redirect non-admin users to dashboard
-    return NextResponse.redirect(new URL('/', req.url));
-  }
-
-  return NextResponse.next();
-});
+export { auth as middleware } from '@/lib/auth/config';
 
 export const config = {
   matcher: [
