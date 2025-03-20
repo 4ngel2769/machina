@@ -6,6 +6,11 @@ import {
 } from '@/lib/docker';
 import { Container, ContainerStatus, CreateContainerRequest } from '@/types/container';
 import { z } from 'zod';
+import { auth } from '@/lib/auth/config';
+import {
+  attachOwnershipInfo,
+  filterResourcesByUser,
+} from '@/lib/resource-ownership';
 
 // Validation schema for container creation
 const createContainerSchema = z.object({
