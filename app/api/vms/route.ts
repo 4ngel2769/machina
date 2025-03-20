@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLibvirtAvailable, listVMs, createVM } from '@/lib/libvirt';
 import { z } from 'zod';
+import { auth } from '@/lib/auth/config';
+import {
+  attachOwnershipInfo,
+  filterResourcesByUser,
+  addResourceOwnership,
+} from '@/lib/resource-ownership';
 
 // Validation schema for VM creation
 const createVMSchema = z.object({
