@@ -83,13 +83,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (role && !['admin', 'user'].includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role. Must be "admin" or "user"' },
-        { status: 400 }
-      );
-    }
-
     const newUser = await createUser(username, password, role || 'user');
     return NextResponse.json(newUser, { status: 201 });
   } catch (error) {
