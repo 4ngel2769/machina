@@ -121,7 +121,17 @@ export async function PUT(request: NextRequest) {
     if (rateLimitResult) return rateLimitResult;
 
     const body = await request.json();
-    const { id, username, password, role } = body;
+    
+    // Validate input
+    const validation = updateUserSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.errors },
+        { status: 400 }
+      );
+    }
+
+    const { id, username, password, role } = validation.data;
 
     if (!id) {
       return NextResponse.json(
