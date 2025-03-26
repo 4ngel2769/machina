@@ -98,6 +98,25 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validatedData = createVMSchema.parse(body);
     
+    // Check quota before creating VM
+    const quotaCheck = await checkVMQuota(
+      session.user.id,
+      validatedData.vcpus,
+      validatedData.memory,
+      validatedData.diskSize
+    );
+    
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Quota exceeded', 
+          message: quotaCheck.message,
+          details: quotaCheck.details
+        },
+        { status: 403 }
+      );
+    }
+    
     // Create VM
     const result = createVM(validatedData);
     
