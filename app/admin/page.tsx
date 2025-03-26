@@ -47,10 +47,42 @@ import {
   TrendingUp,
   Crown,
 } from 'lucide-react';
-import { UserQuota, getQuotaUsagePercentage } from '@/lib/quota-system';
 import { getAvailablePlans, formatTokens, RESOURCE_PLANS } from '@/lib/token-plans';
 import { PageLoading } from '@/components/loading-skeletons';
 import { HelpTooltip } from '@/components/help-tooltips';
+
+// Define types locally to avoid importing from quota-system
+interface UserQuota {
+  userId: string;
+  username: string;
+  quotas: {
+    maxVCpus: number;
+    maxMemoryMB: number;
+    maxDiskGB: number;
+    maxVMs: number;
+    maxContainers: number;
+  };
+  usage: {
+    currentVCpus: number;
+    currentMemoryMB: number;
+    currentDiskGB: number;
+    currentVMs: number;
+    currentContainers: number;
+  };
+  currentPlan: string;
+  tokenBalance: number;
+  planActivatedAt: string | null;
+  planExpiresAt: string | null;
+  suspended: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Helper function for quota percentage
+function getQuotaUsagePercentage(usage: number, quota: number): number {
+  if (quota === 0) return 0;
+  return Math.min(Math.round((usage / quota) * 100), 100);
+}
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
