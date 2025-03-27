@@ -93,7 +93,15 @@ export const useVMs = create<VMStore>((set, get) => ({
       const response = await fetch('/api/vms');
       if (response.ok) {
         const data = await response.json();
-        set({ vms: data.vms || [] });
+        const newVMs = data.vms || [];
+        
+        // Only update state if data actually changed (prevent unnecessary re-renders)
+        const currentVMs = get().vms;
+        const hasChanged = JSON.stringify(currentVMs) !== JSON.stringify(newVMs);
+        
+        if (hasChanged) {
+          set({ vms: newVMs });
+        }
       }
     } catch (error) {
       console.error('Error refreshing VM stats:', error);
