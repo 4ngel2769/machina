@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
     if (session?.user) {
       logActivity({
         userId: session.user.id,
-        username: session.user.username || session.user.email || 'unknown',
+        username: session.user.name || session.user.email || 'unknown',
         action: 'container.created',
         resourceType: 'container',
         success: false,
