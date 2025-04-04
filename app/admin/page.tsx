@@ -352,9 +352,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Manage user resources and quotas</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <p className="text-muted-foreground">Manage user resources and quotas</p>
+        </div>
+        <Button onClick={() => router.push('/settings/users')}>
+          <Users className="mr-2 h-4 w-4" />
+          Manage Users
+        </Button>
       </div>
 
       {/* Overview Stats */}
