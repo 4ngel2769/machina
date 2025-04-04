@@ -577,6 +577,14 @@ export default function AdminDashboard() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => router.push(`/admin/users/${quota.userId}`)}
+                            title="View User Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => handleEditQuota(quota)}
                             title="Edit Quotas"
                           >
