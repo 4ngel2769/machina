@@ -26,6 +26,14 @@ import {
   Search,
 } from 'lucide-react';
 
+// Global function to trigger command palette
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).toggleCommandPalette = () => {
+    window.dispatchEvent(new CustomEvent('toggle-command-palette'));
+  };
+}
+
 export function CommandPalette() {
   const router = useRouter();
   const { containers, startContainer, stopContainer } = useContainers();
@@ -38,12 +46,23 @@ export function CommandPalette() {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        e.stopPropagation();
         setOpen((open) => !open);
       }
     };
 
+    // Custom event listener for programmatic toggle
+    const toggleHandler = () => {
+      setOpen((open) => !open);
+    };
+
     document.addEventListener('keydown', down);
-    return () => document.removeEventListener('keydown', down);
+    window.addEventListener('toggle-command-palette', toggleHandler);
+    
+    return () => {
+      document.removeEventListener('keydown', down);
+      window.removeEventListener('toggle-command-palette', toggleHandler);
+    };
   }, []);
 
   const closeAndNavigate = useCallback((path: string) => {
