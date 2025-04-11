@@ -119,8 +119,19 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Map validated data to createVM format
+    const vmOptions = {
+      name: validatedData.name || `vm-${Date.now()}`,
+      memory: validatedData.memory,
+      vcpus: validatedData.vcpus,
+      disk_size: validatedData.storage.size,
+      iso_path: validatedData.installation_medium.type === 'local' 
+        ? validatedData.installation_medium.source 
+        : undefined,
+    };
+    
     // Create VM
-    const result = createVM(validatedData);
+    const result = createVM(vmOptions);
     
     if (!result.success) {
       return NextResponse.json(
