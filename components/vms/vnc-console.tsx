@@ -37,7 +37,7 @@ interface VNCConsoleProps {
 }
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
-type ScaleMode = 'remote' | 'local' | 'none';
+type ScaleMode = 'remote' | 'local' | 'auto' | 'none';
 
 export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsoleProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -119,11 +119,27 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       rfb.scaleViewport = scaleMode === 'remote' || scaleMode === 'local';
       rfb.resizeSession = scaleMode === 'local';
 
+      // Enable keyboard input by setting focus to view
+      rfb.focus();
+      
+      // Add click handler to ensure focus on canvas click
+      const canvas = canvasRef.current.querySelector('canvas');
+      if (canvas) {
+        canvas.addEventListener('click', () => {
+          rfb.focus();
+        });
+        // Make canvas tabbable and auto-focus
+        canvas.setAttribute('tabindex', '0');
+        canvas.focus();
+      }
+
       // Connection events
       rfb.addEventListener('connect', () => {
         console.log('[VNC] Connected successfully');
         setConnectionState('connected');
         toast.success(`Connected to ${vmName}`);
+        // Focus after connection
+        setTimeout(() => rfb.focus(), 100);
       });
 
       rfb.addEventListener('disconnect', (e: RFBEvent) => {
@@ -183,8 +199,15 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   // Update scaling when mode changes
   useEffect(() => {
     if (rfbRef.current && connectionState === 'connected') {
-      rfbRef.current.scaleViewport = scaleMode === 'remote' || scaleMode === 'local';
-      rfbRef.current.resizeSession = scaleMode === 'local';
+      if (scaleMode === 'auto') {
+        // Auto mode: fit to screen while maintaining aspect ratio
+        rfbRef.current.scaleViewport = true;
+        rfbRef.current.resizeSession = false;
+        rfbRef.current.clipViewport = false;
+      } else {
+        rfbRef.current.scaleViewport = scaleMode === 'remote' || scaleMode === 'local';
+        rfbRef.current.resizeSession = scaleMode === 'local';
+      }
     }
   }, [scaleMode, connectionState]);
 
