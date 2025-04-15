@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/config';
+import { auth } from '@/lib/auth/config';
 import { getLogs, ActivityAction } from '@/lib/activity-logger';
+//import { attachOwnershipInfo } from '@/lib/resource-ownership';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
 
     if (!session || session.user?.role !== 'admin') {
       return NextResponse.json(
