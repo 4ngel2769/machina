@@ -8,7 +8,7 @@ export interface AuditLogEntry {
   userId: string;
   username: string;
   action: string;
-  resourceType?: 'container' | 'vm' | 'user' | 'setting';
+  resourceType?: 'container' | 'vm' | 'user' | 'setting' | 'auth';
   resourceId?: string;
   resourceName?: string;
   details?: string;
