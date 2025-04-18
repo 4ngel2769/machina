@@ -53,6 +53,15 @@ export async function DELETE(
   try {
     const { id } = await params;
     
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     // Check if libvirt is available
     if (!isLibvirtAvailable()) {
       return NextResponse.json(
@@ -64,16 +73,49 @@ export async function DELETE(
     const result = deleteVM(id);
     
     if (!result.success) {
+      logger.error('VM deletion failed', {
+        userId: session.user.id,
+        vmId: id,
+        error: result.message,
+      });
+      
+      await logAudit({
+        userId: session.user.id,
+        username: session.user.name || session.user.id,
+        action: 'delete',
+        resourceType: 'vm',
+        resourceId: id,
+        resourceName: id,
+        success: false,
+        errorMessage: result.message,
+      });
+      
       return NextResponse.json(
         { error: result.message },
         { status: 400 }
       );
     }
 
+    logger.info('VM deleted successfully', {
+      userId: session.user.id,
+      vmId: id,
+    });
+    
+    await logAudit({
+      userId: session.user.id,
+      username: session.user.name || session.user.id,
+      action: 'delete',
+      resourceType: 'vm',
+      resourceId: id,
+      resourceName: id,
+      success: true,
+    });
+
     return NextResponse.json({
       message: result.message,
     });
   } catch (error) {
+    logger.error('Error deleting VM', { error, vmId: (await params).id });
     console.error(`Error deleting VM ${(await params).id}:`, error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete VM' },
