@@ -1,11 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ResourceChart } from '@/components/shared/resource-chart';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ResourceTimeSeries } from '@/types/stats';
+
+// Lazy load chart component to reduce initial bundle
+const ResourceChart = dynamic(
+  () => import('@/components/shared/resource-chart').then(mod => ({ default: mod.ResourceChart })),
+  { ssr: false }
+);
 
 interface StatCardProps {
   title: string;
