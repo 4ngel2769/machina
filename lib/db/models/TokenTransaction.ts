@@ -16,6 +16,7 @@ export interface ITokenTransaction extends Document {
   relatedResourceType?: 'vm' | 'container';
   relatedResourceId?: string;
   performedBy?: string; // Admin user ID if manually adjusted
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
   timestamp: Date;
 }
