@@ -26,7 +26,7 @@ export async function dbGetUserByUsername(username: string): Promise<IUser | nul
   }
 
   await connectDB();
-  return User.findOne({ username, isActive: true }).lean();
+  return (await User.findOne({ username, isActive: true }).lean()) as IUser | null;
 }
 
 export async function dbGetUserById(id: string): Promise<IUser | null> {
@@ -36,7 +36,7 @@ export async function dbGetUserById(id: string): Promise<IUser | null> {
   }
 
   await connectDB();
-  return User.findById(id).lean();
+  return (await User.findById(id).lean()) as IUser | null;
 }
 
 export async function dbCreateUser(userData: {
@@ -81,7 +81,7 @@ export async function dbGetAllUsers(): Promise<IUser[]> {
 export async function dbUpdateUser(userId: string, updates: Partial<IUser>): Promise<boolean> {
   if (!USE_MONGODB) {
     const { updateUser } = await import('../auth/user-storage');
-    return updateUser(userId, updates as any);
+    return !!updateUser(userId, updates as any);
   }
 
   await connectDB();
@@ -92,7 +92,8 @@ export async function dbUpdateUser(userId: string, updates: Partial<IUser>): Pro
 export async function dbDeleteUser(userId: string): Promise<boolean> {
   if (!USE_MONGODB) {
     const { deleteUser } = await import('../auth/user-storage');
-    return deleteUser(userId);
+    deleteUser(userId);
+    return true;
   }
 
   await connectDB();
@@ -264,7 +265,16 @@ export async function dbGetAuditStats(userId?: string) {
 // TOKEN TRANSACTION OPERATIONS
 // ============================================
 
-export async function dbRecordTokenTransaction(transaction: Omit<ITokenTransaction, 'timestamp'>): Promise<void> {
+export async function dbRecordTokenTransaction(transaction: {
+  userId: string;
+  username: string;
+  type: ITokenTransaction['type'];
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  reason: string;
+  performedBy?: string;
+}): Promise<void> {
   if (!USE_MONGODB) {
     // No file-based equivalent, just log
     logger.info('Token transaction (file mode, not persisted)', transaction);
@@ -284,7 +294,7 @@ export async function dbGetTokenTransactions(userId: string, limit = 50): Promis
   }
 
   await connectDB();
-  return TokenTransaction.find({ userId })
+  return await TokenTransaction.find({ userId })
     .sort({ timestamp: -1 })
     .limit(limit)
     .lean();
