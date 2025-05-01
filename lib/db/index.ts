@@ -221,7 +221,7 @@ export async function dbGetAuditLogs(filters: {
     .sort({ timestamp: -1 })
     .limit(filters.limit || 100)
     .skip(filters.offset || 0)
-    .lean();
+    .lean() as unknown as IAuditLog[];
 }
 
 export async function dbGetAuditStats(userId?: string) {
