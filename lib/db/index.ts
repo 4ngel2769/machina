@@ -297,7 +297,7 @@ export async function dbGetTokenTransactions(userId: string, limit = 50): Promis
   return await TokenTransaction.find({ userId })
     .sort({ timestamp: -1 })
     .limit(limit)
-    .lean();
+    .lean() as unknown as ITokenTransaction[];
 }
 
 export async function dbUpdateTokenBalance(
