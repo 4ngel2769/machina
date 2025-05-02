@@ -1,9 +1,31 @@
 import type { NextConfig } from "next";
 
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig: NextConfig = {
-  experimental: {},
-  turbopack: {},
-  // Reduce aggressive HMR recompilation in development
+  // Turbopack configuration (required for Next.js 16)
+  turbopack: {
+    // Empty config to silence the warning
+  },
+  
+  // Experimental features
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts'],
+  },
+  
+  // Production optimizations
+  reactStrictMode: true,
+  
+  // Image optimization
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [],
+  },
+  
+  // Remove webpack config for production builds (use Turbopack)
+  // Only use webpack in development for specific customizations
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {
       // Reduce watchOptions polling to prevent constant recompiles
@@ -15,6 +37,7 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  
   // Allow dev server access from local network
   allowedDevOrigins: [
     'http://192.168.1.200:3000',
@@ -22,6 +45,7 @@ const nextConfig: NextConfig = {
     'http://192.168.1.200',
     'ws://192.168.1.200'
   ],
+  
   async headers() {
     return [
       {
@@ -36,4 +60,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
