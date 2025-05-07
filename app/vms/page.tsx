@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useVMs } from '@/hooks/use-vms';
 import { useLiveStats } from '@/hooks/use-live-stats';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -35,7 +35,7 @@ import { VirtualNetworksDialog } from '@/components/vms/virtual-networks-dialog'
 type FilterStatus = 'all' | 'running' | 'stopped' | 'paused';
 type SortOption = 'name-asc' | 'name-desc' | 'cpu-desc' | 'memory-desc';
 
-export default function VirtualMachinesPage() {
+function VMsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { vms, isLoading, error, fetchVMs, setAutoRefresh } = useVMs();
