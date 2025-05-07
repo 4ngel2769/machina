@@ -357,3 +357,11 @@ function VMsPageContent() {
     </div>
   );
 }
+
+export default function VirtualMachinesPage() {
+  return (
+    <Suspense fallback={<div className="p-8"><Skeleton className="h-96 w-full" /></div>}>
+      <VMsPageContent />
+    </Suspense>
+  );
+}
