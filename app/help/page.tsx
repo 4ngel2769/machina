@@ -102,7 +102,7 @@ export default function HelpPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="getting-started" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="getting-started">
             <Lightbulb className="h-4 w-4 mr-2" />
             Getting Started
@@ -110,6 +110,10 @@ export default function HelpPage() {
           <TabsTrigger value="features">
             <Zap className="h-4 w-4 mr-2" />
             Features
+          </TabsTrigger>
+          <TabsTrigger value="shortcuts">
+            <Keyboard className="h-4 w-4 mr-2" />
+            Shortcuts
           </TabsTrigger>
           <TabsTrigger value="troubleshooting">
             <Terminal className="h-4 w-4 mr-2" />
