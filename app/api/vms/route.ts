@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       name: validatedData.name || `vm-${Date.now()}`,
       memory: validatedData.memory,
       vcpus: validatedData.vcpus,
-      disk_size: validatedData.storage.size,
+      disk_size: validatedData.storage.size * 1024, // Convert GB to MB
       iso_path: validatedData.installation_medium.type === 'local' 
         ? validatedData.installation_medium.source 
         : undefined,
