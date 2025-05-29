@@ -21,7 +21,11 @@ import {
   Container,
   MonitorPlay,
   HelpCircle,
-  Info
+  Info,
+  Users,
+  Coins,
+  DollarSign,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -61,9 +65,16 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: Home },
   { label: 'Containers', href: '/containers', icon: Box },
   { label: 'Virtual Machines', href: '/vms', icon: Monitor },
-  { label: 'Admin Panel', href: '/admin', icon: Shield, adminOnly: true },
   { label: 'Settings', href: '/settings', icon: Settings },
   { label: 'Help', href: '/help', icon: HelpCircle },
+];
+
+// Separate admin items with submenu support
+const adminNavItems = [
+  { label: 'Overview', href: '/admin', icon: Shield },
+  { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Pricing Templates', href: '/admin/pricing', icon: DollarSign },
+  { label: 'Token Management', href: '/admin/tokens', icon: Coins },
 ];
 
 export function Sidebar() {
@@ -137,11 +148,6 @@ export function Sidebar() {
           {/* Navigation */}
           <nav className="flex-1 p-2 space-y-1">
             {navItems.map((item) => {
-              // Skip admin-only items for non-admin users
-              if (item.adminOnly && session?.user?.role !== 'admin') {
-                return null;
-              }
-
               const Icon = item.icon;
               const active = item.href ? isActive(item.href) : false;
 
@@ -180,6 +186,49 @@ export function Sidebar() {
                 </button>
               );
             })}
+
+            {/* Admin Section */}
+            {session?.user?.role === 'admin' && (
+              <>
+                <Separator className="my-2" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        'w-full justify-start gap-3 hover:bg-accent hover:text-accent-foreground',
+                        pathname?.startsWith('/admin') && 'bg-accent text-accent-foreground font-medium',
+                        isCollapsed && 'justify-center px-2'
+                      )}
+                      title={isCollapsed ? 'Admin Panel' : undefined}
+                    >
+                      <Shield className="w-5 h-5 shrink-0" />
+                      {!isCollapsed && (
+                        <>
+                          <span className="flex-1 text-left">Admin Panel</span>
+                          <ChevronDown className="w-4 h-4" />
+                        </>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel>Admin Tools</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {adminNavItems.map((adminItem) => {
+                      const AdminIcon = adminItem.icon;
+                      return (
+                        <DropdownMenuItem key={adminItem.label} asChild>
+                          <Link href={adminItem.href} className="cursor-pointer">
+                            <AdminIcon className="mr-2 h-4 w-4" />
+                            <span>{adminItem.label}</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
 
             <Separator className="my-2" />
 
@@ -275,9 +324,15 @@ export function Sidebar() {
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/settings" className="cursor-pointer">
+                    <Link href="/profile" className="cursor-pointer">
                       <User className="mr-2 h-4 w-4" />
-                      <span>Profile & Settings</span>
+                      <span>Profile & Tokens</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
