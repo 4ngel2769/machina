@@ -112,6 +112,14 @@ export async function createUser(
     createdAt: new Date(),
   });
   
+  // Create default quota for the new user
+  try {
+    await setUserQuota(newUser._id.toString(), username, undefined, role === 'admin');
+  } catch (error) {
+    console.error('Failed to create quota for new user:', error);
+    // Don't fail user creation if quota creation fails
+  }
+  
   return {
     id: newUser._id.toString(),
     username: newUser.username,
