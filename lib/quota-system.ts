@@ -309,7 +309,21 @@ export async function addTokens(userId: string, amount: number): Promise<number>
     return allQuotas[index].tokenBalance;
   }
   
-  throw new Error('User quota not found');
+  // If quota doesn't exist, create one with default values
+  console.warn(`User quota not found for user ${userId}, creating default quota`);
+  const defaultQuota = await setUserQuota(userId, `user-${userId.slice(-8)}`, undefined, false);
+  defaultQuota.tokenBalance += amount;
+  defaultQuota.updatedAt = new Date().toISOString();
+  
+  // Save the updated quota
+  const updatedQuotas = await getAllQuotas();
+  const newIndex = updatedQuotas.findIndex(q => q.userId === userId);
+  if (newIndex >= 0) {
+    updatedQuotas[newIndex] = defaultQuota;
+    await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: updatedQuotas }, null, 2));
+  }
+  
+  return defaultQuota.tokenBalance;
 }
 
 // Remove tokens from user balance (admin only)
