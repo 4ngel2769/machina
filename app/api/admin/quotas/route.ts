@@ -7,6 +7,7 @@ import {
   setUserSuspended,
   deleteUserQuota,
 } from '@/lib/quota-system';
+import { getAllUsers } from '@/lib/auth/user-storage';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 // GET /api/admin/quotas - Get all user quotas (admin only)
