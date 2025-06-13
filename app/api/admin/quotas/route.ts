@@ -161,3 +161,121 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+// POST /api/admin/quotas/initialize - Initialize missing quotas for all users (admin only)
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    if (session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
+    }
+    
+    // Rate limiting
+    const identifier = getRateLimitIdentifier(request, session.user.id);
+    const rateLimitResult = await rateLimit(request, identifier, 'api');
+    if (rateLimitResult) {
+      return rateLimitResult;
+    }
+    
+    const users = await getAllUsers();
+    const existingQuotas = await getAllQuotas();
+    const existingUserIds = new Set(existingQuotas.map(q => q.userId));
+    
+    const missingQuotas = users.filter(user => !existingUserIds.has(user.id));
+    const results = [];
+    
+    for (const user of missingQuotas) {
+      try {
+        const quota = await setUserQuota(user.id, user.username, undefined, user.role === 'admin');
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: 'created',
+          tokenBalance: quota.tokenBalance,
+        });
+      } catch (error) {
+        console.error(`Failed to create quota for user ${user.username}:`, error);
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    
+    return NextResponse.json({
+      success: true,
+      initialized: results.filter(r => r.status === 'created').length,
+      errors: results.filter(r => r.status === 'error').length,
+      results,
+    });
+  } catch (error) {
+    console.error('Error initializing quotas:', error);
+    return NextResponse.json({ error: 'Failed to initialize quotas' }, { status: 500 });
+  }
+}
+
+// PUT /api/admin/quotas/initialize - Initialize missing quotas for all users (admin only)
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await auth();
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    if (session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
+    }
+    
+    // Rate limiting
+    const identifier = getRateLimitIdentifier(request, session.user.id);
+    const rateLimitResult = await rateLimit(request, identifier, 'api');
+    if (rateLimitResult) {
+      return rateLimitResult;
+    }
+    
+    const users = await getAllUsers();
+    const existingQuotas = await getAllQuotas();
+    const existingUserIds = new Set(existingQuotas.map(q => q.userId));
+    
+    const missingQuotas = users.filter(user => !existingUserIds.has(user.id));
+    const results = [];
+    
+    for (const user of missingQuotas) {
+      try {
+        const quota = await setUserQuota(user.id, user.username, undefined, user.role === 'admin');
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: 'created',
+          tokenBalance: quota.tokenBalance,
+        });
+      } catch (error) {
+        console.error(`Failed to create quota for user ${user.username}:`, error);
+        results.push({
+          userId: user.id,
+          username: user.username,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    
+    return NextResponse.json({
+      success: true,
+      initialized: results.filter(r => r.status === 'created').length,
+      errors: results.filter(r => r.status === 'error').length,
+      results,
+    });
+  } catch (error) {
+    console.error('Error initializing quotas:', error);
+    return NextResponse.json({ error: 'Failed to initialize quotas' }, { status: 500 });
+  }
+}
+
