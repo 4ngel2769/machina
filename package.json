@@ -10,7 +10,7 @@
     "analyze": "ANALYZE=true next build",
     "init-data": "node scripts/init-data.js",
     "migrate-to-mongodb": "tsx scripts/migrate-to-mongodb.ts",
-    "initialize-quotas": "node scripts/initialize-quotas.js"
+    "initialize-quotas": "tsx scripts/initialize-quotas.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

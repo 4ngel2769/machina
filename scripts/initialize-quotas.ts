@@ -1,12 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 
 /**
  * Initialize missing user quotas
  * Run this script to create quota records for users who don't have them
  */
 
-import { getAllUsers, initializeUserQuota } from '../lib/auth/user-storage.js';
-import { getAllQuotas } from '../lib/quota-system.js';
+import { getAllUsers, initializeUserQuota } from '../lib/auth/user-storage';
+import { getAllQuotas } from '../lib/quota-system';
 
 async function initializeMissingQuotas() {
   try {
