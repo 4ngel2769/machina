@@ -8,7 +8,7 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
   // Public pages that don't need sidebar
-  const publicPages = ['/login', '/register'];
+  const publicPages = ['/login', '/register', '/pwreset'];
   const isPublicPage = publicPages.some(page => pathname.startsWith(page));
 
   if (isPublicPage) {
