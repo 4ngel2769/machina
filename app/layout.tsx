@@ -5,7 +5,6 @@ import { Providers } from "./providers";
 import { ConditionalLayout } from "./conditional-layout";
 import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { CommandPalette } from '@/components/command-palette';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,7 +36,6 @@ export default function RootLayout({
             <ConditionalLayout>
               {children}
             </ConditionalLayout>
-            <CommandPalette />
             <Toaster />
           </Providers>
         </ErrorBoundary>
