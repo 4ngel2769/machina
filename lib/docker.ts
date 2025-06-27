@@ -35,11 +35,14 @@ const DEFAULT_RESOURCE_LIMITS = {
 
 /**
  * Validate container name (prevent injection attacks)
+ * Docker naming rules: [a-zA-Z0-9][a-zA-Z0-9_.-]*
+ * Must be at least 2 characters
  */
 function validateContainerName(name: string): boolean {
-  // Only allow alphanumeric, hyphens, and underscores
-  const validPattern = /^[a-zA-Z0-9_-]+$/;
-  return validPattern.test(name) && name.length > 0 && name.length <= 255;
+  // Allow alphanumeric, hyphens, underscores, and dots
+  // Must start with alphanumeric character and be at least 2 characters
+  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+  return validPattern.test(name) && name.length >= 2 && name.length <= 63;
 }
 
 /**
@@ -140,7 +143,7 @@ export async function createContainer(config: CreateContainerRequest) {
     
     // Security: Validate container name
     if (!validateContainerName(baseName)) {
-      throw new Error('Invalid container name. Use only alphanumeric characters, hyphens, and underscores.');
+      throw new Error('Invalid container name. Must be 2-63 characters, start with a letter or number, and contain only letters, numbers, hyphens, underscores, and dots.');
     }
     
     const name = baseName;
