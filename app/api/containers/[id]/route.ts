@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getContainerInfo, removeContainer, isDockerAvailable } from '@/lib/docker';
 import { auth } from '@/lib/auth/config';
 import { canUserAccessResource, removeResourceOwnership } from '@/lib/resource-ownership';
+import { ContainerStatus } from '@/types/container';
 
 /**
  * GET /api/containers/[id] - Get container details
@@ -40,9 +41,42 @@ export async function GET(
 
     const info = await getContainerInfo(id);
 
+    // Transform Docker inspect result to our Container type
+    const status = info.State.Status.toLowerCase() as ContainerStatus;
+    const name = info.Name?.replace(/^\//, '') || 'unknown';
+
+    // Calculate uptime if running
+    let uptime: string | undefined;
+    if (status === 'running' && info.State.StartedAt) {
+      uptime = info.State.Status; // Use the status string which includes uptime
+    }
+
+    // Parse ports from NetworkSettings
+    const ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }> = [];
+
+    // For now, we'll skip detailed port parsing as it requires more complex logic
+    // The ports will be populated from the container list if needed
+
+    // Determine container type
+    const type: 'normal' | 'amnesic' = info.HostConfig?.AutoRemove ? 'amnesic' : 'normal';
+
+    const container = {
+      id: info.Id,
+      name,
+      image: info.Config?.Image || info.Image,
+      status,
+      created: new Date(info.Created),
+      ports,
+      type,
+      uptime,
+      state: {
+        startedAt: info.State.StartedAt ? new Date(info.State.StartedAt) : undefined,
+      },
+    };
+
     return NextResponse.json({
       success: true,
-      data: info,
+      data: container,
     });
   } catch (error) {
     console.error('Error getting container info:', error);
