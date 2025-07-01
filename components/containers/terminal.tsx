@@ -69,6 +69,8 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           },
           rows: 30,
           cols: 100,
+          allowTransparency: true,
+          scrollback: 1000,
         });
 
         fitAddon = new FitAddon();
@@ -78,6 +80,14 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         if (terminalRef.current) {
           terminal.open(terminalRef.current);
           fitAddon.fit();
+          
+          // Focus the terminal to enable input
+          terminal.focus();
+          
+          // Add a click handler to focus the terminal
+          terminalRef.current.addEventListener('click', () => {
+            terminal.focus();
+          });
         }
 
         termRef.current = terminal;
@@ -104,6 +114,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         ws.onopen = () => {
           setConnectionStatus('connected');
           terminal.writeln('\x1b[32m✓ Connected to interactive shell\x1b[0m');
+          terminal.writeln('\x1b[36mType commands below. Click the terminal to focus it.\x1b[0m');
           terminal.writeln('');
           
           // Send initial terminal size
@@ -166,16 +177,20 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
         // Send input to container via WebSocket
         terminal.onData((data: string) => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
+          console.log('Terminal onData received:', data.length, 'bytes:', JSON.stringify(data));
+          if (ws && ws.readyState === WebSocket.OPEN && data.length > 0) {
             try {
               const message = JSON.stringify({
                 type: 'input',
                 data: data,
               });
+              console.log('Sending to WebSocket:', message);
               ws.send(message);
             } catch (error) {
               console.error('Error sending input to WebSocket:', error);
             }
+          } else {
+            console.log('Skipping empty data or WebSocket not ready');
           }
         });
 
