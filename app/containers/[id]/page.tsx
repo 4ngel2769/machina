@@ -58,7 +58,19 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
       const response = await fetch(`/api/containers/${resolvedParams.id}`);
       if (response.ok) {
         const data = await response.json();
-        setContainer(data.data);
+        console.log('Container data:', data.data);
+        console.log('Container ID:', data.data?.id);
+        console.log('Container ID type:', typeof data.data?.id);
+        if (data.data && typeof data.data.id === 'string') {
+          setContainer(data.data);
+        } else {
+          console.error('Invalid container data received:', data.data);
+          setContainer(null);
+        }
+      } else {
+        console.error('Container API error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
       }
     } catch (error) {
       console.error('Error fetching container:', error);
@@ -180,7 +192,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
             <CardTitle className="text-sm font-medium">Container ID</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xs font-mono text-muted-foreground">{container.id.slice(0, 12)}</div>
+            <div className="text-xs font-mono text-muted-foreground">{container.id?.slice(0, 12) || 'unknown'}</div>
           </CardContent>
         </Card>
         <Card>
@@ -239,7 +251,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ContainerTerminal containerId={container.id} />
+              <ContainerTerminal containerId={container.id || ''} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -253,7 +265,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ContainerLogs containerId={container.id} />
+              <ContainerLogs containerId={container.id || ''} />
             </CardContent>
           </Card>
         </TabsContent>
