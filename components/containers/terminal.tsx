@@ -115,6 +115,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           setConnectionStatus('connected');
           terminal.writeln('\x1b[32m✓ Connected to interactive shell\x1b[0m');
           terminal.writeln('\x1b[36mType commands below. Click the terminal to focus it.\x1b[0m');
+          terminal.writeln('\x1b[90mTerminal is ready for input...\x1b[0m');
           terminal.writeln('');
           
           // Send initial terminal size
@@ -178,19 +179,26 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         // Send input to container via WebSocket
         terminal.onData((data: string) => {
           console.log('Terminal onData received:', data.length, 'bytes:', JSON.stringify(data));
-          if (ws && ws.readyState === WebSocket.OPEN && data.length > 0) {
-            try {
-              const message = JSON.stringify({
-                type: 'input',
-                data: data,
-              });
-              console.log('Sending to WebSocket:', message);
-              ws.send(message);
-            } catch (error) {
-              console.error('Error sending input to WebSocket:', error);
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            if (data.length > 0) {
+              try {
+                const message = JSON.stringify({
+                  type: 'input',
+                  data: data,
+                });
+                console.log('Sending JSON to WebSocket:', message);
+                ws.send(message);
+              } catch (error) {
+                console.error('Error creating JSON message:', error);
+                // Fallback: send raw data
+                console.log('Sending raw data to WebSocket:', JSON.stringify(data));
+                ws.send(data);
+              }
+            } else {
+              console.log('Skipping empty data');
             }
           } else {
-            console.log('Skipping empty data or WebSocket not ready');
+            console.log('WebSocket not ready, skipping data');
           }
         });
 

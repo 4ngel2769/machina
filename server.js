@@ -120,10 +120,12 @@ app.prepare().then(async () => {
       // Give the shell a moment to initialize and send a newline to get the prompt
       setTimeout(() => {
         if (stream && !stream.destroyed) {
-          console.log('[Terminal] Sending initial newline to get prompt');
-          stream.write('\n');
+          console.log('[Terminal] Sending initial commands to set up shell');
+          // Send some setup commands
+          stream.write('export PS1="$ "\n');
+          stream.write('clear\n');
         }
-      }, 500);
+      }, 1000);
 
       // Forward data from container to WebSocket
       stream.on('data', (chunk) => {
@@ -190,7 +192,15 @@ app.prepare().then(async () => {
             return;
           }
           
-          const data = JSON.parse(rawMessage);
+          let data;
+          try {
+            // Try to parse as JSON first
+            data = JSON.parse(rawMessage);
+          } catch (jsonError) {
+            // If not JSON, treat as raw input data
+            console.log('[Terminal] Treating as raw input data');
+            data = { type: 'input', data: rawMessage };
+          }
           
           if (data.type === 'input') {
             // Write input to container
