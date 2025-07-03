@@ -81,18 +81,49 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           terminal.open(terminalRef.current);
           fitAddon.fit();
           
+          // Make the terminal container focusable
+          terminalRef.current.tabIndex = 0;
+          terminalRef.current.style.outline = 'none';
+          terminalRef.current.style.cursor = 'text';
+          
+          // Add focus styling
+          terminalRef.current.style.border = '2px solid transparent';
+          const focusStyle = () => {
+            if (terminalRef.current) {
+              terminalRef.current.style.border = '2px solid #007acc';
+            }
+          };
+          const blurStyle = () => {
+            if (terminalRef.current) {
+              terminalRef.current.style.border = '2px solid transparent';
+            }
+          };
+          
+          terminalRef.current.addEventListener('focus', focusStyle);
+          terminalRef.current.addEventListener('blur', blurStyle);
+          
           // Focus the terminal to enable input
           terminal.focus();
           
-          // Add a click handler to focus the terminal
-          terminalRef.current.addEventListener('click', () => {
+          // Add multiple event handlers to maintain focus
+          const focusTerminal = () => {
             terminal.focus();
+            terminalRef.current?.focus();
+          };
+          
+          terminalRef.current.addEventListener('mousedown', focusTerminal);
+          terminalRef.current.addEventListener('click', focusTerminal);
+          terminalRef.current.addEventListener('focus', focusTerminal);
+          
+          // Prevent focus loss
+          terminalRef.current.addEventListener('blur', (e) => {
+            e.preventDefault();
+            setTimeout(focusTerminal, 10);
           });
           
-          // Also focus on any keydown to ensure it stays focused
-          terminalRef.current.addEventListener('keydown', () => {
-            terminal.focus();
-          });
+          // Focus on any interaction
+          terminalRef.current.addEventListener('keydown', focusTerminal);
+          terminalRef.current.addEventListener('keyup', focusTerminal);
         }
 
         termRef.current = terminal;
@@ -125,7 +156,8 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           }
           
           // Ensure terminal stays focused
-          setTimeout(() => terminal.focus(), 100);
+          terminal.focus();
+          terminalRef.current?.focus();
         };
 
         ws.onmessage = (event) => {
@@ -140,15 +172,21 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
               case 'output':
                 if (typeof message.data === 'string') {
                   terminal.write(message.data);
-                  // Re-focus terminal after writing output
-                  setTimeout(() => terminal.focus(), 10);
+                  // Re-focus terminal after writing output with higher priority
+                  setTimeout(() => {
+                    terminal.focus();
+                    terminalRef.current?.focus();
+                  }, 1);
                 } else {
                   console.warn('Received non-string output:', message.data);
                 }
                 break;
               case 'error':
                 terminal.writeln(`\r\n\x1b[31mError: ${message.data}\x1b[0m\r\n`);
-                setTimeout(() => terminal.focus(), 10);
+                setTimeout(() => {
+                  terminal.focus();
+                  terminalRef.current?.focus();
+                }, 1);
                 break;
               case 'disconnected':
                 terminal.writeln(`\r\n\x1b[33m${message.data}\x1b[0m\r\n`);
@@ -163,7 +201,10 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
             // Try to display raw data if it's not JSON
             if (typeof event.data === 'string') {
               terminal.write(event.data);
-              setTimeout(() => terminal.focus(), 10);
+              setTimeout(() => {
+                terminal.focus();
+                terminalRef.current?.focus();
+              }, 1);
             }
           }
         };
@@ -215,8 +256,30 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         };
         window.addEventListener('resize', handleResize);
 
+        // Focus trap - prevent focus from leaving the terminal
+        const handleFocusOut = (e: FocusEvent) => {
+          // If focus is leaving the terminal area, refocus it immediately
+          if (terminalRef.current && !terminalRef.current.contains(e.relatedTarget as Node)) {
+            e.preventDefault();
+            terminal.focus();
+            terminalRef.current.focus();
+          }
+        };
+        
+        document.addEventListener('focusout', handleFocusOut);
+
+        // Periodic focus check to ensure terminal stays focused
+        const focusInterval = setInterval(() => {
+          if (connectionStatus === 'connected' && terminalRef.current && document.activeElement !== terminalRef.current) {
+            terminal.focus();
+            terminalRef.current.focus();
+          }
+        }, 1000);
+
         return () => {
           window.removeEventListener('resize', handleResize);
+          document.removeEventListener('focusout', handleFocusOut);
+          clearInterval(focusInterval);
           if (ws) {
             ws.close();
           }
@@ -243,7 +306,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         termRef.current = null;
       }
     };
-  }, [open, container]);
+  }, [open, container, connectionStatus]);
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
