@@ -9,6 +9,7 @@ interface ContainerStore {
   error: string | null;
   isAutoRefreshEnabled: boolean;
   refreshInterval: NodeJS.Timeout | null;
+  loadingActions: Record<string, boolean>; // Track loading state for individual actions
   
   // Actions
   fetchContainers: () => Promise<void>;
@@ -29,6 +30,7 @@ export const useContainers = create<ContainerStore>((set, get) => ({
   error: null,
   isAutoRefreshEnabled: false,
   refreshInterval: null,
+  loadingActions: {},
 
   fetchContainers: async () => {
     try {
@@ -72,8 +74,13 @@ export const useContainers = create<ContainerStore>((set, get) => ({
   },
 
   startContainer: async (id: string) => {
+    const actionKey = `start-${id}`;
     try {
-      set({ error: null });
+      set((state) => ({
+        error: null,
+        loadingActions: { ...state.loadingActions, [actionKey]: true }
+      }));
+      
       const response = await fetch(`/api/containers/${id}/start`, {
         method: 'POST',
       });
@@ -88,20 +95,29 @@ export const useContainers = create<ContainerStore>((set, get) => ({
         containers: state.containers.map((c) =>
           c.id === id ? { ...c, status: 'running' as ContainerStatus } : c
         ),
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
       }));
       
       // Refresh to get accurate state
       setTimeout(() => get().fetchContainers(), 500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start container';
-      set({ error: errorMessage });
+      set((state) => ({
+        error: errorMessage,
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
+      }));
       throw error;
     }
   },
 
   stopContainer: async (id: string) => {
+    const actionKey = `stop-${id}`;
     try {
-      set({ error: null });
+      set((state) => ({
+        error: null,
+        loadingActions: { ...state.loadingActions, [actionKey]: true }
+      }));
+      
       const response = await fetch(`/api/containers/${id}/stop`, {
         method: 'POST',
       });
@@ -116,20 +132,29 @@ export const useContainers = create<ContainerStore>((set, get) => ({
         containers: state.containers.map((c) =>
           c.id === id ? { ...c, status: 'exited' as ContainerStatus } : c
         ),
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
       }));
       
       // Refresh to get accurate state
       setTimeout(() => get().fetchContainers(), 500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to stop container';
-      set({ error: errorMessage });
+      set((state) => ({
+        error: errorMessage,
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
+      }));
       throw error;
     }
   },
 
   restartContainer: async (id: string) => {
+    const actionKey = `restart-${id}`;
     try {
-      set({ error: null });
+      set((state) => ({
+        error: null,
+        loadingActions: { ...state.loadingActions, [actionKey]: true }
+      }));
+      
       const response = await fetch(`/api/containers/${id}/restart`, {
         method: 'POST',
       });
@@ -144,13 +169,17 @@ export const useContainers = create<ContainerStore>((set, get) => ({
         containers: state.containers.map((c) =>
           c.id === id ? { ...c, status: 'restarting' as ContainerStatus } : c
         ),
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
       }));
       
       // Refresh to get accurate state
       setTimeout(() => get().fetchContainers(), 1000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to restart container';
-      set({ error: errorMessage });
+      set((state) => ({
+        error: errorMessage,
+        loadingActions: { ...state.loadingActions, [actionKey]: false }
+      }));
       throw error;
     }
   },
