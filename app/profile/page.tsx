@@ -61,12 +61,10 @@ export default function ProfilePage() {
     try {
       // Fetch token balance via API
       if (session?.user?.id) {
-        const quotaResponse = await fetch(`/api/admin/quotas?userId=${session.user.id}`);
+        const quotaResponse = await fetch('/api/settings/quota');
         if (quotaResponse.ok) {
           const quotaData = await quotaResponse.json();
-          if (quotaData && quotaData.length > 0) {
-            setTokenBalance(quotaData[0].tokenBalance || 0);
-          }
+          setTokenBalance(quotaData.tokenBalance || 0);
         }
       }
 
