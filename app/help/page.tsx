@@ -331,32 +331,32 @@ export default function HelpPage() {
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Go to Dashboard</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
-                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
+                      <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">D</kbd>
                     </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Go to Containers</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
-                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
+                      <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd>
                     </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Go to Virtual Machines</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
-                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
+                      <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd>
                     </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Go to Settings</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
-                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
+                      <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">S</kbd>
                     </div>
                   </div>
@@ -369,7 +369,7 @@ export default function HelpPage() {
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Create new (context-aware)</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
                       <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">N</kbd>
                     </div>
@@ -377,7 +377,7 @@ export default function HelpPage() {
                   <div className="flex items-center justify-between py-2 border-b">
                     <span className="text-sm">Refresh current page</span>
                     <div className="flex gap-1">
-                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Shift</kbd>
                       <span className="text-muted-foreground">+</span>
                       <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">R</kbd>
                     </div>
