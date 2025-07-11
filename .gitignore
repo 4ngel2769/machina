@@ -32,6 +32,7 @@ yarn-error.log*
 *.md
 logs/
 data/
+.vscode/
 
 # env files (can opt-in for committing if needed)
 .env
