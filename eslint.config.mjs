@@ -12,11 +12,22 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Custom ignores:
+    "node_modules/**",
+    // Custom ignores migrated from legacy .eslintignore:
     "server.js",
     "lib/proxy-manager.cjs",
+    "lib/proxy-manager.js",
+    "lib/auth/user-storage-init.cjs",
+    "lib/auth/user-storage-mongo-init.cjs",
     "*.config.js",
   ]),
+  {
+    files: ["**/*.cjs", "scripts/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-var-requires": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
