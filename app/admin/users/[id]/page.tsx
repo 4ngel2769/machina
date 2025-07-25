@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,12 +84,7 @@ export default function AdminUserDetailPage() {
     }
   }, [session, router]);
 
-  // Fetch user details
-  useEffect(() => {
-    fetchUserDetails();
-  }, [userId]);
-
-  const fetchUserDetails = async () => {
+  const fetchUserDetails = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -121,7 +116,12 @@ export default function AdminUserDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  // Fetch user details
+  useEffect(() => {
+    fetchUserDetails();
+  }, [fetchUserDetails]);
 
   const handleSuspendUser = async () => {
     if (!user) return;
