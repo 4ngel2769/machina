@@ -89,11 +89,11 @@ export function Sidebar() {
   });
   const pathname = usePathname();
 
-  const toggleSidebar = () => {
+  const toggleSidebar = useCallback(() => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', JSON.stringify(newState));
-  };
+  }, [isCollapsed]);
 
   // Fetch version info and setup keyboard shortcuts on mount
   useEffect(() => {
@@ -112,7 +112,7 @@ export function Sidebar() {
     return () => {
       window.removeEventListener('toggle-sidebar', handleToggleSidebar);
     };
-  }, []);
+  }, [toggleSidebar]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: '/login' });

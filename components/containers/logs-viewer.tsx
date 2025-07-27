@@ -30,6 +30,26 @@ export function LogsViewer({ container, open, onClose }: LogsViewerProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchLogs = useCallback(async () => {
+    if (!container) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/containers/${container.id}/logs?tail=1000`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch logs');
+      }
+
+      const data = await response.json();
+      setLogs(data.data.logs || 'No logs available');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch logs');
+      setLogs('Error loading logs');
+    } finally {
+      setLoading(false);
+    }
+  }, [container]);
+
   useEffect(() => {
     if (open && container) {
       fetchLogs();
@@ -55,26 +75,6 @@ export function LogsViewer({ container, open, onClose }: LogsViewerProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [filteredLogs, autoScroll]);
-
-  const fetchLogs = useCallback(async () => {
-    if (!container) return;
-
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/containers/${container.id}/logs?tail=1000`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch logs');
-      }
-
-      const data = await response.json();
-      setLogs(data.data.logs || 'No logs available');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to fetch logs');
-      setLogs('Error loading logs');
-    } finally {
-      setLoading(false);
-    }
-  }, [container]);
 
   const downloadLogs = () => {
     const blob = new Blob([logs], { type: 'text/plain' });
