@@ -35,15 +35,15 @@ export function VMConsole({
 
   // Use PUBLIC_HOST from environment if spiceHost is not provided or is a local address
   const resolvedWsUrl = useMemo(() => {
-    if (wsPath && typeof window !== 'undefined') {
+    if (vncPath && typeof window !== 'undefined') {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${protocol}//${window.location.host}${wsPath}`;
+      return `${protocol}//${window.location.host}${vncPath}`;
     }
     if (wsUrl) {
       return wsUrl;
     }
     return undefined;
-  }, [wsUrl, wsPath]);
+  }, [wsUrl, vncPath]);
   const hasBoth = hasVnc && hasSpice;
   const allowSpiceFallback = !hasVnc || vncFailed;
 
