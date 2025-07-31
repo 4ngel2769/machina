@@ -34,16 +34,16 @@ export function VMConsole({
   const [vncFailed, setVncFailed] = useState(false);
 
   // Use PUBLIC_HOST from environment if spiceHost is not provided or is a local address
-  const effectiveSpiceHost = spiceHost && 
-    spiceHost !== '0.0.0.0' && 
-    spiceHost !== '127.0.0.1' && 
-    spiceHost !== 'localhost' 
-      ? spiceHost 
-      : (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
-
-  // Check if both protocols are available
-  const hasVnc = Boolean(vncUrl || vncPath);
-  const hasSpice = !!effectiveSpiceHost && !!spicePort;
+  const resolvedWsUrl = useMemo(() => {
+    if (wsPath && typeof window !== 'undefined') {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${window.location.host}${wsPath}`;
+    }
+    if (wsUrl) {
+      return wsUrl;
+    }
+    return undefined;
+  }, [wsUrl, wsPath]);
   const hasBoth = hasVnc && hasSpice;
   const allowSpiceFallback = !hasVnc || vncFailed;
 
