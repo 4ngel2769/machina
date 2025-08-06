@@ -24,9 +24,9 @@ import { toast } from 'sonner';
 import type RFB from '@novnc/novnc/lib/rfb.js';
 import type { RFBEvent } from '@novnc/novnc/lib/rfb.js';
 
-// Dynamically import RFB from noVNC (client-side only)
+// Dynamically import RFB from vendored noVNC bundle (client-side only)
 const loadRFB = async () => {
-  const { default: RFB } = await import('@/lib/novnc-cjs');
+  const { default: RFB } = await import('@/lib/novnc-client');
   return RFB;
 };
 
