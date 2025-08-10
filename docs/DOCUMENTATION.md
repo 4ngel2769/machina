@@ -1,7 +1,5 @@
 <div align="center">
-
-# Machina Deployment & Operations Guide
-
+<h1>Machina Deployment & Operations Guide</h1>
 <h3>Complete Installation, Configuration & Validation Workflow</h3>
 
 [![Documentation](https://img.shields.io/badge/Docs-Complete-success?style=flat)]()
@@ -14,7 +12,7 @@
 <em>This document expands on the top-level README by walking through a full installation, configuration, and validation workflow for Machina. Share it with customer teams, solution architects, and DevSecOps engineers who need to stand up a cluster-quality instance rather than just clone the repo.</em>
 </p>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Table of Contents</h1>
+<h1 align="center">Table of Contents</h1>
 
 <div align="center">
 
@@ -30,7 +28,7 @@
 
 </div>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">1. Audience & Goals</h1>
+<h1 align="center">1. Audience & Goals</h1>
 
 | 👥 Role | 🎯 Focus |
 |---------|----------|
@@ -40,7 +38,7 @@
 
 </div>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">2. Platform Requirements</h1>
+<h1 align="center">2. Platform Requirements</h1>
 <tr>
 <td width="50%">
 
@@ -69,7 +67,7 @@
 </tr>
 </table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;"> 3. System Preparation</h1>
+<h1 align="center"> 3. System Preparation</h1>
 <tr>
 <td>
 
@@ -108,7 +106,7 @@ sudo systemctl status docker
 </tr>
 </table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">4. Repository & Dependencies</h1>
+<h1 align="center">4. Repository & Dependencies</h1>
 <tr>
 <td>
 
@@ -136,7 +134,7 @@ npm run init-data
 </tr>
 </table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">5. Environment Configuration</h1>
+<h1 align="center">5. Environment Configuration</h1>
 
 1. Duplicate `.env.example` → `.env`.
 2. Mandatory keys:
@@ -156,7 +154,7 @@ npm run init-data
 
 Keep configuration under version control only if secrets are injected via a secure store (e.g., `.env.local` managed by your secret manager).
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">🚀 6. First Run & Verification</h1>
+<h1 align="center">🚀 6. First Run & Verification</h1>
 
 ```bash
 # Development launch
@@ -204,7 +202,7 @@ Verify dashboard WebSocket metrics
 </tr>
 </table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">7. Secure Console Workflow Deep Dive</h1>
+<h1 align="center">7. Secure Console Workflow Deep Dive</h1>
 
 1. User opens the VM Console tab.
 2. Machina reads libvirt display info (`/api/vms/[id]/display`).
@@ -226,7 +224,7 @@ Verify dashboard WebSocket metrics
 </tr>
 </table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">8. Operations & Maintenance</h1>
+<h1 align="center">8. Operations & Maintenance</h1>
 
 - **Quotas & tokens:** Use `/admin/quotas` and `/admin/tokens` to adjust plans after migration.
 - **Backups:** Archive the `data/` directory and MongoDB dump nightly. Example cron entry:
@@ -237,7 +235,7 @@ Verify dashboard WebSocket metrics
 - **Proxy manager health:** Configure a process supervisor (systemd service) if you run the custom `server.js` to multiplex HTTP + WS traffic.
 - **Upgrades:** Review release notes, run `npm install`, then re-run `npm run build` and restart the PM2/systemd service.
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">9. Troubleshooting Reference</h1>
+<h1 align="center">9. Troubleshooting Reference</h1>
 
 | Symptom | Possible Cause | Resolution |
 | --- | --- | --- |
