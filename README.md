@@ -25,15 +25,12 @@ Machina is a unified operations plane for teams that manage both libvirt-based v
 
 <h1>What Machina Delivers</h1>
 
-**Unified Orchestration**: Create, monitor, and audit VMs and containers from one console.
+**Unified Orchestration**: Create, monitor, and audit VMs and containers from one console.</br>
+**Secure Console Access**: Built-in VNC/SPICE proxy manager with expiring session tokens and Cloudflare-friendly WebSocket popups.</br>
+**Operational Guardrails**: Multi-tenant quotas, token plans, rate limiting, audit/event logs, and automated backups.</br>
+**Productivity Tooling**: Command palette, contextual help, activity feeds, and real-time health widgets for operators.</br>
 
-**Secure Console Access**: Built-in VNC/SPICE proxy manager with expiring session tokens and Cloudflare-friendly WebSocket popups.
-
-**Operational Guardrails**: Multi-tenant quotas, token plans, rate limiting, audit/event logs, and automated backups.
-
-**Productivity Tooling**: Command palette, contextual help, activity feeds, and real-time health widgets for operators.
-
-<h1>Who Uses Machina</h1>
+<h1>Who Machina is For</h1>
 
 | User Type | Use Case |
 |------------|-------------|
