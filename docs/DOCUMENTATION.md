@@ -12,23 +12,20 @@
 <em>This document expands on the top-level README by walking through a full installation, configuration, and validation workflow for Machina. Share it with customer teams, solution architects, and DevSecOps engineers who need to stand up a cluster-quality instance rather than just clone the repo.</em>
 </p>
 
-<h1 align="center">Table of Contents</h1>
+# Table of Contents
 
-<div align="center">
+- [**Audience & Goals**](#1-audience--goals)
+- [**Platform Requirements**](#2-platform-requirements)
+- [**System Preparation**](#3-system-preparation)
+- [**Repository Setup**](#4-repository--dependencies)
+- [**Environment Config**](#5-environment-configuration)
+- [**First Run**](#6-first-run--verification)
+- [**Console Workflow**](#7-secure-console-workflow-deep-dive)
+- [**Operations**](#8-operations--maintenance)
+- [**Troubleshooting**](#9-troubleshooting-reference)
 
-[**Audience & Goals**](#1-audience--goals) • 
-[**Platform Requirements**](#2-platform-requirements) • 
-[**System Preparation**](#3-system-preparation) • 
-[**Repository Setup**](#4-repository--dependencies) • 
-[**Environment Config**](#5-environment-configuration) • 
-[**First Run**](#6-first-run--verification) • 
-[**Console Workflow**](#7-secure-console-workflow-deep-dive) • 
-[**Operations**](#8-operations--maintenance) • 
-[**Troubleshooting**](#9-troubleshooting-reference)
 
-</div>
-
-<h1 align="center">1. Audience & Goals</h1>
+# 1. Audience & Goals
 
 | 👥 Role | 🎯 Focus |
 |---------|----------|
@@ -38,7 +35,7 @@
 
 </div>
 
-<h1 align="center">2. Platform Requirements</h1>
+# 2. Platform Requirements
 <tr>
 <td width="50%">
 
@@ -51,9 +48,6 @@
 | **Node.js** | v20 or v22 LTS |
 | **Package Mgrs** | npm 10+, pip 23+ |
 
-</td>
-<td width="50%">
-
 ### Virtualization & Containers
 
 | Component | Requirement |
@@ -63,13 +57,7 @@
 | **Python** | websockify for proxying |
 | **Optional** | MongoDB 6+ |
 
-</td>
-</tr>
-</table>
-
-<h1 align="center"> 3. System Preparation</h1>
-<tr>
-<td>
+# 3. System Preparation
 
 ### Install System Packages (Ubuntu)
 ```bash
@@ -78,21 +66,11 @@ sudo apt update && sudo apt install -y \
   virtinst bridge-utils pkg-config docker.io git
 ```
 
-</td>
-</tr>
-<tr>
-<td>
-
-### 👤 Configure User Access
+### Configure User Access
 ```bash
 sudo usermod -aG libvirt,docker "$USER"
 newgrp libvirt
 ```
-
-</td>
-</tr>
-<tr>
-<td>
 
 ### Validate Dependencies
 ```bash
@@ -102,13 +80,7 @@ virsh list   # Works without sudo
 sudo systemctl status docker
 ```
 
-</td>
-</tr>
-</table>
-
-<h1 align="center">4. Repository & Dependencies</h1>
-<tr>
-<td>
+# 4. Repository & Dependencies
 
 ### Clone & Install
 ```bash
@@ -116,11 +88,6 @@ git clone https://github.com/4ngel2769/machina.git
 cd machina
 npm install
 ```
-
-</td>
-</tr>
-<tr>
-<td>
 
 ### Initialize Data
 ```bash
@@ -130,11 +97,7 @@ npm run init-data
 > [!TIP]
 > When running in MongoDB mode, execute `npm run migrate:mongodb` (or the `scripts/migrate-to-mongodb.*` scripts) after setting `USE_MONGODB=true`.
 
-</td>
-</tr>
-</table>
-
-<h1 align="center">5. Environment Configuration</h1>
+# 5. Environment Configuration
 
 1. Duplicate `.env.example` → `.env`.
 2. Mandatory keys:
@@ -154,7 +117,7 @@ npm run init-data
 
 Keep configuration under version control only if secrets are injected via a secure store (e.g., `.env.local` managed by your secret manager).
 
-<h1 align="center">🚀 6. First Run & Verification</h1>
+# 🚀 6. First Run & Verification
 
 ```bash
 # Development launch
@@ -169,40 +132,23 @@ Navigate to `http://<PUBLIC_HOST>:3000`, log in with the seeded admin user, and 
 
 ### Smoke Tests
 
-<table>
-<tr>
-<td width="25%" align="center">
-
 **VM Lifecycle**
 
-Create a VM, verify `virsh list`, check audit log
-
-</td>
-<td width="25%" align="center">
+Create a VM, verify `virsh list`, check audit logs
 
 **Container Lifecycle**
 
 Create/start container, test in-browser terminal
 
-</td>
-<td width="25%" align="center">
-
 **Uploads**
 
 Test ISO upload to `USER_ISO_UPLOAD_DIR`
-
-</td>
-<td width="25%" align="center">
 
 **Live Stats**
 
 Verify dashboard WebSocket metrics
 
-</td>
-</tr>
-</table>
-
-<h1 align="center">7. Secure Console Workflow Deep Dive</h1>
+# 7. Secure Console Workflow Deep Dive
 
 1. User opens the VM Console tab.
 2. Machina reads libvirt display info (`/api/vms/[id]/display`).
@@ -212,19 +158,11 @@ Verify dashboard WebSocket metrics
 
 ### What to Monitor
 
-<table>
-<tr>
-<td>
-
 - `logs/proxy-manager.log` for crashes or orphaned proxies
 - `audit.jsonl` for `action: "upload"` and `action: "proxy_session"` entries
 - System firewall rules to ensure only Next.js host can reach `WEBSOCKET_BASE_PORT + n`
 
-</td>
-</tr>
-</table>
-
-<h1 align="center">8. Operations & Maintenance</h1>
+# 8. Operations & Maintenance
 
 - **Quotas & tokens:** Use `/admin/quotas` and `/admin/tokens` to adjust plans after migration.
 - **Backups:** Archive the `data/` directory and MongoDB dump nightly. Example cron entry:
@@ -235,7 +173,7 @@ Verify dashboard WebSocket metrics
 - **Proxy manager health:** Configure a process supervisor (systemd service) if you run the custom `server.js` to multiplex HTTP + WS traffic.
 - **Upgrades:** Review release notes, run `npm install`, then re-run `npm run build` and restart the PM2/systemd service.
 
-<h1 align="center">9. Troubleshooting Reference</h1>
+# 9. Troubleshooting Reference
 
 | Symptom | Possible Cause | Resolution |
 | --- | --- | --- |
@@ -245,12 +183,6 @@ Verify dashboard WebSocket metrics
 | `virsh` command not found | libvirt packages missing | Install `libvirt-daemon-system` and restart |
 | ESLint errors in CI | Local `.eslintignore` removed; run `npm run lint` and fix reported files | Fix code or update `eslint.config.mjs` |
 
-<div align="center">
-
-<br>
-
 **Need more detail?** Check [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`README.md`](../README.md)
 
-<sub>Made with 💚 by 4ngel2769</sub>
-
-</div>
+<div align="center">Made with 💚 by 4ngel2769</div>
