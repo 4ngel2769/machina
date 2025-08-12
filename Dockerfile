@@ -25,7 +25,7 @@ RUN apt-get update \
         qemu-utils \
         python3 \
         python3-pip \
-    && pip3 install --no-cache-dir websockify \
+        websockify \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built application
