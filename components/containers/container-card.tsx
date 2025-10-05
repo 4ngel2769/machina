@@ -58,6 +58,16 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
   const isRunning = container.status === 'running';
   const isAmnesic = container.type === 'amnesic';
   const isProtectedContainer = PROTECTED_CONTAINER_NAMES.includes(container.name.toLowerCase());
+  const cpuValue = liveStats?.cpu ?? container.cpu ?? 0;
+  const hasCpuData = isRunning && (liveStats?.cpu !== undefined || container.cpu !== undefined);
+  const memoryPct = typeof liveStats?.memory === 'object'
+    ? liveStats.memory.percentage
+    : typeof container.memory === 'number'
+      ? container.memory
+      : 0;
+  const hasMemoryData = isRunning && (liveStats?.memory !== undefined || typeof container.memory === 'number');
+  const hasNetworkData = isRunning && Boolean(liveStats?.network);
+  const hasDiskData = isRunning && Boolean(liveStats?.blockIO);
 
   // Status badge color
   const getStatusColor = () => {
@@ -257,124 +267,114 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
             </div>
           )}
 
-          {/* Resource Usage - Enhanced with real-time stats */}
-          {isRunning && (
-          {/* Resource Usage - always show skeleton, animate when data is ready */}
-          {(() => {
-            const cpuValue = liveStats?.cpu ?? container.cpu ?? 0;
-            const hasCpuData = isRunning && (liveStats?.cpu !== undefined || container.cpu !== undefined);
-            const memoryPct = typeof liveStats?.memory === 'object'
-              ? liveStats.memory.percentage
-              : (typeof container.memory === 'number' ? container.memory : 0);
-            const hasMemoryData = isRunning && (liveStats?.memory !== undefined || typeof container.memory === 'number');
-
-            return (
-              <div className="space-y-3 rounded-xl border border-border/40 bg-muted/10 p-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">CPU</span>
-                    <div className="flex items-center gap-2">
-                      <span className={cn('font-medium', !hasCpuData && 'text-muted-foreground/70')}>
-                        {hasCpuData ? `${cpuValue.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
-                      </span>
-                      {hasCpuData && cpuValue >= 95 && (
-                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
-                          Critical
-                        </Badge>
-                      )}
-                      {hasCpuData && cpuValue >= 80 && cpuValue < 95 && (
-                        <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                          High
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        !hasCpuData && 'bg-muted-foreground/30',
-                        hasCpuData && cpuValue >= 95 && 'bg-red-500',
-                        hasCpuData && cpuValue >= 80 && cpuValue < 95 && 'bg-yellow-500',
-                        hasCpuData && cpuValue < 80 && 'bg-blue-500'
-                      )}
-                      style={{ width: hasCpuData ? `${Math.min(cpuValue, 100)}%` : '0%' }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Memory</span>
-                    <div className="flex items-center gap-2">
-                      <span className={cn('font-medium', !hasMemoryData && 'text-muted-foreground/70')}>
-                        {hasMemoryData ? `${memoryPct.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
-                      </span>
-                      {hasMemoryData && memoryPct >= 95 && (
-                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
-                          Critical
-                        </Badge>
-                      )}
-                      {hasMemoryData && memoryPct >= 80 && memoryPct < 95 && (
-                        <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                          High
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        !hasMemoryData && 'bg-muted-foreground/30',
-                        hasMemoryData && memoryPct >= 95 && 'bg-red-500',
-                        hasMemoryData && memoryPct >= 80 && memoryPct < 95 && 'bg-yellow-500',
-                        hasMemoryData && memoryPct < 80 && 'bg-blue-500'
-                      )}
-                      style={{ width: hasMemoryData ? `${Math.min(memoryPct, 100)}%` : '0%' }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span>Network</span>
-                      <span className="font-medium text-foreground/80">
-                        {isRunning && liveStats?.network 
-                          ? `↓ ${formatBytes(liveStats.network.rx)} / ↑ ${formatBytes(liveStats.network.tx)}`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
-                      <div
-                        className={cn('h-full transition-all duration-500',
-                          liveStats?.network ? 'bg-green-500' : 'bg-muted-foreground/30')}
-                        style={{ width: liveStats?.network ? '100%' : '0%' }}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span>Disk</span>
-                      <span className="font-medium text-foreground/80">
-                        {isRunning && liveStats?.blockIO 
-                          ? `R ${formatBytes(liveStats.blockIO.read)} / W ${formatBytes(liveStats.blockIO.write)}`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
-                      <div
-                        className={cn('h-full transition-all duration-500',
-                          liveStats?.blockIO ? 'bg-purple-500' : 'bg-muted-foreground/30')}
-                        style={{ width: liveStats?.blockIO ? '100%' : '0%' }}
-                      />
-                    </div>
-                  </div>
+          <div className="space-y-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">CPU</span>
+                <div className="flex items-center gap-2">
+                  <span className={cn('font-medium', !hasCpuData && 'text-muted-foreground/70')}>
+                    {hasCpuData ? `${cpuValue.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
+                  </span>
+                  {hasCpuData && cpuValue >= 95 && (
+                    <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                      Critical
+                    </Badge>
+                  )}
+                  {hasCpuData && cpuValue >= 80 && cpuValue < 95 && (
+                    <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                      High
+                    </Badge>
+                  )}
                 </div>
               </div>
-            );
-          })()}
+              <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all duration-500',
+                    !hasCpuData && 'bg-muted-foreground/30',
+                    hasCpuData && cpuValue >= 95 && 'bg-red-500',
+                    hasCpuData && cpuValue >= 80 && cpuValue < 95 && 'bg-yellow-500',
+                    hasCpuData && cpuValue < 80 && 'bg-blue-500'
+                  )}
+                  style={{ width: hasCpuData ? `${Math.min(cpuValue, 100)}%` : '0%' }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Memory</span>
+                <div className="flex items-center gap-2">
+                  <span className={cn('font-medium', !hasMemoryData && 'text-muted-foreground/70')}>
+                    {hasMemoryData ? `${memoryPct.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
+                  </span>
+                  {hasMemoryData && memoryPct >= 95 && (
+                    <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                      Critical
+                    </Badge>
+                  )}
+                  {hasMemoryData && memoryPct >= 80 && memoryPct < 95 && (
+                    <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                      High
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all duration-500',
+                    !hasMemoryData && 'bg-muted-foreground/30',
+                    hasMemoryData && memoryPct >= 95 && 'bg-red-500',
+                    hasMemoryData && memoryPct >= 80 && memoryPct < 95 && 'bg-yellow-500',
+                    hasMemoryData && memoryPct < 80 && 'bg-blue-500'
+                  )}
+                  style={{ width: hasMemoryData ? `${Math.min(memoryPct, 100)}%` : '0%' }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Network</span>
+                  <span className="font-medium text-foreground/80">
+                    {hasNetworkData && liveStats?.network
+                      ? `↓ ${formatBytes(liveStats.network.rx)} / ↑ ${formatBytes(liveStats.network.tx)}`
+                      : isRunning ? 'Collecting…' : '—'}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full transition-all duration-500',
+                      hasNetworkData ? 'bg-green-500' : 'bg-muted-foreground/30'
+                    )}
+                    style={{ width: hasNetworkData ? '100%' : '0%' }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Disk</span>
+                  <span className="font-medium text-foreground/80">
+                    {hasDiskData && liveStats?.blockIO
+                      ? `R ${formatBytes(liveStats.blockIO.read)} / W ${formatBytes(liveStats.blockIO.write)}`
+                      : isRunning ? 'Collecting…' : '—'}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full transition-all duration-500',
+                      hasDiskData ? 'bg-purple-500' : 'bg-muted-foreground/30'
+                    )}
+                    style={{ width: hasDiskData ? '100%' : '0%' }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
           {isAmnesic && (
             <div className="text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
               ⚠️ Will be deleted when stopped
@@ -396,7 +396,6 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                 Start
               </Button>
             ) : (
-              <Button size="sm" variant="outline" className="flex-1" onClick={handleStop}>
               <Button
                 size="sm"
                 variant="outline"
@@ -406,11 +405,11 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                   handleStop();
                 }}
                 disabled={isProtectedContainer || loadingActions[`stop-${container.id}`]}
+                title={isProtectedContainer ? 'Machina core container actions are locked' : undefined}
               >
                 Stop
               </Button>
             )}
-            {isRunning && onTerminal && (
             {isRunning && onTerminal && (
               <Button
                 size="sm"
@@ -420,6 +419,8 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                   onTerminal(container);
                 }}
               >
+                <Terminal className="mr-1 h-3 w-3" />
+                Terminal
               </Button>
             )}
           </div>
