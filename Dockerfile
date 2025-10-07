@@ -26,7 +26,17 @@ RUN apt-get update \
         python3 \
         python3-pip \
         websockify \
+        git \
+        curl \
+        wget \
+        iputils-ping \
+        net-tools \
+        zsh \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Oh My Zsh and set zsh as default shell
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
+    && chsh -s $(which zsh) root
 
 # Copy built application
 COPY --from=builder /app .
