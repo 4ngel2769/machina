@@ -155,7 +155,12 @@ export default function UsersPage() {
     setSubmitting(true);
 
     try {
-      const updateData: any = {
+      const updateData: {
+        id: string;
+        username: string;
+        role: string;
+        password?: string;
+      } = {
         id: selectedUser.id,
         username: formData.username,
         role: formData.role,
