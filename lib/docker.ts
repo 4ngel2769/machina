@@ -126,14 +126,24 @@ export async function listContainers(all = true) {
 }
 
 /**
- * Create a new container
+ * Create a new container with security hardening
  */
 export async function createContainer(config: CreateContainerRequest) {
   try {
     const docker = getDockerClient();
     
+    // Security: Validate image
+    validateImage(config.image);
+    
     // Generate container name if not provided
-    const name = config.name || `${config.image.split('/').pop()?.split(':')[0]}-${Math.random().toString(36).substring(2, 8)}`;
+    const baseName = config.name || `${config.image.split('/').pop()?.split(':')[0]}-${Math.random().toString(36).substring(2, 8)}`;
+    
+    // Security: Validate container name
+    if (!validateContainerName(baseName)) {
+      throw new Error('Invalid container name. Use only alphanumeric characters, hyphens, and underscores.');
+    }
+    
+    const name = baseName;
     
     // Build port bindings
     const portBindings: Record<string, Array<{ HostPort: string }>> = {};
@@ -141,6 +151,14 @@ export async function createContainer(config: CreateContainerRequest) {
     
     if (config.ports) {
       config.ports.forEach(port => {
+        // Security: Validate port numbers
+        if (port.host < 1024 || port.host > 65535) {
+          throw new Error(`Invalid host port: ${port.host}. Must be between 1024-65535 (unprivileged ports)`);
+        }
+        if (port.container < 1 || port.container > 65535) {
+          throw new Error(`Invalid container port: ${port.container}`);
+        }
+        
         const key = `${port.container}/${port.protocol}`;
         exposedPorts[key] = {};
         portBindings[key] = [{ HostPort: port.host.toString() }];
@@ -148,9 +166,30 @@ export async function createContainer(config: CreateContainerRequest) {
     }
     
     // Build environment variables
-    const env = config.env ? Object.entries(config.env).map(([key, value]) => `${key}=${value}`) : [];
+    let env: string[] = [];
+    if (config.env) {
+      // Security: Validate environment variables
+      validateEnvVars(config.env);
+      env = Object.entries(config.env).map(([key, value]) => `${key}=${value}`);
+    }
     
-    // Create container options
+    // Security: Apply resource limits
+    const resourceLimits = {
+      Memory: DEFAULT_RESOURCE_LIMITS.memory,
+      MemorySwap: DEFAULT_RESOURCE_LIMITS.memorySwap,
+      CpuShares: DEFAULT_RESOURCE_LIMITS.cpuShares,
+      CpuQuota: DEFAULT_RESOURCE_LIMITS.cpuQuota,
+      PidsLimit: DEFAULT_RESOURCE_LIMITS.pidsLimit,
+    };
+    
+    // Security: Drop dangerous capabilities
+    const capDrop = [...BLOCKED_CAPABILITIES, 'ALL'];
+    const capAdd = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID']; // Minimal needed caps
+    
+    // Security: Apply seccomp profile (default Docker seccomp)
+    const securityOpt = ['no-new-privileges:true'];
+    
+    // Create container options with security hardening
     const createOptions: Dockerode.ContainerCreateOptions = {
       Image: config.image,
       name,
@@ -159,6 +198,25 @@ export async function createContainer(config: CreateContainerRequest) {
       HostConfig: {
         PortBindings: portBindings,
         AutoRemove: config.type === 'amnesic', // --rm flag for amnesic containers
+        
+        // Security: Resource limits
+        ...resourceLimits,
+        
+        // Security: Drop dangerous capabilities
+        CapDrop: capDrop,
+        CapAdd: capAdd,
+        
+        // Security: Read-only root filesystem (commented out for compatibility)
+        // ReadonlyRootfs: true, // Enable if containers support it
+        
+        // Security: No privileged mode
+        Privileged: false,
+        
+        // Security: Prevent new privileges
+        SecurityOpt: securityOpt,
+        
+        // Security: Isolate network (unless ports are needed)
+        // NetworkMode: config.ports && config.ports.length > 0 ? 'bridge' : 'none',
       },
       Tty: true,
       OpenStdin: true,
@@ -166,6 +224,9 @@ export async function createContainer(config: CreateContainerRequest) {
       AttachStdout: true,
       AttachStderr: true,
       Cmd: [config.shell], // Default shell
+      
+      // Security: User namespace remapping (run as non-root inside container)
+      // User: '1000:1000', // Uncomment to enforce non-root user
     };
     
     const container = await docker.createContainer(createOptions);
