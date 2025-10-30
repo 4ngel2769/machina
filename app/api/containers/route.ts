@@ -13,6 +13,7 @@ import {
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 import { createContainerSchema } from '@/lib/validation';
 import { checkContainerQuota } from '@/lib/quota-system';
+import { logActivity } from '@/lib/activity-logger';
 
 /**
  * GET /api/containers - List all containers
@@ -195,6 +196,21 @@ export async function POST(request: NextRequest) {
     const { addResourceOwnership } = await import('@/lib/resource-ownership');
     addResourceOwnership(container.id, 'container', session.user.id);
 
+    // Log activity
+    logActivity({
+      userId: session.user.id,
+      username: session.user.name || session.user.email || 'unknown',
+      action: 'container.created',
+      resourceType: 'container',
+      resourceId: container.id,
+      resourceName: config.name || container.id.substring(0, 12),
+      details: {
+        image: config.image,
+        type: config.type,
+      },
+      success: true,
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -207,6 +223,20 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error in POST /api/containers:', error);
+    
+    // Log failed attempt
+    const session = await auth();
+    if (session?.user) {
+      logActivity({
+        userId: session.user.id,
+        username: session.user.username || session.user.email || 'unknown',
+        action: 'container.created',
+        resourceType: 'container',
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
     return NextResponse.json(
       {
         success: false,
