@@ -8,6 +8,7 @@ interface ContainerStore {
   loading: boolean;
   error: string | null;
   isAutoRefreshEnabled: boolean;
+  refreshInterval: NodeJS.Timeout | null;
   
   // Actions
   fetchContainers: () => Promise<void>;
@@ -18,6 +19,8 @@ interface ContainerStore {
   deleteContainer: (id: string) => Promise<void>;
   refreshStats: () => Promise<void>;
   setAutoRefresh: (enabled: boolean) => void;
+  startPolling: (interval?: number) => void;
+  stopPolling: () => void;
 }
 
 export const useContainers = create<ContainerStore>((set, get) => ({
@@ -25,6 +28,7 @@ export const useContainers = create<ContainerStore>((set, get) => ({
   loading: false,
   error: null,
   isAutoRefreshEnabled: false,
+  refreshInterval: null,
 
   fetchContainers: async () => {
     try {
@@ -191,6 +195,32 @@ export const useContainers = create<ContainerStore>((set, get) => ({
 
   setAutoRefresh: (enabled: boolean) => {
     set({ isAutoRefreshEnabled: enabled });
+    if (enabled) {
+      get().startPolling();
+    } else {
+      get().stopPolling();
+    }
+  },
+
+  startPolling: (interval = 3000) => {
+    const state = get();
+    if (state.refreshInterval) {
+      clearInterval(state.refreshInterval);
+    }
+    
+    const intervalId = setInterval(() => {
+      get().refreshStats();
+    }, interval);
+    
+    set({ refreshInterval: intervalId, isAutoRefreshEnabled: true });
+  },
+
+  stopPolling: () => {
+    const state = get();
+    if (state.refreshInterval) {
+      clearInterval(state.refreshInterval);
+      set({ refreshInterval: null, isAutoRefreshEnabled: false });
+    }
   },
 }));
 
