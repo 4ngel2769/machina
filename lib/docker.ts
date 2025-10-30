@@ -4,6 +4,88 @@ import { CreateContainerRequest } from '@/types/container';
 // Docker client singleton
 let dockerClient: Dockerode | null = null;
 
+// Security: Allowed image registries (whitelist approach)
+const ALLOWED_REGISTRIES = [
+  'docker.io',
+  'ghcr.io',
+  'registry.hub.docker.com',
+  'quay.io',
+];
+
+// Security: Blocked dangerous capabilities
+const BLOCKED_CAPABILITIES = [
+  'SYS_ADMIN',
+  'SYS_MODULE',
+  'SYS_RAWIO',
+  'SYS_PTRACE',
+  'SYS_BOOT',
+  'MAC_ADMIN',
+  'MAC_OVERRIDE',
+  'NET_ADMIN',
+];
+
+// Security: Resource limits per container
+const DEFAULT_RESOURCE_LIMITS = {
+  memory: 2 * 1024 * 1024 * 1024, // 2GB
+  memorySwap: 4 * 1024 * 1024 * 1024, // 4GB (memory + swap)
+  cpuShares: 1024, // Default CPU weight
+  cpuQuota: 100000, // 100% of one CPU
+  pidsLimit: 512, // Max processes
+};
+
+/**
+ * Validate container name (prevent injection attacks)
+ */
+function validateContainerName(name: string): boolean {
+  // Only allow alphanumeric, hyphens, and underscores
+  const validPattern = /^[a-zA-Z0-9_-]+$/;
+  return validPattern.test(name) && name.length > 0 && name.length <= 255;
+}
+
+/**
+ * Validate image name and registry
+ */
+function validateImage(image: string): void {
+  // Check for path traversal attempts
+  if (image.includes('..') || image.includes('//')) {
+    throw new Error('Invalid image name: path traversal detected');
+  }
+
+  // Extract registry from image name
+  let registry = 'docker.io'; // default
+  if (image.includes('/')) {
+    const parts = image.split('/');
+    if (parts[0].includes('.')) {
+      registry = parts[0];
+    }
+  }
+
+  // Validate against whitelist
+  const isAllowed = ALLOWED_REGISTRIES.some(allowed => 
+    registry === allowed || registry.endsWith(`.${allowed}`)
+  );
+
+  if (!isAllowed) {
+    throw new Error(`Image registry "${registry}" not allowed. Allowed: ${ALLOWED_REGISTRIES.join(', ')}`);
+  }
+}
+
+/**
+ * Validate environment variables (prevent injection)
+ */
+function validateEnvVars(env: Record<string, string>): void {
+  for (const [key, value] of Object.entries(env)) {
+    // Validate key format
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+      throw new Error(`Invalid environment variable name: ${key}`);
+    }
+    // Check for dangerous values
+    if (value.includes('\n') || value.includes('\r')) {
+      throw new Error(`Environment variable value contains newline: ${key}`);
+    }
+  }
+}
+
 export function getDockerClient(): Dockerode {
   if (!dockerClient) {
     dockerClient = new Dockerode({
