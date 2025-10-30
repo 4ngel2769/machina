@@ -23,7 +23,6 @@ import {
   Home,
   Settings,
   LayoutDashboard,
-  Terminal,
   Search,
 } from 'lucide-react';
 
