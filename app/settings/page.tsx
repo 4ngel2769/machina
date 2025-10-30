@@ -65,12 +65,26 @@ interface GlobalSettings {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchSettings();
+    fetchVersionInfo();
   }, []);
+
+  const fetchVersionInfo = async () => {
+    try {
+      const response = await fetch('/api/version');
+      if (response.ok) {
+        const data = await response.json();
+        setVersionInfo(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch version info:', error);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -267,6 +281,7 @@ export default function SettingsPage() {
           <TabsTrigger value="network">Network</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="about">About</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
