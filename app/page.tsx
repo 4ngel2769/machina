@@ -134,13 +134,11 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {settings.showSystemHealth && <SystemHealthIndicator health={health} />}
+          {settings.showSystemHealth && stats && <SystemHealthIndicator health={health} />}
           <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)}>
             <Settings className="h-4 w-4" />
           </Button>
         </div>
-      </div>
-        {stats && <SystemHealthIndicator health={health} />}
       </div>
 
       {/* Main Stats Cards */}
@@ -360,10 +358,19 @@ export default function DashboardPage() {
       </div>
 
       {/* Activity Feed */}
-      <ActivityFeed maxItems={10} />
+      {settings.showActivityFeed && <ActivityFeed maxItems={10} />}
 
       {/* Quick Actions Panel */}
-      <QuickActionsPanel />
+      {settings.showQuickActions && <QuickActionsPanel />}
+
+      {/* Settings Dialog */}
+      <DashboardSettingsPanel
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+        onReset={handleResetSettings}
+      />
     </div>
   );
 }
