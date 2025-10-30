@@ -6,6 +6,8 @@ import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Shield,
@@ -19,6 +21,9 @@ import {
   Trash2,
   Play,
   Square,
+  Plus,
+  Minus,
+  DollarSign,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -68,6 +73,8 @@ export default function AdminUserDetailPage() {
   const [containers, setContainers] = useState<UserContainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [tokenAmount, setTokenAmount] = useState<number>(100);
+  const [tokenAction, setTokenAction] = useState<'add' | 'remove' | 'set'>('add');
 
   // Check admin access
   useEffect(() => {
@@ -188,6 +195,57 @@ export default function AdminUserDetailPage() {
     } catch (error) {
       console.error(`Error ${action}ing container:`, error);
       toast.error(`Failed to ${action} container`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTokenManagement = async () => {
+    if (!user || tokenAmount <= 0) {
+      toast.error('Invalid token amount');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      let endpoint = '';
+      let method = 'POST';
+      let body = {};
+
+      if (tokenAction === 'add') {
+        endpoint = '/api/admin/tokens';
+        method = 'POST';
+        body = { userId: user.id, amount: tokenAmount };
+      } else if (tokenAction === 'remove') {
+        endpoint = '/api/admin/tokens';
+        method = 'DELETE';
+        body = { userId: user.id, amount: tokenAmount };
+      } else {
+        endpoint = '/api/admin/tokens';
+        method = 'PUT';
+        body = { userId: user.id, balance: tokenAmount };
+      }
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to manage tokens');
+      }
+
+      const data = await response.json();
+      toast.success(`Tokens ${tokenAction === 'set' ? 'set to' : tokenAction === 'add' ? 'added:' : 'removed:'} ${tokenAmount}`);
+      
+      // Update user state with new token balance
+      setUser(prev => prev ? { ...prev, tokens: data.tokenBalance } : null);
+      setTokenAmount(100); // Reset to default
+    } catch (error) {
+      console.error('Error managing tokens:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to manage tokens');
     } finally {
       setActionLoading(false);
     }
@@ -327,7 +385,7 @@ export default function AdminUserDetailPage() {
         </Card>
       </div>
 
-      {/* Tabs for VMs, Containers, and Logs */}
+      {/* Tabs for VMs, Containers, Tokens, and Logs */}
       <Tabs defaultValue="vms" className="w-full">
         <TabsList>
           <TabsTrigger value="vms">
@@ -337,6 +395,10 @@ export default function AdminUserDetailPage() {
           <TabsTrigger value="containers">
             <ContainerIcon className="h-4 w-4 mr-2" />
             Containers ({containers.length})
+          </TabsTrigger>
+          <TabsTrigger value="tokens">
+            <Coins className="h-4 w-4 mr-2" />
+            Token Management
           </TabsTrigger>
           <TabsTrigger value="logs">
             <Activity className="h-4 w-4 mr-2" />
@@ -462,6 +524,113 @@ export default function AdminUserDetailPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tokens Tab */}
+        <TabsContent value="tokens" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Token Management</CardTitle>
+              <CardDescription>Add, remove, or set user token balance</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Current Balance */}
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Balance</p>
+                    <p className="text-3xl font-bold">{user?.tokens || 0}</p>
+                  </div>
+                  <Coins className="h-12 w-12 text-muted-foreground opacity-50" />
+                </div>
+              </div>
+
+              {/* Token Actions */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="tokenAction">Action</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant={tokenAction === 'add' ? 'default' : 'outline'}
+                      onClick={() => setTokenAction('add')}
+                      className="flex-1"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Tokens
+                    </Button>
+                    <Button
+                      variant={tokenAction === 'remove' ? 'default' : 'outline'}
+                      onClick={() => setTokenAction('remove')}
+                      className="flex-1"
+                    >
+                      <Minus className="h-4 w-4 mr-2" />
+                      Remove Tokens
+                    </Button>
+                    <Button
+                      variant={tokenAction === 'set' ? 'default' : 'outline'}
+                      onClick={() => setTokenAction('set')}
+                      className="flex-1"
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Set Balance
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="tokenAmount">
+                    {tokenAction === 'set' ? 'New Balance' : 'Amount'}
+                  </Label>
+                  <Input
+                    id="tokenAmount"
+                    type="number"
+                    min="1"
+                    value={tokenAmount}
+                    onChange={(e) => setTokenAmount(parseInt(e.target.value) || 0)}
+                    className="mt-2"
+                    placeholder={tokenAction === 'set' ? 'Enter new balance' : 'Enter amount'}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleTokenManagement}
+                  disabled={actionLoading || !tokenAmount || tokenAmount <= 0}
+                  className="w-full"
+                  size="lg"
+                >
+                  {actionLoading ? 'Processing...' : `${tokenAction === 'set' ? 'Set Balance to' : tokenAction === 'add' ? 'Add' : 'Remove'} ${tokenAmount} Tokens`}
+                </Button>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium mb-3">Quick Actions</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[100, 500, 1000].map((amount) => (
+                    <Button
+                      key={amount}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTokenAmount(amount);
+                        setTokenAction('add');
+                      }}
+                      disabled={actionLoading}
+                    >
+                      +{amount}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="text-xs text-muted-foreground space-y-1 p-4 bg-muted/50 rounded-lg">
+                <p>💡 <strong>Add:</strong> Increases the user&apos;s token balance</p>
+                <p>➖ <strong>Remove:</strong> Decreases the user&apos;s token balance</p>
+                <p>⚙️ <strong>Set:</strong> Sets an exact token balance (overwrites current)</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
