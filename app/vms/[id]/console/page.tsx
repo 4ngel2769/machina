@@ -1,3 +1,5 @@
+// will add a switch for vnc/console/spice
+
 'use client';
 
 import { useEffect, useState } from 'react';
