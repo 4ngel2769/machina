@@ -265,7 +265,7 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <h4 className="font-semibold">Container won't start</h4>
+                <h4 className="font-semibold">Container won&apos;t start</h4>
                 <p className="text-sm text-muted-foreground">
                   Check the logs for error messages. Common issues include port conflicts, invalid image names, or resource limitations. Verify that the Docker image exists and is accessible.
                 </p>
@@ -274,18 +274,18 @@ export default function HelpPage() {
               <Separator />
 
               <div className="space-y-2">
-                <h4 className="font-semibold">VM stuck in "Creating" state</h4>
+                <h4 className="font-semibold">VM stuck in &quot;Creating&quot; state</h4>
                 <p className="text-sm text-muted-foreground">
-                  This usually indicates insufficient system resources. Check the host system's available memory and CPU. You may need to stop other VMs or wait for resources to become available.
+                  This usually indicates insufficient system resources. Check the host system&apos;s available memory and CPU. You may need to stop other VMs or wait for resources to become available.
                 </p>
               </div>
 
               <Separator />
 
               <div className="space-y-2">
-                <h4 className="font-semibold">Can't connect to container via SSH</h4>
+                <h4 className="font-semibold">Can&apos;t connect to container via SSH</h4>
                 <p className="text-sm text-muted-foreground">
-                  Ensure the container has SSH installed and running. Check that port 22 is mapped correctly. Verify firewall rules aren't blocking the connection.
+                  Ensure the container has SSH installed and running. Check that port 22 is mapped correctly. Verify firewall rules aren&apos;t blocking the connection.
                 </p>
               </div>
 
@@ -352,7 +352,7 @@ export default function HelpPage() {
               {filteredFaq.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   <HelpCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No results found for "{searchQuery}"</p>
+                  <p>No results found for &quot;{searchQuery}&quot;</p>
                   <p className="text-sm mt-2">Try different keywords or browse all categories</p>
                 </div>
               )}
