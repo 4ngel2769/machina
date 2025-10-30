@@ -294,3 +294,118 @@ export function getQuotaUsagePercentage(usage: number, quota: number): number {
 export function isApproachingLimit(usage: number, quota: number): boolean {
   return getQuotaUsagePercentage(usage, quota) >= 80;
 }
+
+// Token management functions
+
+// Add tokens to user balance (admin only)
+export async function addTokens(userId: string, amount: number): Promise<number> {
+  const allQuotas = await getAllQuotas();
+  const index = allQuotas.findIndex(q => q.userId === userId);
+  
+  if (index >= 0) {
+    allQuotas[index].tokenBalance += amount;
+    allQuotas[index].updatedAt = new Date().toISOString();
+    await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: allQuotas }, null, 2));
+    return allQuotas[index].tokenBalance;
+  }
+  
+  throw new Error('User quota not found');
+}
+
+// Remove tokens from user balance (admin only)
+export async function removeTokens(userId: string, amount: number): Promise<number> {
+  const allQuotas = await getAllQuotas();
+  const index = allQuotas.findIndex(q => q.userId === userId);
+  
+  if (index >= 0) {
+    allQuotas[index].tokenBalance = Math.max(0, allQuotas[index].tokenBalance - amount);
+    allQuotas[index].updatedAt = new Date().toISOString();
+    await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: allQuotas }, null, 2));
+    return allQuotas[index].tokenBalance;
+  }
+  
+  throw new Error('User quota not found');
+}
+
+// Set token balance (admin only)
+export async function setTokenBalance(userId: string, balance: number): Promise<number> {
+  const allQuotas = await getAllQuotas();
+  const index = allQuotas.findIndex(q => q.userId === userId);
+  
+  if (index >= 0) {
+    allQuotas[index].tokenBalance = Math.max(0, balance);
+    allQuotas[index].updatedAt = new Date().toISOString();
+    await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: allQuotas }, null, 2));
+    return allQuotas[index].tokenBalance;
+  }
+  
+  throw new Error('User quota not found');
+}
+
+// Upgrade/change user plan
+export async function changePlan(userId: string, newPlanId: string): Promise<UserQuota> {
+  const allQuotas = await getAllQuotas();
+  const index = allQuotas.findIndex(q => q.userId === userId);
+  
+  if (index < 0) {
+    throw new Error('User quota not found');
+  }
+  
+  const newPlan = getPlanById(newPlanId);
+  if (!newPlan) {
+    throw new Error('Invalid plan ID');
+  }
+  
+  const userQuota = allQuotas[index];
+  const currentPlanCost = getPlanById(userQuota.currentPlan)?.tokenCost || 0;
+  const newPlanCost = newPlan.tokenCost;
+  
+  // Check if user has enough tokens (if not free plan)
+  if (newPlanCost > 0 && userQuota.tokenBalance < newPlanCost) {
+    throw new Error(`Insufficient tokens. Need ${newPlanCost}, have ${userQuota.tokenBalance}`);
+  }
+  
+  // Deduct tokens for new plan (monthly cost)
+  if (newPlanCost > 0) {
+    userQuota.tokenBalance -= newPlanCost;
+  }
+  
+  // Update plan and quotas
+  userQuota.currentPlan = newPlanId;
+  userQuota.quotas = newPlan.quotas;
+  userQuota.planActivatedAt = new Date().toISOString();
+  
+  // Set expiration to 30 days from now (monthly billing)
+  const expirationDate = new Date();
+  expirationDate.setDate(expirationDate.getDate() + 30);
+  userQuota.planExpiresAt = expirationDate.toISOString();
+  
+  userQuota.updatedAt = new Date().toISOString();
+  
+  allQuotas[index] = userQuota;
+  await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: allQuotas }, null, 2));
+  
+  return userQuota;
+}
+
+// Check if plan has expired
+export function isPlanExpired(quota: UserQuota): boolean {
+  if (!quota.planExpiresAt || quota.currentPlan === 'free' || quota.currentPlan === 'admin') {
+    return false;
+  }
+  return new Date(quota.planExpiresAt) < new Date();
+}
+
+// Get days until plan expires
+export function getDaysUntilExpiration(quota: UserQuota): number | null {
+  if (!quota.planExpiresAt || quota.currentPlan === 'free' || quota.currentPlan === 'admin') {
+    return null;
+  }
+  
+  const now = new Date();
+  const expiresAt = new Date(quota.planExpiresAt);
+  const diffTime = expiresAt.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays;
+}
