@@ -149,6 +149,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Rate limiting (stricter for creation)
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'create'
+    );
+    if (rateLimitResult) return rateLimitResult;
+
     // Check if Docker is available
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
