@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
-import { CommandPalette } from "@/components/command-palette";
 import { Providers } from "./providers";
+import { ConditionalLayout } from "./conditional-layout";
 import { Toaster } from 'sonner';
 
 const geistSans = Geist({
@@ -32,15 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
-            <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-              <div className="container mx-auto p-6">
-                {children}
-              </div>
-            </main>
-          </div>
-          <CommandPalette />
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
           <Toaster />
         </Providers>
       </body>
