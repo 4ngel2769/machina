@@ -21,19 +21,12 @@ const port = parseInt(process.env.SERVER_PORT || process.env.PORT || '3000', 10)
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-// Initialize default admin user (async import for ES modules)
-async function initializeAuth() {
-  try {
-    const { initializeDefaultAdmin } = await import('./lib/auth/user-storage.ts');
-    await initializeDefaultAdmin();
-  } catch (error) {
-    console.error('Error initializing authentication:', error);
-  }
-}
+// Import auth initialization
+const { initializeDefaultAdmin } = require('./lib/auth/user-storage-init.cjs');
 
 app.prepare().then(async () => {
   // Initialize authentication
-  await initializeAuth();
+  await initializeDefaultAdmin();
 
   const server = createServer(async (req, res) => {
     try {
