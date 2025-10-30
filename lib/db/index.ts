@@ -75,7 +75,7 @@ export async function dbGetAllUsers(): Promise<IUser[]> {
   }
 
   await connectDB();
-  return User.find({ isActive: true }).lean();
+  return User.find({ isActive: true }).lean() as unknown as IUser[];
 }
 
 export async function dbUpdateUser(userId: string, updates: Partial<IUser>): Promise<boolean> {
