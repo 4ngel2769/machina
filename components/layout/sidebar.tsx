@@ -18,6 +18,8 @@ import {
   Shield,
   Search,
   Command,
+  Container,
+  MonitorPlay,
   HelpCircle,
   Info
 } from 'lucide-react';
