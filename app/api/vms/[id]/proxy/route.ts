@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Helper to get proxy manager (dynamic import for CommonJS module)
+async function getProxyManager() {
+  return (await import('@/lib/proxy-manager')).default;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -8,8 +13,7 @@ export async function GET(
     const { id } = await params;
     const vmName = decodeURIComponent(id);
 
-    // Import proxy manager (dynamic to avoid issues)
-    const proxyManager = require('@/lib/proxy-manager');
+    const proxyManager = await getProxyManager();
 
     // Get existing proxy info
     const proxy = proxyManager.getProxy(vmName);
@@ -54,8 +58,7 @@ export async function POST(
       );
     }
 
-    // Import proxy manager
-    const proxyManager = require('@/lib/proxy-manager');
+    const proxyManager = await getProxyManager();
 
     // Check if websockify is installed
     const hasWebsockify = await proxyManager.checkWebsockify();
@@ -99,8 +102,7 @@ export async function DELETE(
     const { id } = await params;
     const vmName = decodeURIComponent(id);
 
-    // Import proxy manager
-    const proxyManager = require('@/lib/proxy-manager');
+    const proxyManager = await getProxyManager();
 
     // Stop the proxy
     const stopped = proxyManager.stopProxy(vmName);
