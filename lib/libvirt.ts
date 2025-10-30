@@ -246,6 +246,9 @@ export function getVMInfo(vmName: string): Partial<VirtualMachine> {
  */
 export function startVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['start', name]);
     return { success: true, message: `VM ${name} started successfully` };
   } catch (error) {
@@ -259,6 +262,9 @@ export function startVM(name: string): { success: boolean; message: string } {
  */
 export function stopVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['shutdown', name]);
     return { success: true, message: `VM ${name} shutdown initiated` };
   } catch (error) {
@@ -272,6 +278,9 @@ export function stopVM(name: string): { success: boolean; message: string } {
  */
 export function forceStopVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['destroy', name]);
     return { success: true, message: `VM ${name} forcefully stopped` };
   } catch (error) {
@@ -285,6 +294,9 @@ export function forceStopVM(name: string): { success: boolean; message: string }
  */
 export function pauseVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['suspend', name]);
     return { success: true, message: `VM ${name} paused` };
   } catch (error) {
@@ -298,6 +310,9 @@ export function pauseVM(name: string): { success: boolean; message: string } {
  */
 export function resumeVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['resume', name]);
     return { success: true, message: `VM ${name} resumed` };
   } catch (error) {
@@ -311,6 +326,9 @@ export function resumeVM(name: string): { success: boolean; message: string } {
  */
 export function deleteVM(name: string): { success: boolean; message: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(name);
+    
     execVirsh(['undefine', name, '--remove-all-storage']);
     return { success: true, message: `VM ${name} deleted` };
   } catch (error) {
@@ -320,14 +338,32 @@ export function deleteVM(name: string): { success: boolean; message: string } {
 }
 
 /**
- * Create a VM
+ * Create a VM with security validations
  */
-export function createVM(options: Record<string, unknown>): { success: boolean; message: string; name?: string } {
+export function createVM(options: {
+  name: string;
+  memory: number;
+  vcpus: number;
+  disk_size: number;
+  iso_path?: string;
+  [key: string]: unknown;
+}): { success: boolean; message: string; name?: string } {
   try {
+    // Security: Validate VM name
+    validateVMName(options.name);
+    
+    // Security: Validate resources
+    validateVMResources(options.memory, options.vcpus, options.disk_size);
+    
+    // Security: Validate ISO path if provided
+    if (options.iso_path) {
+      validateISOPath(options.iso_path);
+    }
+    
     // This is a placeholder - actual implementation will use virt-install
     // which will be called from the API route
-    console.log('Create VM called with options:', options);
-    return { success: true, message: 'VM creation initiated', name: options.name as string };
+    console.log('Create VM called with validated options:', options);
+    return { success: true, message: 'VM creation initiated', name: options.name };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to create VM: ${errorMessage}`);
