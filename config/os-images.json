@@ -7,7 +7,9 @@
     "architecture": "x86_64",
     "minMemory": 2048,
     "minDisk": 25,
-    "downloadUrl": "https://releases.ubuntu.com/22.04/ubuntu-22.04.3-live-server-amd64.iso"
+    "downloadUrl": "https://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso",
+    "sha256": "9bc6028870aef3f74f4e16b900008179e78b130e6b0b9a140635434a46aa98b0",
+    "category": "debian_based"
   },
   {
     "id": "ubuntu-24.04",
@@ -17,7 +19,20 @@
     "architecture": "x86_64",
     "minMemory": 2048,
     "minDisk": 25,
-    "downloadUrl": "https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso"
+    "downloadUrl": "https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso",
+    "sha256": "e240e4b801f7bb68c20d1356b60968ad0c33a41d00d828e74ceb3364a0317be9",
+    "category": "debian_based"
+  },
+  {
+    "id": "debian-11",
+    "name": "Debian 11 (Bullseye)",
+    "variant": "debian11",
+    "version": "11",
+    "architecture": "x86_64",
+    "minMemory": 1024,
+    "minDisk": 10,
+    "downloadUrl": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-11.11.0-amd64-netinst.iso",
+    "category": "debian_based"
   },
   {
     "id": "debian-12",
@@ -25,29 +40,79 @@
     "variant": "debian12",
     "version": "12",
     "architecture": "x86_64",
-    "minMemory": 2048,
-    "minDisk": 20,
-    "downloadUrl": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.0.0-amd64-netinst.iso"
+    "minMemory": 1024,
+    "minDisk": 10,
+    "downloadUrl": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.8.0-amd64-netinst.iso",
+    "sha256": "8fde79cfc6b20a696200fc5c15219960426f2ac9e24f9a3b8e6e8f9e3f72f9d5",
+    "category": "debian_based"
   },
   {
-    "id": "fedora-39",
-    "name": "Fedora 39",
-    "variant": "fedora39",
-    "version": "39",
+    "id": "fedora-40",
+    "name": "Fedora Server 40",
+    "variant": "fedora40",
+    "version": "40",
     "architecture": "x86_64",
     "minMemory": 2048,
-    "minDisk": 20,
-    "downloadUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/39/Server/x86_64/iso/"
+    "minDisk": 15,
+    "downloadUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/iso/Fedora-Server-netinst-x86_64-40-1.14.iso",
+    "category": "red_hat_based"
+  },
+  {
+    "id": "fedora-41",
+    "name": "Fedora Server 41",
+    "variant": "fedora41",
+    "version": "41",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 15,
+    "downloadUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/41/Server/x86_64/iso/Fedora-Server-netinst-x86_64-41-1.4.iso",
+    "sha256": "c9cf761ae33174f33e2e5f52b67fb6e3c14bbf88be7f15ee2e5e94bfb66a2f67",
+    "category": "red_hat_based"
   },
   {
     "id": "centos-9",
     "name": "CentOS Stream 9",
-    "variant": "centos-stream9",
+    "variant": "centos9",
     "version": "9",
     "architecture": "x86_64",
     "minMemory": 2048,
+    "minDisk": 10,
+    "downloadUrl": "https://mirrors.centos.org/mirrorlist?path=/9-stream/BaseOS/x86_64/iso/CentOS-Stream-9-latest-x86_64-boot.iso&redirect=1&protocol=https",
+    "category": "red_hat_based"
+  },
+  {
+    "id": "rocky-9",
+    "name": "Rocky Linux 9",
+    "variant": "rhel9.3",
+    "version": "9.5",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 10,
+    "downloadUrl": "https://download.rockylinux.org/pub/rocky/9/isos/x86_64/Rocky-9.5-x86_64-minimal.iso",
+    "category": "red_hat_based"
+  },
+  {
+    "id": "arch-linux",
+    "name": "Arch Linux",
+    "variant": "archlinux",
+    "version": "latest",
+    "architecture": "x86_64",
+    "minMemory": 1024,
     "minDisk": 20,
-    "downloadUrl": "https://www.centos.org/download/"
+    "downloadUrl": "https://archlinux.org/iso/latest/archlinux-x86_64.iso",
+    "category": "other",
+    "note": "Rolling release - SHA256 changes frequently"
+  },
+  {
+    "id": "opensuse-15.6",
+    "name": "openSUSE Leap 15.6",
+    "variant": "opensuse15.5",
+    "version": "15.6",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 10,
+    "downloadUrl": "https://download.opensuse.org/distribution/leap/15.6/iso/openSUSE-Leap-15.6-NET-x86_64-Media.iso",
+    "category": "other"
   },
   {
     "id": "windows-10",
@@ -56,7 +121,9 @@
     "version": "10",
     "architecture": "x86_64",
     "minMemory": 4096,
-    "minDisk": 40
+    "minDisk": 40,
+    "category": "windows",
+    "note": "ISO must be provided manually"
   },
   {
     "id": "windows-11",
@@ -65,6 +132,8 @@
     "version": "11",
     "architecture": "x86_64",
     "minMemory": 4096,
-    "minDisk": 64
+    "minDisk": 64,
+    "category": "windows",
+    "note": "ISO must be provided manually"
   }
 ]

@@ -1,68 +1,466 @@
-'use client';
+import { create } from 'zustand';
+import { VirtualMachine, StoragePool, VirtualNetwork } from '@/types/vm';
 
-import { useState, useEffect } from 'react';
-import { VirtualMachine } from '@/types/vm';
-
-export function useVMs() {
-  const [vms, setVMs] = useState<VirtualMachine[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // TODO: Implement API call to fetch VMs
-    // For now, using mock data
-    const fetchVMs = async () => {
-      try {
-        setLoading(true);
-        
-        // Mock data for now
-        const mockVMs: VirtualMachine[] = [
-          {
-            id: '1',
-            name: 'ubuntu-dev',
-            status: 'running',
-            memory: 4096,
-            vcpus: 2,
-            disk: [
-              { path: '/var/lib/libvirt/images/ubuntu-dev.qcow2', size: 50, format: 'qcow2', device: 'disk' }
-            ],
-            os_variant: 'ubuntu22.04',
-            created: new Date(),
-          },
-          {
-            id: '2',
-            name: 'windows-test',
-            status: 'stopped',
-            memory: 8192,
-            vcpus: 4,
-            disk: [
-              { path: '/var/lib/libvirt/images/windows-test.qcow2', size: 100, format: 'qcow2', device: 'disk' }
-            ],
-            os_variant: 'win10',
-            created: new Date(),
-          },
-        ];
-        
-        setVMs(mockVMs);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch VMs');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVMs();
-  }, []);
-
-  const refreshVMs = async () => {
-    // TODO: Implement refresh
-  };
-
-  return {
-    vms,
-    loading,
-    error,
-    refreshVMs,
-  };
+interface VMStore {
+  // VM State
+  vms: VirtualMachine[];
+  selectedVM: VirtualMachine | null;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Storage Pool State
+  storagePools: StoragePool[];
+  poolsLoading: boolean;
+  
+  // Virtual Network State
+  networks: VirtualNetwork[];
+  networksLoading: boolean;
+  
+  // Auto-refresh
+  autoRefresh: boolean;
+  
+  // VM Actions
+  fetchVMs: () => Promise<void>;
+  setSelectedVM: (vm: VirtualMachine | null) => void;
+  createVM: (data: Record<string, unknown>) => Promise<void>;
+  startVM: (id: string) => Promise<void>;
+  stopVM: (id: string) => Promise<void>;
+  forceStopVM: (id: string) => Promise<void>;
+  pauseVM: (id: string) => Promise<void>;
+  resumeVM: (id: string) => Promise<void>;
+  deleteVM: (id: string) => Promise<void>;
+  
+  // Storage Pool Actions
+  fetchStoragePools: () => Promise<void>;
+  createStoragePool: (data: { name: string; path: string; type: string }) => Promise<void>;
+  deleteStoragePool: (name: string) => Promise<void>;
+  
+  // Virtual Network Actions
+  fetchNetworks: () => Promise<void>;
+  createNetwork: (data: {
+    name: string;
+    mode: 'nat' | 'bridge' | 'isolated';
+    ip_range?: string;
+    dhcp_enabled: boolean;
+  }) => Promise<void>;
+  deleteNetwork: (name: string) => Promise<void>;
+  startNetwork: (name: string) => Promise<void>;
+  stopNetwork: (name: string) => Promise<void>;
+  
+  // Settings
+  setAutoRefresh: (enabled: boolean) => void;
 }
+
+export const useVMs = create<VMStore>((set, get) => ({
+  // Initial State
+  vms: [],
+  selectedVM: null,
+  isLoading: false,
+  error: null,
+  storagePools: [],
+  poolsLoading: false,
+  networks: [],
+  networksLoading: false,
+  autoRefresh: true,
+  
+  // Fetch all VMs
+  fetchVMs: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetch('/api/vms');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch VMs');
+      }
+      const data = await response.json();
+      set({ vms: data.vms || [], isLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch VMs',
+        isLoading: false,
+      });
+    }
+  },
+  
+  // Set selected VM
+  setSelectedVM: (vm) => set({ selectedVM: vm }),
+  
+  // Create new VM
+  createVM: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetch('/api/vms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create VM');
+      }
+      
+      // Refresh VM list
+      await get().fetchVMs();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create VM',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+  
+  // Start VM
+  startVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}/start`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.map((vm) =>
+          vm.id === id ? { ...vm, status: 'running' as const } : vm
+        ),
+      }));
+      
+      // Refresh to get actual status
+      setTimeout(() => get().fetchVMs(), 1000);
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to start VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Stop VM (graceful shutdown)
+  stopVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}/stop`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to stop VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.map((vm) =>
+          vm.id === id ? { ...vm, status: 'shut off' as const } : vm
+        ),
+      }));
+      
+      // Refresh to get actual status
+      setTimeout(() => get().fetchVMs(), 1000);
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to stop VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Force stop VM (destroy)
+  forceStopVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}/force-stop`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to force stop VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.map((vm) =>
+          vm.id === id ? { ...vm, status: 'shut off' as const } : vm
+        ),
+      }));
+      
+      // Refresh to get actual status
+      setTimeout(() => get().fetchVMs(), 1000);
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to force stop VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Pause VM
+  pauseVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}/pause`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to pause VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.map((vm) =>
+          vm.id === id ? { ...vm, status: 'paused' as const } : vm
+        ),
+      }));
+      
+      // Refresh to get actual status
+      setTimeout(() => get().fetchVMs(), 1000);
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to pause VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Resume VM
+  resumeVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}/resume`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to resume VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.map((vm) =>
+          vm.id === id ? { ...vm, status: 'running' as const } : vm
+        ),
+      }));
+      
+      // Refresh to get actual status
+      setTimeout(() => get().fetchVMs(), 1000);
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to resume VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Delete VM
+  deleteVM: async (id) => {
+    try {
+      const response = await fetch(`/api/vms/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete VM');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        vms: state.vms.filter((vm) => vm.id !== id),
+        selectedVM: state.selectedVM?.id === id ? null : state.selectedVM,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete VM',
+      });
+      throw error;
+    }
+  },
+  
+  // Fetch storage pools
+  fetchStoragePools: async () => {
+    set({ poolsLoading: true });
+    try {
+      const response = await fetch('/api/storage/pools');
+      if (!response.ok) {
+        throw new Error('Failed to fetch storage pools');
+      }
+      const data = await response.json();
+      set({ storagePools: data.pools || [], poolsLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch storage pools',
+        poolsLoading: false,
+      });
+    }
+  },
+  
+  // Create storage pool
+  createStoragePool: async (data) => {
+    set({ poolsLoading: true });
+    try {
+      const response = await fetch('/api/storage/pools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create storage pool');
+      }
+      
+      // Refresh pools
+      await get().fetchStoragePools();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create storage pool',
+        poolsLoading: false,
+      });
+      throw error;
+    }
+  },
+  
+  // Delete storage pool
+  deleteStoragePool: async (name) => {
+    try {
+      const response = await fetch(`/api/storage/pools/${name}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete storage pool');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        storagePools: state.storagePools.filter((pool) => pool.name !== name),
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete storage pool',
+      });
+      throw error;
+    }
+  },
+  
+  // Fetch networks
+  fetchNetworks: async () => {
+    set({ networksLoading: true });
+    try {
+      const response = await fetch('/api/networks');
+      if (!response.ok) {
+        throw new Error('Failed to fetch networks');
+      }
+      const data = await response.json();
+      set({ networks: data.networks || [], networksLoading: false });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch networks',
+        networksLoading: false,
+      });
+    }
+  },
+  
+  // Create network
+  createNetwork: async (data) => {
+    set({ networksLoading: true });
+    try {
+      const response = await fetch('/api/networks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create network');
+      }
+      
+      // Refresh networks
+      await get().fetchNetworks();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create network',
+        networksLoading: false,
+      });
+      throw error;
+    }
+  },
+  
+  // Delete network
+  deleteNetwork: async (name) => {
+    try {
+      const response = await fetch(`/api/networks/${name}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete network');
+      }
+      
+      // Optimistic update
+      set((state) => ({
+        networks: state.networks.filter((net) => net.name !== name),
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete network',
+      });
+      throw error;
+    }
+  },
+  
+  // Start network
+  startNetwork: async (name) => {
+    try {
+      const response = await fetch(`/api/networks/${name}/start`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start network');
+      }
+      
+      // Refresh networks
+      await get().fetchNetworks();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to start network',
+      });
+      throw error;
+    }
+  },
+  
+  // Stop network
+  stopNetwork: async (name) => {
+    try {
+      const response = await fetch(`/api/networks/${name}/stop`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to stop network');
+      }
+      
+      // Refresh networks
+      await get().fetchNetworks();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to stop network',
+      });
+      throw error;
+    }
+  },
+  
+  // Set auto-refresh
+  setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
+}));
