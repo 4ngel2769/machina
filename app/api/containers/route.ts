@@ -172,6 +172,10 @@ export async function POST(request: NextRequest) {
     // Create the container
     const container = await createContainer(config);
 
+    // Store ownership information
+    const { addResourceOwnership } = await import('@/lib/resource-ownership');
+    addResourceOwnership(container.id, 'container', session.user.id);
+
     return NextResponse.json(
       {
         success: true,
