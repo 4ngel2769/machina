@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getContainerInfo, removeContainer, isDockerAvailable } from '@/lib/docker';
+import { auth } from '@/lib/auth/config';
+import { canUserAccessResource, removeResourceOwnership } from '@/lib/resource-ownership';
 
 /**
  * GET /api/containers/[id] - Get container details
@@ -10,6 +12,23 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Check permissions
+    if (!canUserAccessResource(id, 'container', session.user.id, session.user.role)) {
+      return NextResponse.json(
+        { error: 'Forbidden - You do not have access to this container' },
+        { status: 403 }
+      );
+    }
 
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
