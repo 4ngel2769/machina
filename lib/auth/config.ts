@@ -97,6 +97,7 @@ export const authConfig: NextAuthConfig = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET || 'machina-super-secret-change-in-production',
+  trustHost: true, // Trust all hosts (required for production deployment on different IPs)
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
