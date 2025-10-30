@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import { useContainers } from '@/hooks/use-containers';
 import { useLiveStats } from '@/hooks/use-live-stats';
@@ -33,7 +34,7 @@ import { Plus, Search, RefreshCw, AlertCircle, Box, Filter, ArrowUpDown } from '
 
 type SortOption = 'name-asc' | 'name-desc' | 'created-desc' | 'created-asc' | 'cpu-desc' | 'memory-desc';
 
-export default function ContainersPage() {
+function ContainersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { containers, loading, error, fetchContainers, setAutoRefresh } = useContainers();
@@ -328,6 +329,14 @@ export default function ContainersPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function ContainersPage() {
+  return (
+    <Suspense fallback={<div className="p-8"><Skeleton className="h-96 w-full" /></div>}>
+      <ContainersPageContent />
+    </Suspense>
   );
 }
 
