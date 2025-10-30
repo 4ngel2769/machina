@@ -52,3 +52,8 @@ declare module '@novnc/novnc/lib/rfb' {
     ): void;
   }
 }
+
+// Also support .js extension
+declare module '@novnc/novnc/lib/rfb.js' {
+  export { default, RFBOptions, RFBEvent } from '@novnc/novnc/lib/rfb';
+}
