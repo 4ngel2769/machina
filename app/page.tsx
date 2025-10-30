@@ -8,6 +8,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { SystemHealthIndicator } from '@/components/dashboard/health-indicator';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import { QuickActionsPanel } from '@/components/dashboard/quick-actions';
+import { DashboardSettingsPanel } from '@/components/dashboard/settings-panel';
 import { Button } from '@/components/ui/button';
 import {
   Cpu,
@@ -17,9 +18,16 @@ import {
   ArrowRight,
   Server,
   Container,
+  Settings,
 } from 'lucide-react';
 import { getSystemHealth } from '@/lib/thresholds';
 import { monitorAllThresholds } from '@/lib/notification-monitor';
+import {
+  loadDashboardSettings,
+  saveDashboardSettings,
+  resetDashboardSettings,
+  type DashboardSettings,
+} from '@/lib/dashboard-settings';
 import { formatBytes, formatUptime } from '@/lib/utils';
 import type { ResourceTimeSeries } from '@/types/stats';
 import Link from 'next/link';
@@ -27,7 +35,15 @@ import Link from 'next/link';
 export default function DashboardPage() {
   const { containers, loading: containersLoading } = useContainers();
   const { vms, isLoading: vmsLoading } = useVMs();
-  const { stats, isLoading: statsLoading } = useLiveStats({ updateInterval: 2000 });
+  
+  // Load dashboard settings
+  const [settings, setSettings] = useState<DashboardSettings>(() => loadDashboardSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // Use settings refresh interval
+  const { stats, isLoading: statsLoading } = useLiveStats({
+    updateInterval: settings.refreshInterval,
+  });
 
   // Time series data for charts (last 60 data points = 2 minutes at 2s intervals)
   const [cpuHistory, setCpuHistory] = useState<ResourceTimeSeries[]>([]);
