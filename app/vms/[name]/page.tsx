@@ -41,22 +41,16 @@ export default function VMDetailsPage() {
   const vmName = params.name as string;
   
   const { vms, startVM, stopVM, pauseVM, resumeVM, deleteVM, fetchVMs } = useVMs();
-  const [vm, setVm] = useState<VM | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Derive VM from vms array instead of storing in state
+  const vm = vms.find(v => v.name === vmName || v.id === vmName) || null;
+  const isLoading = !vm && vms.length === 0;
 
   useEffect(() => {
     fetchVMs();
   }, [fetchVMs]);
-
-  useEffect(() => {
-    const foundVM = vms.find(v => v.name === vmName || v.id === vmName);
-    if (foundVM) {
-      setVm(foundVM);
-      setIsLoading(false);
-    }
-  }, [vms, vmName]);
 
   const handleStart = async () => {
     if (!vm) return;

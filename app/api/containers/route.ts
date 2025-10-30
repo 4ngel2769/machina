@@ -65,9 +65,9 @@ export async function GET() {
           protocol: p.Type,
         })) || [];
 
-      // Determine container type (check if AutoRemove is set)
-      // We'll need to inspect the container to know for sure, for now assume normal
-      const type = dc.HostConfig?.AutoRemove ? 'amnesic' : 'normal';
+      // Determine container type - default to normal for now
+      // AutoRemove is not available in list response, would need full inspect
+      const type: 'normal' | 'amnesic' = 'normal';
 
       return {
         id: dc.Id,

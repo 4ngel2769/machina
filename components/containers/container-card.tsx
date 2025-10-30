@@ -45,7 +45,7 @@ interface ContainerCardProps {
   liveStats?: ContainerStats; // Real-time stats from live feed
 }
 
-export function ContainerCard({ container, onTerminal, onLogs }: ContainerCardProps) {
+export function ContainerCard({ container, onTerminal, onLogs, liveStats }: ContainerCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { startContainer, stopContainer, restartContainer, deleteContainer } = useContainers();
 
