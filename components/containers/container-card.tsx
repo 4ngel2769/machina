@@ -32,10 +32,10 @@ import {
   MoreVertical,
   Box,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useContainers } from '@/hooks/use-containers';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatBytes } from '@/lib/utils';
 import type { ContainerStats } from '@/types/stats';
 
 interface ContainerCardProps {
@@ -113,7 +113,7 @@ export function ContainerCard({ container, onTerminal, onLogs }: ContainerCardPr
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <Box className="h-4 w-4 text-container-blue flex-shrink-0" />
+                <Box className="h-4 w-4 text-container-blue shrink-0" />
                 <h3 className="font-semibold text-sm truncate">{container.name}</h3>
               </div>
               <p className="text-xs text-muted-foreground truncate">{container.image}</p>
@@ -202,25 +202,128 @@ export function ContainerCard({ container, onTerminal, onLogs }: ContainerCardPr
             </div>
           )}
 
-          {/* Resource Usage (if available) */}
-          {isRunning && (container.cpu !== undefined || container.memory !== undefined) && (
-            <div className="space-y-2 pt-2 border-t">
-              {container.cpu !== undefined && (
-                <div className="space-y-1">
+          {/* Resource Usage - Enhanced with real-time stats */}
+          {isRunning && (
+            <div className="space-y-3 pt-3 border-t">
+              {/* CPU Usage */}
+              {(liveStats?.cpu !== undefined || container.cpu !== undefined) && (
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">CPU</span>
-                    <span className="font-medium">{container.cpu.toFixed(1)}%</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {(liveStats?.cpu ?? container.cpu ?? 0).toFixed(1)}%
+                      </span>
+                      {(liveStats?.cpu ?? container.cpu ?? 0) >= 95 && (
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                          Critical
+                        </Badge>
+                      )}
+                      {(liveStats?.cpu ?? container.cpu ?? 0) >= 80 && 
+                       (liveStats?.cpu ?? container.cpu ?? 0) < 95 && (
+                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                          High
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <Progress value={container.cpu} className="h-1.5" />
+                  <Progress
+                    value={liveStats?.cpu ?? container.cpu ?? 0}
+                    className={cn(
+                      "h-2 transition-all duration-500",
+                      (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-950/20",
+                      (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
+                        (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-950/20"
+                    )}
+                    indicatorClassName={cn(
+                      "transition-all duration-500",
+                      (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-500",
+                      (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
+                        (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-500",
+                      (liveStats?.cpu ?? container.cpu ?? 0) < 80 && "bg-blue-500"
+                    )}
+                  />
                 </div>
               )}
-              {container.memory !== undefined && (
-                <div className="space-y-1">
+
+              {/* Memory Usage */}
+              {(liveStats?.memory !== undefined || container.memory !== undefined) && (
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Memory</span>
-                    <span className="font-medium">{container.memory.toFixed(1)}%</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {(liveStats?.memory ?? container.memory ?? 0).toFixed(1)}%
+                      </span>
+                      {(liveStats?.memory ?? container.memory ?? 0) >= 95 && (
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                          Critical
+                        </Badge>
+                      )}
+                      {(liveStats?.memory ?? container.memory ?? 0) >= 80 && 
+                       (liveStats?.memory ?? container.memory ?? 0) < 95 && (
+                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                          High
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <Progress value={container.memory} className="h-1.5" />
+                  <Progress
+                    value={liveStats?.memory ?? container.memory ?? 0}
+                    className={cn(
+                      "h-2 transition-all duration-500",
+                      (liveStats?.memory ?? container.memory ?? 0) >= 95 && "bg-red-950/20",
+                      (liveStats?.memory ?? container.memory ?? 0) >= 80 &&
+                        (liveStats?.memory ?? container.memory ?? 0) < 95 && "bg-yellow-950/20"
+                    )}
+                    indicatorClassName={cn(
+                      "transition-all duration-500",
+                      (liveStats?.memory ?? container.memory ?? 0) >= 95 && "bg-red-500",
+                      (liveStats?.memory ?? container.memory ?? 0) >= 80 &&
+                        (liveStats?.memory ?? container.memory ?? 0) < 95 && "bg-yellow-500",
+                      (liveStats?.memory ?? container.memory ?? 0) < 80 && "bg-blue-500"
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Network I/O */}
+              {liveStats?.networkRx !== undefined && liveStats?.networkTx !== undefined && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Network I/O</span>
+                    <span className="font-medium text-[10px]">
+                      ↓ {formatBytes(liveStats.networkRx)} / ↑ {formatBytes(liveStats.networkTx)}
+                    </span>
+                  </div>
+                  <div className="flex gap-1 h-1.5">
+                    <div className="flex-1 bg-green-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex-1 bg-blue-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Disk I/O */}
+              {liveStats?.blockRead !== undefined && liveStats?.blockWrite !== undefined && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Disk I/O</span>
+                    <span className="font-medium text-[10px]">
+                      R {formatBytes(liveStats.blockRead)} / W {formatBytes(liveStats.blockWrite)}
+                    </span>
+                  </div>
+                  <div className="flex gap-1 h-1.5">
+                    <div className="flex-1 bg-purple-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex-1 bg-orange-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

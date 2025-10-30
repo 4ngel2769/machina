@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useContainers } from '@/hooks/use-containers';
+import { useLiveStats } from '@/hooks/use-live-stats';
 import { Container } from '@/types/container';
 import { ContainerCard } from '@/components/containers/container-card';
 import { CreateContainerDialog } from '@/components/containers/create-dialog';
@@ -16,6 +17,7 @@ import { Plus, Search, RefreshCw, AlertCircle, Box } from 'lucide-react';
 
 export default function ContainersPage() {
   const { containers, loading, error, fetchContainers, setAutoRefresh } = useContainers();
+  const { stats } = useLiveStats(); // Get live stats
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -152,14 +154,20 @@ export default function ContainersPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in-50 duration-500">
-          {filteredContainers.map((container) => (
-            <ContainerCard
-              key={container.id}
-              container={container}
-              onTerminal={openTerminal}
-              onLogs={openLogs}
-            />
-          ))}
+          {filteredContainers.map((container) => {
+            // Find matching live stats for this container
+            const containerStats = stats?.containers.find((s) => s.id === container.id);
+            
+            return (
+              <ContainerCard
+                key={container.id}
+                container={container}
+                onTerminal={openTerminal}
+                onLogs={openLogs}
+                liveStats={containerStats}
+              />
+            );
+          })}
         </div>
       )}
 
