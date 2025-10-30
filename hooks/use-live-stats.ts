@@ -54,15 +54,22 @@ export function useLiveStats(options: UseLiveStatsOptions = {}): UseLiveStatsRet
       ]);
 
       if (isMountedRef.current) {
-        setStats({
+        const newStats = {
           host: hostData,
           containers: containersData.containers,
           vms: vmsData.vms,
           timestamp: Date.now(),
-        });
-        setError(null);
-        setIsLoading(false);
-        setIsConnected(true);
+        };
+        
+        // Only update state if data actually changed (prevent unnecessary re-renders)
+        const hasChanged = JSON.stringify(stats) !== JSON.stringify(newStats);
+        
+        if (hasChanged || isLoading) {
+          setStats(newStats);
+          setError(null);
+          setIsLoading(false);
+          setIsConnected(true);
+        }
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
@@ -73,7 +80,7 @@ export function useLiveStats(options: UseLiveStatsOptions = {}): UseLiveStatsRet
       }
       onError?.(error);
     }
-  }, [onError]);
+  }, [onError, stats, isLoading]);
 
   const connect = useCallback(() => {
     if (intervalRef.current) return;
