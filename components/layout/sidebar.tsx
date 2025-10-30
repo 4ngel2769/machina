@@ -45,6 +45,7 @@ const navItems: NavItem[] = [
 ];
 
 export function Sidebar() {
+  const { data: session } = useSession();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebar-collapsed');
@@ -60,7 +61,16 @@ export function Sidebar() {
     localStorage.setItem('sidebar-collapsed', JSON.stringify(newState));
   };
 
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/login' });
+  };
+
   const isActive = (href: string) => pathname === href;
+
+  const getUserInitials = (name?: string | null) => {
+    if (!name) return 'U';
+    return name.slice(0, 2).toUpperCase();
+  };
 
   return (
     <>
