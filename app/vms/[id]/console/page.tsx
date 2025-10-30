@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 export default function VMConsolePage() {
   const params = useParams();
   const router = useRouter();
-  const vmName = params.name as string;
+  const vmName = params.id as string;
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
