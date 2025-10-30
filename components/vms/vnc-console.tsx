@@ -290,6 +290,28 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     }
   };
 
+  const openInNewWindow = () => {
+    if (!wsUrl) {
+      toast.error('VNC URL not available');
+      return;
+    }
+    
+    // Create a standalone VNC viewer window
+    const width = 1024;
+    const height = 768;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+    
+    const windowFeatures = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`;
+    const newWindow = window.open('/vms/' + vmName + '/console?popup=true', `VNC_${vmName}`, windowFeatures);
+    
+    if (newWindow) {
+      toast.success('Opened in new window');
+    } else {
+      toast.error('Failed to open new window. Please allow popups.');
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full ${className || ''}`}>
       {/* Toolbar */}
@@ -305,16 +327,28 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
           {/* Scaling Mode */}
           {connectionState === 'connected' && (
             <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as ScaleMode)}>
-              <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectTrigger className="w-36 h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="auto">Scale: Auto</SelectItem>
                 <SelectItem value="remote">Scale: Remote</SelectItem>
                 <SelectItem value="local">Scale: Local</SelectItem>
                 <SelectItem value="none">Scale: None</SelectItem>
               </SelectContent>
             </Select>
           )}
+
+          {/* Open in New Window */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={openInNewWindow}
+            title="Open in New Window"
+            disabled={!wsUrl}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
 
           {/* Controls */}
           {connectionState === 'disconnected' && (

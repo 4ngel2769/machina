@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   Maximize, 
   Minimize, 
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   Settings,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -173,8 +175,10 @@ export function SpiceConsole({ vmName, host, port, password, onDisconnect, class
   };
 
   const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
+      containerRef.current.parentElement?.requestFullscreen();
       setIsFullscreen(true);
     } else {
       document.exitFullscreen();
@@ -182,10 +186,37 @@ export function SpiceConsole({ vmName, host, port, password, onDisconnect, class
     }
   };
 
+  // Listen for fullscreen changes to update state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   const reconnect = () => {
     setReconnectAttempts(0);
     setConnectionState('connecting');
     setError('');
+  };
+
+  const openInNewWindow = () => {
+    // Create a standalone SPICE viewer window
+    const width = 1024;
+    const height = 768;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+    
+    const windowFeatures = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`;
+    const newWindow = window.open(window.location.href + '?popup=true', `SPICE_${vmName}`, windowFeatures);
+    
+    if (newWindow) {
+      toast.success('Opened in new window');
+    } else {
+      toast.error('Failed to open new window. Please allow popups.');
+    }
   };
 
   const getConnectionBadge = () => {
@@ -203,14 +234,24 @@ export function SpiceConsole({ vmName, host, port, password, onDisconnect, class
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* Controls Bar */}
-      <div className="flex items-center justify-between gap-4 p-3 bg-card border-b">
+      {/* Controls Bar - Keep visible in fullscreen */}
+      <div className={cn("flex items-center justify-between gap-4 p-3 bg-card border-b", isFullscreen && "absolute top-0 left-0 right-0 z-50")}>
         <div className="flex items-center gap-3">
           <h3 className="font-semibold">{vmName}</h3>
           {getConnectionBadge()}
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Open in New Window */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openInNewWindow}
+            title="Open in New Window"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+
           {/* Ctrl+Alt+Del */}
           <Button
             variant="outline"
