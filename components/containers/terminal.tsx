@@ -22,6 +22,7 @@ interface TerminalProps {
 
 export function Terminal({ container, open, onClose }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
   const [term, setTerm] = useState<XTermTerminal | null>(null);
 
@@ -30,6 +31,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
     let terminal: XTermTerminal | null = null;
     let fitAddon: FitAddon | null = null;
+    let ws: WebSocket | null = null;
 
     const initTerminal = async () => {
       try {
@@ -90,53 +92,104 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         terminal.writeln(`\x1b[1mContainer:\x1b[0m ${container.name}`);
         terminal.writeln(`\x1b[1mImage:\x1b[0m ${container.image}`);
         terminal.writeln('');
-        terminal.writeln('\x1b[33mNote: Full interactive terminal requires WebSocket implementation.\x1b[0m');
-        terminal.writeln('\x1b[33mFor now, use Docker CLI or implement custom WebSocket server.\x1b[0m');
-        terminal.writeln('');
-        terminal.writeln('Type commands and press Enter to execute:');
+        terminal.writeln('\x1b[36mConnecting to container shell via WebSocket...\x1b[0m');
         terminal.writeln('');
 
-        setConnectionStatus('connected');
+        // Connect to WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/containers/${container.id}/terminal/ws`;
+        
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-        // Simple command execution (non-interactive)
-        let currentLine = '';
+        ws.onopen = () => {
+          setConnectionStatus('connected');
+          terminal.writeln('\x1b[32m✓ Connected to interactive shell\x1b[0m');
+          terminal.writeln('');
+          
+          // Send initial terminal size
+          if (ws) {
+            ws.send(JSON.stringify({
+              type: 'resize',
+              rows: terminal.rows,
+              cols: terminal.cols,
+            }));
+          }
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            
+            switch (message.type) {
+              case 'connected':
+                // Initial connection info
+                break;
+              case 'output':
+                terminal.write(message.data);
+                break;
+              case 'error':
+                terminal.writeln(`\r\n\x1b[31mError: ${message.data}\x1b[0m\r\n`);
+                break;
+              case 'disconnected':
+                terminal.writeln(`\r\n\x1b[33m${message.data}\x1b[0m\r\n`);
+                setConnectionStatus('disconnected');
+                break;
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          terminal.writeln('\r\n\x1b[31m✗ WebSocket connection error\x1b[0m\r\n');
+          setConnectionStatus('disconnected');
+          toast.error('Terminal connection error');
+        };
+
+        ws.onclose = () => {
+          terminal.writeln('\r\n\x1b[33m✗ Connection closed\x1b[0m\r\n');
+          setConnectionStatus('disconnected');
+        };
+
+        // Send input to container via WebSocket
         terminal.onData((data: string) => {
-          if (data === '\r') {
-            // Enter pressed
-            terminal.writeln('');
-            if (currentLine.trim()) {
-              executeCommand(terminal, container.id, currentLine.trim());
-            }
-            currentLine = '';
-            terminal.write('$ ');
-          } else if (data === '\x7f') {
-            // Backspace
-            if (currentLine.length > 0) {
-              currentLine = currentLine.slice(0, -1);
-              terminal.write('\b \b');
-            }
-          } else if (data === '\x03') {
-            // Ctrl+C
-            terminal.writeln('^C');
-            currentLine = '';
-            terminal.write('$ ');
-          } else {
-            currentLine += data;
-            terminal.write(data);
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'input',
+              data: data,
+            }));
           }
         });
 
-        terminal.write('$ ');
+        // Handle terminal resize
+        terminal.onResize(({ rows, cols }: { rows: number; cols: number }) => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'resize',
+              rows,
+              cols,
+            }));
+          }
+        });
 
         // Handle window resize
         const handleResize = () => {
-          fitAddon.fit();
+          if (fitAddon) {
+            fitAddon.fit();
+          }
         };
         window.addEventListener('resize', handleResize);
 
         return () => {
           window.removeEventListener('resize', handleResize);
-          terminal.dispose();
+          if (ws) {
+            ws.close();
+          }
+          if (terminal) {
+            terminal.dispose();
+          }
         };
       } catch (error) {
         console.error('Error initializing terminal:', error);
@@ -148,35 +201,14 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
     initTerminal();
 
     return () => {
-      if (terminal) {
-        terminal.dispose();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (term) {
+        term.dispose();
       }
     };
-  }, [open, container]);
-
-  const executeCommand = async (terminal: XTermTerminal, containerId: string, command: string) => {
-    try {
-      terminal.writeln(`\x1b[90mExecuting: ${command}\x1b[0m`);
-      const response = await fetch(`/api/containers/${containerId}/terminal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        terminal.writeln(`\x1b[31mError: ${error.error}\x1b[0m`);
-        return;
-      }
-
-      const data = await response.json();
-      if (data.data?.output) {
-        terminal.writeln(data.data.output);
-      }
-    } catch (error) {
-      terminal.writeln(`\x1b[31mError executing command: ${error}\x1b[0m`);
-    }
-  };
+  }, [open, container, term]);
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
@@ -211,8 +243,8 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
             style={{ height: '500px' }}
           />
           <div className="mt-4 text-xs text-muted-foreground space-y-1">
-            <p>💡 <strong>Tip:</strong> Ctrl+C to interrupt, Ctrl+D to exit</p>
-            <p>⚠️ <strong>Note:</strong> Full interactive shell requires WebSocket implementation (Phase 3)</p>
+            <p>💡 <strong>Tip:</strong> Full interactive shell with command history, tab completion, and text editors</p>
+            <p>✅ <strong>WebSocket:</strong> Real-time bidirectional communication for proper TTY support</p>
           </div>
         </div>
       </DialogContent>

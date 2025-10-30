@@ -1,0 +1,5 @@
+# ESLint ignore file
+server.js
+*.config.js
+.next/
+node_modules/
