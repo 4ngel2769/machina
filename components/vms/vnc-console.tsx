@@ -53,17 +53,6 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     console.log('[VNC] Component mounted/updated. wsUrl:', wsUrl);
   }, [wsUrl]);
 
-  // Auto-connect when wsUrl and noVNC are ready
-  useEffect(() => {
-    if (wsUrl && noVNCLoaded && canvasRef.current && connectionState === 'disconnected') {
-      console.log('[VNC] Auto-connecting...');
-      // Small delay to ensure DOM is ready
-      setTimeout(() => {
-        connectVNC();
-      }, 100);
-    }
-  }, [wsUrl, noVNCLoaded, connectionState]);
-
   // Load noVNC from npm package
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -87,8 +76,8 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     if (rfbRef.current) {
       try {
         rfbRef.current.disconnect();
-      } catch (err) {
-        console.error('[VNC] Disconnect error:', err);
+      } catch (_err) {
+        console.error('[VNC] Disconnect error:', _err);
       }
       rfbRef.current = null;
     }
@@ -166,13 +155,24 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     }
   }, [wsUrl, vmName, scaleMode, noVNCLoaded]);
 
+  // Auto-connect when wsUrl and noVNC are ready
+  useEffect(() => {
+    if (wsUrl && noVNCLoaded && canvasRef.current && connectionState === 'disconnected') {
+      console.log('[VNC] Auto-connecting...');
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        connectVNC();
+      }, 100);
+    }
+  }, [wsUrl, noVNCLoaded, connectionState, connectVNC]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (rfbRef.current) {
         try {
           rfbRef.current.disconnect();
-        } catch (err) {
+        } catch {
           // Ignore disconnect errors on cleanup
         }
         rfbRef.current = null;
@@ -220,14 +220,14 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       try {
         await canvasRef.current.requestFullscreen();
         setIsFullscreen(true);
-      } catch (err) {
+      } catch {
         toast.error('Failed to enter fullscreen');
       }
     } else {
       try {
         await document.exitFullscreen();
         setIsFullscreen(false);
-      } catch (err) {
+      } catch {
         toast.error('Failed to exit fullscreen');
       }
     }
