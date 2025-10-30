@@ -131,8 +131,8 @@ export default function VirtualMachinesPage() {
     const types = new Set(
       vms
         .map(vm => vm.os_variant)
-        .filter(Boolean)
-        .map(os => os?.split('-')[0]) // Get base OS name (e.g., 'ubuntu' from 'ubuntu-22.04')
+        .filter((os): os is string => Boolean(os))
+        .map(os => os.split('-')[0]) // Get base OS name (e.g., 'ubuntu' from 'ubuntu-22.04')
     );
     return Array.from(types).sort();
   }, [vms]);
@@ -192,25 +192,18 @@ export default function VirtualMachinesPage() {
             <div>
               <CardTitle>Virtual Machines</CardTitle>
               <CardDescription>
-                {filteredVMs.length} of {vms.length} VMs
+                {filteredAndSortedVMs.length} of {vms.length} VMs
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchVMs()}
+                onClick(() => fetchVMs()}
                 disabled={isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
-              </Button>
-              <Button
-                variant={autoRefresh ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setAutoRefresh(!autoRefresh)}
-              >
-                Auto-refresh {autoRefresh ? 'ON' : 'OFF'}
               </Button>
             </div>
           </div>
@@ -278,7 +271,7 @@ export default function VirtualMachinesPage() {
                         );
                       }}
                     >
-                      {os?.charAt(0).toUpperCase() + os?.slice(1)}
+                      {os.charAt(0).toUpperCase() + os.slice(1)}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
@@ -317,7 +310,7 @@ export default function VirtualMachinesPage() {
             </Card>
           ))}
         </div>
-      ) : filteredVMs.length === 0 ? (
+      ) : filteredAndSortedVMs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Server className="h-16 w-16 text-muted-foreground mb-4" />
@@ -337,7 +330,7 @@ export default function VirtualMachinesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredVMs.map((vm) => {
+          {filteredAndSortedVMs.map((vm) => {
             // Find matching live stats for this VM
             const vmStats = stats?.vms.find((s) => s.name === vm.name);
             
