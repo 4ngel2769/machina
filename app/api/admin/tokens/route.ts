@@ -164,7 +164,7 @@ export async function PUT(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication check
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -188,6 +188,10 @@ export async function GET(request: NextRequest) {
 
     // Get user quota (includes token balance)
     const quota = await getUserQuota(userId);
+    
+    if (!quota) {
+      return NextResponse.json({ error: 'User quota not found' }, { status: 404 });
+    }
 
     return NextResponse.json({
       userId,
