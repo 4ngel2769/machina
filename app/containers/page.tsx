@@ -77,7 +77,7 @@ export default function ContainersPage() {
 
   // Filter and sort containers
   const filteredAndSortedContainers = useMemo(() => {
-    let filtered = containers.filter((container) => {
+    const filtered = containers.filter((container) => {
       // Filter by search query
       const matchesSearch =
         container.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -107,16 +107,16 @@ export default function ContainersPage() {
     });
 
     // Sort containers
-    filtered.sort((a, b) => {
+    return filtered.sort((a, b) => {
       switch (sortBy) {
         case 'name-asc':
           return a.name.localeCompare(b.name);
         case 'name-desc':
           return b.name.localeCompare(a.name);
         case 'created-desc':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return new Date(b.created).getTime() - new Date(a.created).getTime();
         case 'created-asc':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          return new Date(a.created).getTime() - new Date(b.created).getTime();
         case 'cpu-desc': {
           const aCpu = stats?.containers.find(s => s.id === a.id)?.cpu || 0;
           const bCpu = stats?.containers.find(s => s.id === b.id)?.cpu || 0;
@@ -133,8 +133,6 @@ export default function ContainersPage() {
           return 0;
       }
     });
-
-    return filtered;
   }, [containers, searchQuery, filterTab, typeFilter, imageFilter, sortBy, stats]);
 
   // Get unique container types and images for filters
@@ -194,24 +192,72 @@ export default function ContainersPage() {
         </Alert>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as typeof filterTab)} className="w-full sm:w-auto">
-          <TabsList>
-            <TabsTrigger value="all">All ({containers.length})</TabsTrigger>
-            <TabsTrigger value="running">Running ({runningCount})</TabsTrigger>
-            <TabsTrigger value="stopped">Stopped ({stoppedCount})</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      {/* Filters and Controls */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as typeof filterTab)} className="w-full sm:w-auto">
+            <TabsList>
+              <TabsTrigger value="all">All ({containers.length})</TabsTrigger>
+              <TabsTrigger value="running">Running ({runningCount})</TabsTrigger>
+              <TabsTrigger value="stopped">Stopped ({stoppedCount})</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search containers..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+          <div className="flex gap-2 flex-1">
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search containers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            {/* Advanced Filters */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {containerTypes.map((type) => (
+                  <DropdownMenuCheckboxItem
+                    key={type}
+                    checked={typeFilter.includes(type)}
+                    onCheckedChange={(checked) => {
+                      setTypeFilter(
+                        checked
+                          ? [...typeFilter, type]
+                          : typeFilter.filter((t) => t !== type)
+                      );
+                    }}
+                  >
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Sort */}
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[180px]">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                <SelectItem value="created-desc">Newest First</SelectItem>
+                <SelectItem value="created-asc">Oldest First</SelectItem>
+                <SelectItem value="cpu-desc">Highest CPU</SelectItem>
+                <SelectItem value="memory-desc">Highest Memory</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -222,7 +268,7 @@ export default function ContainersPage() {
             <Skeleton key={i} className="h-64" />
           ))}
         </div>
-      ) : filteredContainers.length === 0 ? (
+      ) : filteredAndSortedContainers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Box className="h-16 w-16 text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-semibold mb-2">
@@ -242,7 +288,7 @@ export default function ContainersPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in-50 duration-500">
-          {filteredContainers.map((container) => {
+          {filteredAndSortedContainers.map((container: Container) => {
             // Find matching live stats for this container
             const containerStats = stats?.containers.find((s) => s.id === container.id);
             
