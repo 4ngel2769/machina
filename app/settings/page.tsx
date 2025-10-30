@@ -10,7 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Save, RotateCcw, Download, Upload, Loader2 } from 'lucide-react';
+import { Save, RotateCcw, Download, Upload, Loader2, Info, Code, Calendar, GitCommit } from 'lucide-react';
+
+interface VersionInfo {
+  version: string;
+  name: string;
+  description: string;
+  buildDate: string;
+  commitHash: string;
+  nodeVersion: string;
+  environment: string;
+}
 
 interface GlobalSettings {
   app: {
