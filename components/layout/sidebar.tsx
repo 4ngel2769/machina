@@ -101,6 +101,11 @@ export function Sidebar() {
           {/* Navigation */}
           <nav className="flex-1 p-2 space-y-1">
             {navItems.map((item) => {
+              // Skip admin-only items for non-admin users
+              if (item.adminOnly && session?.user?.role !== 'admin') {
+                return null;
+              }
+
               const Icon = item.icon;
               const active = item.href ? isActive(item.href) : false;
 
