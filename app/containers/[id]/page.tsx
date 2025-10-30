@@ -204,7 +204,9 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              {new Date(container.created * 1000).toLocaleDateString()}
+              {container.created instanceof Date 
+                ? container.created.toLocaleDateString() 
+                : new Date(container.created).toLocaleDateString()}
             </div>
           </CardContent>
         </Card>
