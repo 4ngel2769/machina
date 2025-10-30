@@ -66,6 +66,23 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Check permissions
+    if (!canUserAccessResource(id, 'container', session.user.id, session.user.role)) {
+      return NextResponse.json(
+        { error: 'Forbidden - You do not have access to this container' },
+        { status: 403 }
+      );
+    }
+
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
       return NextResponse.json(
@@ -79,6 +96,9 @@ export async function DELETE(
     const force = searchParams.get('force') === 'true';
 
     await removeContainer(id, force);
+
+    // Remove ownership metadata
+    removeResourceOwnership(id, 'container');
 
     return NextResponse.json({
       success: true,
