@@ -683,7 +683,7 @@ export default function SettingsPage() {
                         </a>
                       </Button>
                       <Button variant="outline" size="sm" asChild>
-                        <a href="https://github.com/yourusername/machina" target="_blank" rel="noopener noreferrer">
+                        <a href="https://github.com/4ngel2769/machina" target="_blank" rel="noopener noreferrer">
                           GitHub Repository
                         </a>
                       </Button>
