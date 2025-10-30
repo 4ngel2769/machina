@@ -132,3 +132,100 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Micro-interaction animations */
+@layer utilities {
+  .animate-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  
+  .animate-out {
+    animation: fadeOut 0.2s ease-in-out;
+  }
+  
+  /* Button press effect */
+  .active-press {
+    transform: scale(0.98);
+  }
+  
+  /* Smooth focus ring */
+  .focus-ring {
+    @apply transition-all duration-200 outline-none;
+    @apply focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+  
+  /* Card hover glow */
+  .card-hover-glow {
+    @apply transition-shadow duration-300;
+    @apply hover:shadow-lg hover:shadow-primary/5;
+  }
+  
+  /* Input focus glow */
+  .input-focus-glow {
+    @apply transition-all duration-200;
+    @apply focus:ring-2 focus:ring-ring/20 focus:border-primary;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* Checkbox animation */
+input[type="checkbox"] {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+input[type="checkbox"]:checked {
+  animation: checkboxPop 0.2s ease-in-out;
+}
+
+@keyframes checkboxPop {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Button hover states */
+button {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Smooth modal backdrop */
+.modal-backdrop {
+  animation: backdropFadeIn 0.2s ease-in-out;
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
