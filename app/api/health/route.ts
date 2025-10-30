@@ -114,7 +114,7 @@ export async function GET() {
         if (checks.checks.disk.status === 'healthy') healthyCount++;
       }
     }
-  } catch (error) {
+  } catch {
     checks.checks.disk = { 
       status: 'unhealthy', 
       available: '0 GB',
@@ -138,7 +138,7 @@ export async function GET() {
     };
 
     if (checks.checks.memory.status === 'healthy') healthyCount++;
-  } catch (error) {
+  } catch {
     checks.checks.memory = { 
       status: 'unhealthy',
       available: '0 GB',
