@@ -9,6 +9,8 @@ import {
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 import { createVMSchema } from '@/lib/validation';
 import { checkVMQuota } from '@/lib/quota-system';
+import { logAudit } from '@/lib/audit-logger';
+import logger from '@/lib/logger';
 import { z } from 'zod';
 
 // GET /api/vms - List all VMs
