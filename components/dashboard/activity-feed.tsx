@@ -38,12 +38,9 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ maxItems = 20, showViewAll = true }: ActivityFeedProps) {
-  const [displayEvents, setDisplayEvents] = useState<ActivityEvent[]>([]);
+  const [displayEvents, setDisplayEvents] = useState<ActivityEvent[]>(() => events.slice(0, maxItems));
 
   useEffect(() => {
-    // Initial load
-    setDisplayEvents(events.slice(0, maxItems));
-
     // Poll for updates every 2 seconds
     const interval = setInterval(() => {
       setDisplayEvents(events.slice(0, maxItems));
@@ -132,7 +129,7 @@ export function ActivityFeed({ maxItems = 20, showViewAll = true }: ActivityFeed
                     key={event.id}
                     className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0"
                   >
-                    <div className="flex-shrink-0 mt-0.5">
+                    <div className="shrink-0 mt-0.5">
                       <div className="p-2 rounded-lg bg-muted">
                         <TypeIcon className="h-4 w-4 text-muted-foreground" />
                       </div>
