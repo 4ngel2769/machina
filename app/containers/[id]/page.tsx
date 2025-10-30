@@ -50,6 +50,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
     fetchContainer();
     const interval = setInterval(fetchContainer, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedParams.id]);
 
   const fetchContainer = async () => {
