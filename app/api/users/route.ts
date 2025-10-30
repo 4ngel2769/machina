@@ -10,7 +10,7 @@ import {
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 // GET /api/users - List all users (admin only)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -21,6 +21,14 @@ export async function GET() {
     if (session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
     }
+
+    // Rate limiting
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'api'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const users = getAllUsers();
     return NextResponse.json(users);
@@ -45,6 +53,14 @@ export async function POST(request: NextRequest) {
     if (session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
     }
+
+    // Rate limiting (stricter for user creation)
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'create'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const body = await request.json();
     const { username, password, role } = body;
@@ -91,6 +107,14 @@ export async function PUT(request: NextRequest) {
     if (session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
     }
+
+    // Rate limiting
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'api'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const body = await request.json();
     const { id, username, password, role } = body;
@@ -143,6 +167,14 @@ export async function DELETE(request: NextRequest) {
     if (session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 });
     }
+
+    // Rate limiting
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'api'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('id');
