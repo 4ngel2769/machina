@@ -7,6 +7,7 @@ import {
   filterResourcesByUser,
   addResourceOwnership,
 } from '@/lib/resource-ownership';
+import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 // Validation schema for VM creation
 const createVMSchema = z.object({
@@ -30,7 +31,7 @@ const createVMSchema = z.object({
 });
 
 // GET /api/vms - List all VMs
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const session = await auth();
@@ -40,6 +41,14 @@ export async function GET() {
         { status: 401 }
       );
     }
+
+    // Rate limiting
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'api'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     // Check if libvirt is available
     if (!isLibvirtAvailable()) {
@@ -86,6 +95,14 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Rate limiting (stricter for creation)
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'create'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     // Check if libvirt is available
     if (!isLibvirtAvailable()) {
