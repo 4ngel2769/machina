@@ -11,6 +11,7 @@ import {
   attachOwnershipInfo,
   filterResourcesByUser,
 } from '@/lib/resource-ownership';
+import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 // Validation schema for container creation
 const createContainerSchema = z.object({
@@ -33,7 +34,7 @@ const createContainerSchema = z.object({
 /**
  * GET /api/containers - List all containers
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const session = await auth();
@@ -43,6 +44,14 @@ export async function GET() {
         { status: 401 }
       );
     }
+
+    // Rate limiting
+    const rateLimitResult = await rateLimit(
+      request,
+      getRateLimitIdentifier(request, session.user.id),
+      'api'
+    );
+    if (rateLimitResult) return rateLimitResult;
 
     // Check if Docker is available
     const dockerAvailable = await isDockerAvailable();
