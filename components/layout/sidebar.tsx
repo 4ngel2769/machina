@@ -48,6 +48,7 @@ const navItems: NavItem[] = [
   { label: 'Virtual Machines', href: '/vms', icon: Monitor },
   { label: 'Admin Panel', href: '/admin', icon: Shield, adminOnly: true },
   { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Help', href: '/help', icon: HelpCircle },
 ];
 
 export function Sidebar() {
