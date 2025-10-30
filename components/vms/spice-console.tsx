@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   Maximize, 
@@ -28,6 +35,7 @@ interface SpiceConsoleProps {
 }
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
+type ScaleMode = 'auto' | 'none';
 type SpiceConnection = {
   stop: () => void;
   sendCtrlAltDel: () => void;
@@ -38,6 +46,7 @@ export function SpiceConsole({ vmName, host, port, password, onDisconnect, class
   const spiceRef = useRef<SpiceConnection | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [scaleMode, setScaleMode] = useState<ScaleMode>('auto');
   const [showSettings, setShowSettings] = useState(false);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const maxReconnectAttempts = 3;
@@ -242,6 +251,19 @@ export function SpiceConsole({ vmName, host, port, password, onDisconnect, class
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Scaling Mode */}
+          {connectionState === 'connected' && (
+            <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as ScaleMode)}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Scale: Auto</SelectItem>
+                <SelectItem value="none">Scale: None</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Open in New Window */}
           <Button
             variant="outline"
