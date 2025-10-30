@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Menu,
   LogOut,
-  User
+  User,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,12 +36,14 @@ interface NavItem {
   href?: string;
   icon: React.ComponentType<{ className?: string }>;
   action?: () => void;
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: Home },
   { label: 'Containers', href: '/containers', icon: Box },
   { label: 'Virtual Machines', href: '/vms', icon: Monitor },
+  { label: 'Admin Panel', href: '/admin', icon: Shield, adminOnly: true },
   { label: 'Settings', href: '/settings', icon: Settings },
 ];
 
