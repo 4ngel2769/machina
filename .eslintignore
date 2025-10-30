@@ -1,6 +1,7 @@
 # ESLint ignore file
 server.js
 lib/proxy-manager.js
+lib/proxy-manager.cjs
 *.config.js
 .next/
 node_modules/
