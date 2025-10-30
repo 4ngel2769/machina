@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,7 @@ export default function VMDetailsPage() {
   const [proxyInfo, setProxyInfo] = useState<{ wsPort?: number; wsUrl?: string } | null>(null);
   const [isStartingProxy, setIsStartingProxy] = useState(false);
   const [hasInitializedProxy, setHasInitializedProxy] = useState(false);
+  const isStartingProxyRef = useRef(false);
 
   // Derive VM from vms array instead of storing in state
   const vm = vms.find(v => v.name === vmName || v.id === vmName) || null;
@@ -78,11 +79,17 @@ export default function VMDetailsPage() {
         setDisplayConfig(null);
         setProxyInfo(null);
         setHasInitializedProxy(false);
+        isStartingProxyRef.current = false;
         return;
       }
 
-      // Don't re-initialize if we already have a proxy running
+      // Don't re-initialize if we already have a proxy running or currently starting
       if (hasInitializedProxy && proxyInfo) {
+        return;
+      }
+
+      // Prevent concurrent starts
+      if (isStartingProxyRef.current) {
         return;
       }
 
@@ -95,7 +102,8 @@ export default function VMDetailsPage() {
           console.log('[Display Config]', config);
 
           // Auto-start proxy if VNC is available and not already started
-          if (config.vnc && !hasInitializedProxy && !isStartingProxy) {
+          if (config.vnc && !hasInitializedProxy) {
+            isStartingProxyRef.current = true;
             setIsStartingProxy(true);
             
             // Check if proxy already exists
@@ -107,6 +115,7 @@ export default function VMDetailsPage() {
               setProxyInfo(proxyData);
               setHasInitializedProxy(true);
               setIsStartingProxy(false);
+              isStartingProxyRef.current = false;
             } else {
               // Start new proxy
               console.log('[Proxy] Starting for VNC port', config.vnc.port);
@@ -129,6 +138,7 @@ export default function VMDetailsPage() {
                 console.error('[Proxy] Failed to start:', error);
               }
               setIsStartingProxy(false);
+              isStartingProxyRef.current = false;
             }
           }
         } else {
@@ -137,11 +147,12 @@ export default function VMDetailsPage() {
       } catch (error) {
         console.error('Error fetching display config:', error);
         setIsStartingProxy(false);
+        isStartingProxyRef.current = false;
       }
     };
 
     fetchDisplayConfig();
-  }, [vm, hasInitializedProxy, proxyInfo, isStartingProxy]);
+  }, [vm, hasInitializedProxy, proxyInfo]);
 
   // Cleanup proxy ONLY on unmount (empty dependency array)
   useEffect(() => {
