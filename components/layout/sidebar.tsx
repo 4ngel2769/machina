@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -18,7 +18,8 @@ import {
   Shield,
   Search,
   Command,
-  HelpCircle
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface NavItem {
   label: string;
@@ -40,6 +47,12 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   action?: () => void;
   adminOnly?: boolean;
+}
+
+interface VersionInfo {
+  version: string;
+  buildDate: string;
+  commitHash: string;
 }
 
 const navItems: NavItem[] = [
@@ -53,6 +66,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const { data: session } = useSession();
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebar-collapsed');
@@ -61,6 +75,14 @@ export function Sidebar() {
     return false;
   });
   const pathname = usePathname();
+
+  // Fetch version info on mount
+  useEffect(() => {
+    fetch('/api/version')
+      .then(res => res.json())
+      .then(data => setVersionInfo(data))
+      .catch(console.error);
+  }, []);
 
   const toggleSidebar = () => {
     const newState = !isCollapsed;
