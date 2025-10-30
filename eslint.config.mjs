@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Custom ignores:
+    "server.js",
+    "lib/proxy-manager.cjs",
+    "*.config.js",
   ]),
 ]);
 

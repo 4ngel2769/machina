@@ -10,7 +10,7 @@ const { WebSocketServer } = require('ws');
 const Docker = require('dockerode');
 
 // Import proxy manager
-const proxyManager = require('./lib/proxy-manager');
+const proxyManager = require('./lib/proxy-manager.cjs');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';

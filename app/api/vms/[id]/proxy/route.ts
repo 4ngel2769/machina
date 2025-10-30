@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to get proxy manager (dynamic import for CommonJS module)
 async function getProxyManager() {
-  return (await import('@/lib/proxy-manager')).default;
+  return (await import('@/lib/proxy-manager.cjs')).default;
 }
 
 export async function GET(
