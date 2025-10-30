@@ -98,9 +98,20 @@ export async function GET() {
       };
     });
 
+    // Attach ownership information
+    const containersWithOwnership = attachOwnershipInfo(containers, 'container');
+
+    // Filter by user permissions (admins see all, users see only theirs)
+    const filteredContainers = filterResourcesByUser(
+      containersWithOwnership,
+      'container',
+      session.user.id,
+      session.user.role
+    );
+
     return NextResponse.json({
       success: true,
-      data: containers,
+      data: filteredContainers,
     });
   } catch (error) {
     console.error('Error in GET /api/containers:', error);
@@ -120,6 +131,15 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Check if Docker is available
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
