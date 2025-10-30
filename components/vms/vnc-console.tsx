@@ -45,7 +45,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   const rfbRef = useRef<RFB | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [scaleMode, setScaleMode] = useState<ScaleMode>('remote');
+  const [scaleMode, setScaleMode] = useState<ScaleMode>('auto');
   const [showSettings, setShowSettings] = useState(false);
   const [noVNCLoaded, setNoVNCLoaded] = useState(false);
 
