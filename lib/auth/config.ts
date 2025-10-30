@@ -1,6 +1,5 @@
 import NextAuth, { NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { getUserByUsername, verifyPassword, updateLastLogin } from './user-storage';
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -15,6 +14,9 @@ export const authConfig: NextAuthConfig = {
           return null;
         }
 
+        // Import user storage functions dynamically (only runs on server, not in Edge)
+        const { getUserByUsername, verifyPassword, updateLastLogin } = await import('./user-storage');
+        
         const user = getUserByUsername(credentials.username as string);
         
         if (!user) {
