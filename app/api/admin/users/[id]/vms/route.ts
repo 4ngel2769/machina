@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/config';
 import { listVMs } from '@/lib/libvirt';
-import { attachOwnershipInfo, filterResourcesByOwner } from '@/lib/resource-ownership';
+import { attachOwnershipInfo } from '@/lib/resource-ownership';
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +21,7 @@ export async function GET(
     // Get all VMs and filter by userId
     const allVMs = listVMs();
     const vmsWithOwnership = attachOwnershipInfo(allVMs, 'vm');
-    const userVMs = filterResourcesByOwner(vmsWithOwnership, id);
+    const userVMs = vmsWithOwnership.filter(vm => vm.createdBy === id);
 
     return NextResponse.json({ vms: userVMs });
   } catch (error) {
