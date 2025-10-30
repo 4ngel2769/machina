@@ -63,6 +63,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/dockerode": "^3.3.45",
