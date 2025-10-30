@@ -1,5 +1,12 @@
 export type VMStatus = 'running' | 'paused' | 'shut off' | 'crashed' | 'pmsuspended' | 'stopped' | 'suspended';
 
+export interface DisplayConfig {
+  type: 'vnc' | 'spice' | 'none';
+  port: number;
+  listen: string;
+  autoport: boolean;
+}
+
 export interface VirtualMachine {
   id: string;
   name: string;
@@ -15,6 +22,7 @@ export interface VirtualMachine {
   disk?: DiskInfo[];
   networks?: NetworkInterface[];
   stats?: VMStats;
+  display?: DisplayConfig; // VNC/SPICE display configuration
 }
 
 // Alias for backward compatibility
