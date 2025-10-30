@@ -146,13 +146,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (role && !['admin', 'user'].includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role. Must be "admin" or "user"' },
-        { status: 400 }
-      );
-    }
-
     const updatedUser = await updateUser(id, { username, password, role });
     return NextResponse.json(updatedUser);
   } catch (error) {
