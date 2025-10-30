@@ -23,8 +23,8 @@ interface TerminalProps {
 export function Terminal({ container, open, onClose }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const termRef = useRef<XTermTerminal | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  const [term, setTerm] = useState<XTermTerminal | null>(null);
 
   useEffect(() => {
     if (!open || !container) return;
@@ -81,7 +81,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           fitAddon.fit();
         }
 
-        setTerm(terminal);
+        termRef.current = terminal;
 
         // Show connection message
         setConnectionStatus('connecting');
@@ -203,12 +203,14 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
-      if (term) {
-        term.dispose();
+      if (termRef.current) {
+        termRef.current.dispose();
+        termRef.current = null;
       }
     };
-  }, [open, container, term]);
+  }, [open, container]);
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
