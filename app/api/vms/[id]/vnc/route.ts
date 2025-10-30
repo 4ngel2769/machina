@@ -85,10 +85,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { name } = await params;
+    const { id: name } = await params;
     
     const success = stopWebsockifyProxy(name);
     

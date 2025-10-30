@@ -4,9 +4,10 @@ import { isLibvirtAvailable } from '@/lib/libvirt';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(

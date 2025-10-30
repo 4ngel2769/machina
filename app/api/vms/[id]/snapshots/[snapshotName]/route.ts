@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// DELETE /api/vms/[name]/snapshots/[snapshotName] - Delete a snapshot
+// DELETE /api/vms/[id]/snapshots/[snapshotName] - Delete a snapshot
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { name: string; snapshotName: string } }
+  { params }: { params: Promise<{ id: string; snapshotName: string }> }
 ) {
-  const { name: vmName, snapshotName } = params;
+  const resolvedParams = await params;
+  const { id: vmName, snapshotName } = resolvedParams;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(

@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// GET /api/vms/[name]/disks - List all disks for a VM
+// GET /api/vms/[id]/disks - List all disks for a VM
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(

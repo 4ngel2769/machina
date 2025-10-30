@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// POST /api/vms/[name]/disks/resize - Resize a VM disk
+// POST /api/vms/[id]/disks/resize - Resize a VM disk
 export async function POST(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(

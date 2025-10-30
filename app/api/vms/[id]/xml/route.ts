@@ -5,12 +5,13 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// GET /api/vms/[name]/xml - Get VM XML configuration
+// GET /api/vms/[id]/xml - Get VM XML configuration
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(
@@ -35,12 +36,13 @@ export async function GET(
   }
 }
 
-// PUT /api/vms/[name]/xml - Update VM XML configuration
+// PUT /api/vms/[id]/xml - Update VM XML configuration
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(
