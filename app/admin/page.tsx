@@ -46,6 +46,7 @@ import {
   Coins,
   TrendingUp,
   Crown,
+  Eye,
 } from 'lucide-react';
 import { getAvailablePlans, formatTokens, RESOURCE_PLANS } from '@/lib/token-plans';
 import { PageLoading } from '@/components/loading-skeletons';
