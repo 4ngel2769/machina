@@ -57,6 +57,8 @@ export default function VMDetailsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [displayConfig, setDisplayConfig] = useState<{ vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } | null>(null);
+  const [proxyInfo, setProxyInfo] = useState<{ wsPort?: number; wsUrl?: string } | null>(null);
+  const [isStartingProxy, setIsStartingProxy] = useState(false);
 
   // Derive VM from vms array instead of storing in state
   const vm = vms.find(v => v.name === vmName || v.id === vmName) || null;
@@ -66,30 +68,81 @@ export default function VMDetailsPage() {
     fetchVMs();
   }, [fetchVMs]);
 
-  // Fetch display configuration when VM is running
+  // Fetch display configuration and auto-start proxy when VM is running
   useEffect(() => {
     const fetchDisplayConfig = async () => {
       if (!vm || vm.status !== 'running') {
         setTimeout(() => setDisplayConfig(null), 0);
+        setTimeout(() => setProxyInfo(null), 0);
         return;
       }
 
       try {
+        // Get display config
         const response = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/display`);
         if (response.ok) {
           const config = await response.json();
           setTimeout(() => setDisplayConfig(config), 0);
           console.log('[Display Config]', config);
+
+          // Auto-start proxy if VNC is available
+          if (config.vnc && !isStartingProxy) {
+            setIsStartingProxy(true);
+            
+            // Check if proxy already exists
+            const proxyCheck = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`);
+            const proxyData = await proxyCheck.json();
+
+            if (proxyData.active) {
+              console.log('[Proxy] Already running on port', proxyData.wsPort);
+              setTimeout(() => setProxyInfo(proxyData), 0);
+              setIsStartingProxy(false);
+            } else {
+              // Start new proxy
+              console.log('[Proxy] Starting for VNC port', config.vnc.port);
+              const startResponse = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  vncPort: config.vnc.port,
+                  listen: config.vnc.listen
+                })
+              });
+
+              if (startResponse.ok) {
+                const proxyResult = await startResponse.json();
+                console.log('[Proxy] Started:', proxyResult);
+                setTimeout(() => setProxyInfo(proxyResult), 0);
+              } else {
+                const error = await startResponse.json();
+                console.error('[Proxy] Failed to start:', error);
+              }
+              setIsStartingProxy(false);
+            }
+          }
         } else {
           console.error('Failed to fetch display config:', await response.text());
         }
       } catch (error) {
         console.error('Error fetching display config:', error);
+        setIsStartingProxy(false);
       }
     };
 
     fetchDisplayConfig();
-  }, [vm]);
+  }, [vm, isStartingProxy]);
+
+  // Cleanup proxy on unmount
+  useEffect(() => {
+    return () => {
+      if (vm && proxyInfo) {
+        // Stop proxy when leaving the page
+        fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`, {
+          method: 'DELETE'
+        }).catch(console.error);
+      }
+    };
+  }, [vm, proxyInfo]);
 
   const handleStart = async () => {
     if (!vm) return;
@@ -347,26 +400,35 @@ export default function VMDetailsPage() {
         <TabsContent value="console" className="space-y-4">
           <Card className="overflow-hidden">
             <CardContent className="p-0">
-              {isRunning && displayConfig ? (
+              {isRunning && displayConfig && proxyInfo ? (
                 <>
-                  <div className="p-4 bg-blue-500/10 border-b border-blue-500/20">
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      <strong>💡 Setup Required:</strong> Start websockify proxy for the detected VNC port:
+                  <div className="p-3 bg-green-500/10 border-b border-green-500/20">
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      <strong>✓ Connected:</strong> Proxy running on <code>ws://localhost:{proxyInfo.wsPort}</code>
                     </p>
-                    <code className="block mt-2 p-2 bg-background rounded text-xs">
-                      websockify 6080 localhost:{displayConfig.vnc?.port || 5901}
-                    </code>
                   </div>
                   <div className="h-[600px]">
                     <VMConsole
                       vmName={vm.name}
-                      vncUrl={displayConfig.vnc ? `ws://localhost:6080` : undefined}
+                      vncUrl={proxyInfo.wsUrl}
                       spiceHost={displayConfig.spice ? displayConfig.spice.listen : undefined}
                       spicePort={displayConfig.spice?.port}
                       className="h-full"
                     />
                   </div>
                 </>
+              ) : isRunning && displayConfig && !proxyInfo ? (
+                <div className="flex items-center justify-center h-[600px] bg-muted">
+                  <div className="text-center">
+                    <Monitor className="h-12 w-12 mx-auto mb-4 animate-pulse text-blue-500" />
+                    <p className="text-lg font-medium text-muted-foreground mb-2">
+                      Starting WebSocket proxy...
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Detected VNC on port {displayConfig.vnc?.port}
+                    </p>
+                  </div>
+                </div>
               ) : isRunning && !displayConfig ? (
                 <div className="flex items-center justify-center h-[600px] bg-muted">
                   <div className="text-center">
