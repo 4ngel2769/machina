@@ -21,7 +21,7 @@ interface VMDetails {
 export default function VMEditPage() {
   const params = useParams();
   const router = useRouter();
-  const vmName = params.name as string;
+  const vmName = params.id as string;
   
   const [vm, setVm] = useState<VMDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
