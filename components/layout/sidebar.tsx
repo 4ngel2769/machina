@@ -56,7 +56,7 @@ export function Sidebar() {
       <aside
         className={cn(
           'hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out',
-          isCollapsed ? 'w-[60px]' : 'w-[240px]'
+          isCollapsed ? 'w-[60px]' : 'w-60'
         )}
       >
         <div className="flex-1 flex flex-col">
@@ -67,7 +67,7 @@ export function Sidebar() {
                 <span className="text-primary-foreground font-bold text-sm">M</span>
               </div>
             ) : (
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              <h1 className="text-xl font-bold bg-linear-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
                 Machina
               </h1>
             )}
@@ -92,7 +92,7 @@ export function Sidebar() {
                     )}
                     title={isCollapsed ? item.label : undefined}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <Icon className="w-5 h-5 shrink-0" />
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
@@ -109,7 +109,7 @@ export function Sidebar() {
                   )}
                   title={isCollapsed ? item.label : undefined}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <Icon className="w-5 h-5 shrink-0" />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </button>
               );
@@ -126,7 +126,7 @@ export function Sidebar() {
               )}
               title={isCollapsed ? 'Create New' : undefined}
             >
-              <Plus className="w-5 h-5 flex-shrink-0" />
+              <Plus className="w-5 h-5 shrink-0" />
               {!isCollapsed && <span>Create New</span>}
             </Button>
           </nav>
@@ -153,18 +153,18 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile Drawer */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 flex items-center px-4">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 border-b bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/60 flex items-center px-4">
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[240px] p-0">
+          <SheetContent side="left" className="w-60 p-0">
             <div className="flex flex-col h-full">
               {/* Logo */}
               <div className="h-14 flex items-center justify-center border-b">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-linear-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
                   Machina
                 </h1>
               </div>
@@ -215,7 +215,7 @@ export function Sidebar() {
           </SheetContent>
         </Sheet>
 
-        <h1 className="ml-4 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+        <h1 className="ml-4 text-lg font-bold bg-linear-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
           Machina
         </h1>
       </div>
