@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication check
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -93,6 +93,10 @@ export async function POST(request: NextRequest) {
 
     // Get current quota to check token balance
     const currentQuota = await getUserQuota(userId);
+    
+    if (!currentQuota) {
+      return NextResponse.json({ error: 'User quota not found' }, { status: 404 });
+    }
     
     // If user doesn't have enough tokens, admin can still force the change
     // by adding tokens first, or we can allow it here
