@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLibvirtAvailable, getVMDetails, deleteVM } from '@/lib/libvirt';
+import { auth } from '@/lib/auth/config';
+import { logAudit } from '@/lib/audit-logger';
+import logger from '@/lib/logger';
 
 // GET /api/vms/[id] - Get VM details
 export async function GET(
