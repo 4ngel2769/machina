@@ -32,6 +32,15 @@ const createVMSchema = z.object({
 // GET /api/vms - List all VMs
 export async function GET() {
   try {
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Check if libvirt is available
     if (!isLibvirtAvailable()) {
       return NextResponse.json(
@@ -42,9 +51,20 @@ export async function GET() {
 
     const vms = listVMs();
     
+    // Attach ownership information
+    const vmsWithOwnership = attachOwnershipInfo(vms, 'vm');
+
+    // Filter by user permissions (admins see all, users see only theirs)
+    const filteredVMs = filterResourcesByUser(
+      vmsWithOwnership,
+      'vm',
+      session.user.id,
+      session.user.role
+    );
+    
     return NextResponse.json({
-      vms,
-      count: vms.length,
+      vms: filteredVMs,
+      count: filteredVMs.length,
     });
   } catch (error) {
     console.error('Error listing VMs:', error);
@@ -58,6 +78,15 @@ export async function GET() {
 // POST /api/vms - Create new VM
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Check if libvirt is available
     if (!isLibvirtAvailable()) {
       return NextResponse.json(
@@ -79,6 +108,12 @@ export async function POST(request: NextRequest) {
         { error: result.message },
         { status: 400 }
       );
+    }
+
+    // Store ownership information (use VM name as ID for now)
+    // TODO: Update when we have proper VM IDs from libvirt
+    if (result.name) {
+      addResourceOwnership(result.name, 'vm', session.user.id);
     }
 
     return NextResponse.json({
