@@ -100,7 +100,7 @@ export function ContainerTerminal({ containerId }: ContainerTerminalProps) {
           terminal?.writeln('\x1b[1;33m\r\n✗ Connection closed\x1b[0m');
         };
 
-        terminal.onData((data) => {
+        terminal.onData((data: string) => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(data);
           }
