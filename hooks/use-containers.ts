@@ -186,7 +186,15 @@ export const useContainers = create<ContainerStore>((set, get) => ({
       const response = await fetch('/api/containers');
       if (response.ok) {
         const data = await response.json();
-        set({ containers: data.data || [] });
+        const newContainers = data.data || [];
+        
+        // Only update state if data actually changed (prevent unnecessary re-renders)
+        const currentContainers = get().containers;
+        const hasChanged = JSON.stringify(currentContainers) !== JSON.stringify(newContainers);
+        
+        if (hasChanged) {
+          set({ containers: newContainers });
+        }
       }
     } catch (error) {
       console.error('Error refreshing stats:', error);
