@@ -78,7 +78,7 @@ export async function getUserQuota(userId: string): Promise<UserQuota | null> {
 export async function setUserQuota(
   userId: string,
   username: string,
-  quotas: Partial<UserQuota['quotas']>,
+  customQuotas?: Partial<UserQuota['quotas']>,
   isAdmin: boolean = false
 ): Promise<UserQuota> {
   const allQuotas = await getAllQuotas();
@@ -87,7 +87,21 @@ export async function setUserQuota(
   const now = new Date().toISOString();
   const planId = isAdmin ? 'admin' : (existingIndex >= 0 ? allQuotas[existingIndex].currentPlan : DEFAULT_PLAN);
   const plan = getPlanById(planId);
-  const finalQuotas = plan ? plan.quotas : { ...quotas };
+  
+  // Use plan quotas or custom quotas if provided
+  const finalQuotas = customQuotas ? {
+    maxVCpus: customQuotas.maxVCpus ?? (plan?.quotas.maxVCpus || 2),
+    maxMemoryMB: customQuotas.maxMemoryMB ?? (plan?.quotas.maxMemoryMB || 2048),
+    maxDiskGB: customQuotas.maxDiskGB ?? (plan?.quotas.maxDiskGB || 20),
+    maxVMs: customQuotas.maxVMs ?? (plan?.quotas.maxVMs || 1),
+    maxContainers: customQuotas.maxContainers ?? (plan?.quotas.maxContainers || 3),
+  } : (plan ? plan.quotas : {
+    maxVCpus: 2,
+    maxMemoryMB: 2048,
+    maxDiskGB: 20,
+    maxVMs: 1,
+    maxContainers: 3,
+  });
   
   const userQuota: UserQuota = {
     userId,
