@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth/config';
 import { changePlan, getUserQuota } from '@/lib/quota-system';
 import { getAvailablePlans, getPlanById } from '@/lib/token-plans';
 import { z } from 'zod';
