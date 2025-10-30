@@ -143,12 +143,12 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
             <h1 className="text-3xl font-bold">{container.name}</h1>
             <p className="text-muted-foreground">{container.image}</p>
           </div>
-          <Badge variant={container.state === 'running' ? 'default' : 'secondary'}>
-            {container.state}
+          <Badge variant={container.status === 'running' ? 'default' : 'secondary'}>
+            {container.status}
           </Badge>
         </div>
         <div className="flex gap-2">
-          {container.state === 'running' ? (
+          {container.status === 'running' ? (
             <>
               <Button variant="outline" onClick={() => performAction('restart')}>
                 <RotateCw className="mr-2 h-4 w-4" />
