@@ -287,6 +287,36 @@ export function Sidebar() {
                   <span>Create New</span>
                 </Button>
               </nav>
+
+              {/* User Section - Mobile */}
+              <div className="p-2 border-t">
+                {session?.user && (
+                  <>
+                    <div className="flex items-center gap-3 px-3 py-2 mb-2">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {getUserInitials(session.user.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-medium">{session.user.name}</span>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {session.user.role}
+                        </span>
+                      </div>
+                    </div>
+                    <Separator className="mb-2" />
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-3 text-destructive hover:text-destructive"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span>Logout</span>
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </SheetContent>
         </Sheet>
