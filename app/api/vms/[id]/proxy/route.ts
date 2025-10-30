@@ -19,11 +19,12 @@ export async function GET(
     const proxy = proxyManager.getProxy(vmName);
     
     if (proxy) {
+      const publicHost = process.env.PUBLIC_HOST || 'localhost';
       return NextResponse.json({
         active: true,
         wsPort: proxy.wsPort,
         vncPort: proxy.vncPort,
-        wsUrl: `ws://localhost:${proxy.wsPort}`,
+        wsUrl: `ws://${publicHost}:${proxy.wsPort}`,
         uptime: Date.now() - proxy.startedAt.getTime()
       });
     }
@@ -49,7 +50,7 @@ export async function POST(
     const { id } = await params;
     const vmName = decodeURIComponent(id);
     const body = await request.json();
-    const { vncPort, listen = '127.0.0.1' } = body;
+    const { vncPort, listen } = body;
 
     if (!vncPort) {
       return NextResponse.json(
@@ -75,11 +76,12 @@ export async function POST(
     // Start the proxy
     const wsPort = await proxyManager.startProxy(vmName, vncPort, listen);
 
+    const publicHost = process.env.PUBLIC_HOST || 'localhost';
     return NextResponse.json({
       success: true,
       wsPort,
       vncPort,
-      wsUrl: `ws://localhost:${wsPort}`,
+      wsUrl: `ws://${publicHost}:${wsPort}`,
       message: `Proxy started on port ${wsPort}`
     });
   } catch (error) {
