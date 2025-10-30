@@ -17,7 +17,27 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(displayConfig);
+    // Replace internal IPs with public host for remote access
+    const publicHost = process.env.PUBLIC_HOST || 'localhost';
+    
+    const processedConfig = {
+      vnc: displayConfig.vnc ? {
+        ...displayConfig.vnc,
+        // Replace 0.0.0.0 or 127.0.0.1 with public host for client connections
+        host: publicHost,
+        // Keep the original listen for internal use
+        listen: displayConfig.vnc.listen
+      } : undefined,
+      spice: displayConfig.spice ? {
+        ...displayConfig.spice,
+        // Replace 0.0.0.0 or 127.0.0.1 with public host for client connections
+        host: publicHost,
+        // Keep the original listen for internal use
+        listen: displayConfig.spice.listen
+      } : undefined
+    };
+
+    return NextResponse.json(processedConfig);
   } catch (error) {
     console.error('Error fetching display config:', error);
     return NextResponse.json(
