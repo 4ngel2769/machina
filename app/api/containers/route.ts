@@ -35,6 +35,15 @@ const createContainerSchema = z.object({
  */
 export async function GET() {
   try {
+    // Check authentication
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Check if Docker is available
     const dockerAvailable = await isDockerAvailable();
     if (!dockerAvailable) {
