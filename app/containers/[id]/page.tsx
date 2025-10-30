@@ -187,7 +187,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
             <CardTitle className="text-sm font-medium">Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold capitalize">{container.state}</div>
+            <div className="text-2xl font-bold capitalize">{container.status}</div>
           </CardContent>
         </Card>
         <Card>
