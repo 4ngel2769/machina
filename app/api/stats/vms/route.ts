@@ -3,6 +3,14 @@ import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 import type { VMStats } from '@/types/stats';
 
+// Cache for CPU time tracking (to calculate deltas)
+interface CPUTimeCache {
+  time: number;
+  timestamp: number;
+}
+
+const cpuTimeCache = new Map<string, CPUTimeCache>();
+
 export async function GET() {
   try {
     if (!isLibvirtAvailable()) {
@@ -43,14 +51,27 @@ export async function GET() {
           maxMemory = parseInt(maxMemMatch[1], 10);
         }
 
-        // Calculate CPU usage percentage
-        // const cpuTime = stats['cpu.time'] as number || 0;
-        const vcpus = stats['vcpu.maximum'] as number || 1;
+        // Calculate CPU usage percentage using time deltas
+        const cpuTime = (stats['cpu.time'] as number) || 0; // in nanoseconds
+        const vcpus = (stats['vcpu.maximum'] as number) || 1;
+        const now = Date.now();
         
-        // Note: cpu.time is in nanoseconds, cumulative
-        // For real-time percentage, we'd need to track deltas
-        // For now, we'll use a simplified metric
-        const cpuUsage = 0; // TODO: Calculate actual CPU percentage with time deltas
+        let cpuUsage = 0;
+        const cached = cpuTimeCache.get(name);
+        
+        if (cached && cpuTime > 0) {
+          const timeDelta = (now - cached.timestamp) / 1000; // seconds
+          const cpuTimeDelta = (cpuTime - cached.time) / 1e9; // convert ns to seconds
+          
+          if (timeDelta > 0) {
+            // CPU usage = (CPU time used / real time passed) / number of vCPUs * 100
+            cpuUsage = (cpuTimeDelta / timeDelta / vcpus) * 100;
+            cpuUsage = Math.min(Math.max(cpuUsage, 0), 100); // clamp between 0-100
+          }
+        }
+        
+        // Update cache
+        cpuTimeCache.set(name, { time: cpuTime, timestamp: now });
 
         // Memory stats (in KB)
         const memoryUsed = stats['balloon.current'] as number || 0;

@@ -90,11 +90,15 @@ export async function getHostMemory(): Promise<{
   try {
     const mem = await si.mem();
 
+    // Calculate actual used memory (excluding buffers/cache)
+    // active = used - buffers - cached (actual memory used by processes)
+    const actualUsed = mem.active || (mem.used - (mem.buffcache || 0));
+    
     const data = {
       total: mem.total,
-      used: mem.used,
-      free: mem.free,
-      percentage: Math.round((mem.used / mem.total) * 1000) / 10,
+      used: actualUsed,
+      free: mem.available || mem.free, // available is more accurate (includes reclaimable)
+      percentage: Math.round((actualUsed / mem.total) * 1000) / 10,
     };
 
     cache.set('memory', data);
