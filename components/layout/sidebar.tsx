@@ -270,6 +270,36 @@ export function Sidebar() {
             )}
           </div>
 
+          {/* Version Info */}
+          {versionInfo && (
+            <div className="px-2 py-1 border-t">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground cursor-default',
+                      isCollapsed && 'justify-center'
+                    )}>
+                      <Info className="w-3.5 h-3.5 shrink-0" />
+                      {!isCollapsed && (
+                        <span className="truncate">
+                          v{versionInfo.version}
+                        </span>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    <div className="space-y-1">
+                      <p className="font-medium">Machina v{versionInfo.version}</p>
+                      <p className="text-xs">Build: {new Date(versionInfo.buildDate).toLocaleDateString()}</p>
+                      <p className="text-xs">Commit: {versionInfo.commitHash.slice(0, 7)}</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+
           {/* Toggle Button */}
           <div className="p-2 border-t">
             <Button
