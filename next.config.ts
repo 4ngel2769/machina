@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
   // Experimental features
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
+    serverComponentsExternalPackages: ['ssh2', 'dockerode', 'node-libvirt'],
   },
   
   // Production optimizations
