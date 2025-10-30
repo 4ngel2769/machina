@@ -85,16 +85,18 @@ export async function startWebsockifyProxy(
 ): Promise<{ wsUrl: string; wsPort: number; proxyId: string }> {
   // Check if proxy already exists for this VM
   const existing = activeProxies.get(vmName);
+  const publicHost = process.env.PUBLIC_HOST || 'localhost';
+  
   if (existing) {
     return {
-      wsUrl: `ws://localhost:${existing.wsPort}`,
+      wsUrl: `ws://${publicHost}:${existing.wsPort}`,
       wsPort: existing.wsPort,
       proxyId: vmName,
     };
   }
 
   const wsPort = findAvailablePort();
-  const vncHost = 'localhost';
+  const vncHost = process.env.VM_DISPLAY_LISTEN || '0.0.0.0';
 
   return new Promise((resolve, reject) => {
     try {
@@ -138,9 +140,10 @@ export async function startWebsockifyProxy(
       });
 
       // Wait a moment for websockify to start
+      const publicHost = process.env.PUBLIC_HOST || 'localhost';
       setTimeout(() => {
         resolve({
-          wsUrl: `ws://localhost:${wsPort}`,
+          wsUrl: `ws://${publicHost}:${wsPort}`,
           wsPort,
           proxyId: vmName,
         });

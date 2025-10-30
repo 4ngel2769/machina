@@ -3,6 +3,8 @@
  * @eslint-disable
  */
 /* eslint-disable @typescript-eslint/no-var-requires */
+require('dotenv').config();
+
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
@@ -13,8 +15,8 @@ const Docker = require('dockerode');
 const proxyManager = require('./lib/proxy-manager.cjs');
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
-const port = parseInt(process.env.PORT || '3000', 10);
+const hostname = process.env.SERVER_HOST || '0.0.0.0';
+const port = parseInt(process.env.SERVER_PORT || process.env.PORT || '3000', 10);
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();

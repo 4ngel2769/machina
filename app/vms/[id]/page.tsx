@@ -404,7 +404,7 @@ export default function VMDetailsPage() {
                 <>
                   <div className="p-3 bg-green-500/10 border-b border-green-500/20">
                     <p className="text-sm text-green-700 dark:text-green-300">
-                      <strong>✓ Connected:</strong> Proxy running on <code>ws://localhost:{proxyInfo.wsPort}</code>
+                      <strong>✓ Connected:</strong> Proxy running on <code>{proxyInfo.wsUrl}</code>
                     </p>
                   </div>
                   <div className="h-[600px]">
