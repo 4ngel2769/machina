@@ -212,9 +212,12 @@ export async function initializeDefaultAdmin(): Promise<void> {
   const users = loadUsers();
   
   if (users.length === 0) {
+    const username = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+    const password = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+    
     console.log('No users found. Creating default admin user...');
-    await createUser('admin', 'admin123', 'admin');
-    console.log('✓ Default admin user created (username: admin, password: admin123)');
+    await createUser(username, password, 'admin');
+    console.log(`✓ Default admin user created (username: ${username}, password: ${password})`);
     console.log('⚠️  IMPORTANT: Change the default password immediately!');
   }
 }
