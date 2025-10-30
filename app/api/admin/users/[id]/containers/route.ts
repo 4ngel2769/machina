@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth/config';
 import { listContainers } from '@/lib/docker';
+import { attachOwnershipInfo } from '@/lib/resource-ownership';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     const { id } = await params;
 
     if (!session || session.user?.role !== 'admin') {
@@ -19,13 +19,9 @@ export async function GET(
     }
 
     // Get all containers and filter by userId
-    // Note: In a real implementation, you'd store userId with each container
-    // For now, we'll return an empty array as a placeholder
     const allContainers = await listContainers();
-    const userContainers = allContainers.filter((_container) => {
-      // TODO: Filter by userId when container ownership tracking is implemented
-      return false; // Placeholder
-    });
+    const containersWithOwnership = attachOwnershipInfo(allContainers, 'container');
+    const userContainers = containersWithOwnership.filter(container => container.createdBy === id);
 
     return NextResponse.json({ containers: userContainers });
   } catch (error) {
