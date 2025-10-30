@@ -19,6 +19,7 @@ export interface Container {
     exitCode?: number;
   };
   stats?: ContainerStats;
+  createdBy?: string; // User ID of the creator
 }
 
 export interface PortMapping {

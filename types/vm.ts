@@ -23,6 +23,7 @@ export interface VirtualMachine {
   networks?: NetworkInterface[];
   stats?: VMStats;
   display?: DisplayConfig; // VNC/SPICE display configuration
+  createdBy?: string; // User ID of the creator
 }
 
 // Alias for backward compatibility
