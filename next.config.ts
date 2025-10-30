@@ -8,7 +8,8 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig: NextConfig = {
   // Turbopack configuration (required for Next.js 16)
   turbopack: {
-    // Empty config to silence the warning
+    // Turbopack is enabled by default in Next.js 16
+    // Most webpack customizations aren't needed with Turbopack's optimizations
   },
   
   // Experimental features
@@ -27,17 +28,19 @@ const nextConfig: NextConfig = {
   
   // Remove webpack config for production builds (use Turbopack)
   // Only use webpack in development for specific customizations
-  webpack: (config, { dev, isServer }) => {
-    if (dev && !isServer) {
-      // Reduce watchOptions polling to prevent constant recompiles
-      config.watchOptions = {
-        ...config.watchOptions,
-        poll: undefined, // Disable polling
-        ignored: /node_modules/,
-      };
-    }
-    return config;
-  },
+  ...(!process.env.TURBOPACK && {
+    webpack: (config, { dev, isServer }) => {
+      if (dev && !isServer) {
+        // Reduce watchOptions polling to prevent constant recompiles
+        config.watchOptions = {
+          ...config.watchOptions,
+          poll: undefined, // Disable polling
+          ignored: /node_modules/,
+        };
+      }
+      return config;
+    },
+  }),
   
   // Allow dev server access from local network
   allowedDevOrigins: [
