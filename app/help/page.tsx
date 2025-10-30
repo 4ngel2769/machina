@@ -260,6 +260,120 @@ export default function HelpPage() {
           </div>
         </TabsContent>
 
+        {/* Keyboard Shortcuts */}
+        <TabsContent value="shortcuts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Keyboard Shortcuts</CardTitle>
+              <CardDescription>
+                Speed up your workflow with these keyboard shortcuts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Global</h3>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Open command palette</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <span className="text-muted-foreground">+</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">K</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Search</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <span className="text-muted-foreground">+</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">F</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Toggle sidebar</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <span className="text-muted-foreground">+</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">B</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Navigation</h3>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Go to Dashboard</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
+                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">D</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Go to Containers</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
+                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Go to Virtual Machines</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
+                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Go to Settings</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">G</kbd>
+                      <span className="text-muted-foreground">then</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">S</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Actions</h3>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Create new (context-aware)</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <span className="text-muted-foreground">+</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">N</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Refresh current page</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                      <span className="text-muted-foreground">+</span>
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">R</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b">
+                    <span className="text-sm">Open help</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">?</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                <p className="font-medium mb-2">💡 Tip</p>
+                <p>Use the command palette (<kbd className="px-1.5 py-0.5 bg-background rounded text-xs">Ctrl+K</kbd>) for the fastest way to navigate and perform actions. It&apos;s context-aware and shows the most relevant options based on your current page.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Troubleshooting */}
         <TabsContent value="troubleshooting" className="space-y-4">
           <Card>
