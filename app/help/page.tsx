@@ -368,7 +368,7 @@ export default function HelpPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            If you can't find what you're looking for, we're here to help!
+            If you can&apos;t find what you&apos;re looking for, we&apos;re here to help!
           </p>
           <div className="flex gap-4">
             <Button variant="outline">
