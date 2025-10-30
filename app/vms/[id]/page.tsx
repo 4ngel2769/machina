@@ -51,7 +51,7 @@ const VMConsole = dynamic(
 export default function VMDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const vmName = params.name as string;
+  const vmName = params.id as string;
   
   const { vms, startVM, stopVM, pauseVM, resumeVM, deleteVM, fetchVMs } = useVMs();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
