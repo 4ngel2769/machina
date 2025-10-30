@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useVMs } from '@/hooks/use-vms';
+import { useLiveStats } from '@/hooks/use-live-stats';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,7 @@ type FilterStatus = 'all' | 'running' | 'stopped' | 'paused';
 
 export default function VirtualMachinesPage() {
   const { vms, isLoading, error, fetchVMs, autoRefresh, setAutoRefresh } = useVMs();
+  const { stats } = useLiveStats(); // Get live stats
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -210,9 +212,14 @@ export default function VirtualMachinesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredVMs.map((vm) => (
-            <VMCard key={vm.id} vm={vm} />
-          ))}
+          {filteredVMs.map((vm) => {
+            // Find matching live stats for this VM
+            const vmStats = stats?.vms.find((s) => s.name === vm.name);
+            
+            return (
+              <VMCard key={vm.id} vm={vm} liveStats={vmStats} />
+            );
+          })}
         </div>
       )}
 
