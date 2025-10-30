@@ -32,14 +32,17 @@ import {
   MoreVertical,
   Box,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useContainers } from '@/hooks/use-containers';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import type { ContainerStats } from '@/types/stats';
 
 interface ContainerCardProps {
   container: Container;
   onTerminal?: (container: Container) => void;
   onLogs?: (container: Container) => void;
+  liveStats?: ContainerStats; // Real-time stats from live feed
 }
 
 export function ContainerCard({ container, onTerminal, onLogs }: ContainerCardProps) {
