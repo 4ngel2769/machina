@@ -357,7 +357,6 @@ export async function changePlan(userId: string, newPlanId: string): Promise<Use
   }
   
   const userQuota = allQuotas[index];
-  const currentPlanCost = getPlanById(userQuota.currentPlan)?.tokenCost || 0;
   const newPlanCost = newPlan.tokenCost;
   
   // Check if user has enough tokens (if not free plan)
