@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 import { TokenRequest } from '@/lib/token-requests';
 import { UserContract } from '@/lib/user-contracts';
-import { getUserQuota } from '@/lib/quota-system';
 import { formatDistanceToNow } from 'date-fns';
 import { PageLoading } from '@/components/loading-skeletons';
 
@@ -60,11 +59,14 @@ export default function ProfilePage() {
 
   const fetchData = async () => {
     try {
-      // Fetch token balance
+      // Fetch token balance via API
       if (session?.user?.id) {
-        const quota = await getUserQuota(session.user.id);
-        if (quota) {
-          setTokenBalance(quota.tokenBalance);
+        const quotaResponse = await fetch(`/api/admin/quotas?userId=${session.user.id}`);
+        if (quotaResponse.ok) {
+          const quotaData = await quotaResponse.json();
+          if (quotaData && quotaData.length > 0) {
+            setTokenBalance(quotaData[0].tokenBalance || 0);
+          }
         }
       }
 
