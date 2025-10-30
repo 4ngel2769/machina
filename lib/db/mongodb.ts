@@ -4,7 +4,7 @@
  */
 
 import mongoose from 'mongoose';
-import logger from './logger';
+import logger from '../logger';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://100.100.1.3:27017/machina_dev?authSource=admin';
 
