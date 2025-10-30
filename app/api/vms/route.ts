@@ -8,6 +8,7 @@ import {
 } from '@/lib/resource-ownership';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 import { createVMSchema } from '@/lib/validation';
+import { checkVMQuota } from '@/lib/quota-system';
 import { z } from 'zod';
 
 // GET /api/vms - List all VMs
