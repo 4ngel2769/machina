@@ -114,7 +114,10 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
 
   return (
     <>
-      <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
+      <Card 
+        className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50 cursor-pointer"
+        onClick={handleCardClick}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -125,7 +128,7 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
               <p className="text-xs text-muted-foreground truncate">{container.image}</p>
             </div>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
