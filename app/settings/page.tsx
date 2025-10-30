@@ -603,6 +603,102 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="about" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>About Machina</CardTitle>
+              <CardDescription>Version and system information</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {versionInfo ? (
+                <>
+                  {/* Version Info */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Info className="w-5 h-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{versionInfo.name}</p>
+                        <p className="text-sm text-muted-foreground">{versionInfo.description}</p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="grid gap-3">
+                      <div className="flex items-center gap-2">
+                        <Code className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Version:</span>
+                        <span className="text-sm text-muted-foreground font-mono">v{versionInfo.version}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Build Date:</span>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(versionInfo.buildDate).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <GitCommit className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Commit:</span>
+                        <span className="text-sm text-muted-foreground font-mono">{versionInfo.commitHash}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Code className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Node.js:</span>
+                        <span className="text-sm text-muted-foreground font-mono">{versionInfo.nodeVersion}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Environment:</span>
+                        <span className="text-sm text-muted-foreground capitalize">{versionInfo.environment}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Technology Stack */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Technology Stack</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                      <div>• Next.js 16</div>
+                      <div>• React 19</div>
+                      <div>• TypeScript</div>
+                      <div>• Tailwind CSS</div>
+                      <div>• Docker API</div>
+                      <div>• Libvirt</div>
+                      <div>• MongoDB</div>
+                      <div>• NextAuth.js</div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Links */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Resources</h3>
+                    <div className="flex flex-col gap-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="/help" target="_blank" rel="noopener noreferrer">
+                          Documentation
+                        </a>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://github.com/yourusername/machina" target="_blank" rel="noopener noreferrer">
+                          GitHub Repository
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center text-muted-foreground py-4">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  <p>Loading version information...</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
