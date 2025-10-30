@@ -12,10 +12,12 @@ const nextConfig: NextConfig = {
     // Most webpack customizations aren't needed with Turbopack's optimizations
   },
   
+  // External packages for server components
+  serverExternalPackages: ['ssh2', 'dockerode', 'node-libvirt'],
+  
   // Experimental features
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
-    serverComponentsExternalPackages: ['ssh2', 'dockerode', 'node-libvirt'],
   },
   
   // Production optimizations
