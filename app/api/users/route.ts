@@ -8,6 +8,7 @@ import {
   getUserById,
 } from '@/lib/auth/user-storage';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
+import { userSchema, updateUserSchema } from '@/lib/validation';
 
 // GET /api/users - List all users (admin only)
 export async function GET(request: NextRequest) {
@@ -63,7 +64,17 @@ export async function POST(request: NextRequest) {
     if (rateLimitResult) return rateLimitResult;
 
     const body = await request.json();
-    const { username, password, role } = body;
+    
+    // Validate input
+    const validation = userSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validation.error.errors },
+        { status: 400 }
+      );
+    }
+
+    const { username, password, role } = validation.data;
 
     if (!username || !password) {
       return NextResponse.json(

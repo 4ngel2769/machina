@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLibvirtAvailable, listVMs, createVM } from '@/lib/libvirt';
-import { z } from 'zod';
 import { auth } from '@/lib/auth/config';
 import {
   attachOwnershipInfo,
@@ -8,27 +7,8 @@ import {
   addResourceOwnership,
 } from '@/lib/resource-ownership';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
-
-// Validation schema for VM creation
-const createVMSchema = z.object({
-  name: z.string().optional(),
-  installation_medium: z.object({
-    type: z.enum(['download', 'local', 'url', 'pxe']),
-    source: z.string().optional(),
-    os_variant: z.string().optional(),
-  }),
-  storage: z.object({
-    pool: z.string().default('default'),
-    size: z.number().min(1).max(1000), // GB
-    format: z.enum(['qcow2', 'raw', 'vmdk']).default('qcow2'),
-  }),
-  memory: z.number().min(512).max(65536), // MB
-  vcpus: z.number().min(1).max(32),
-  network: z.object({
-    type: z.enum(['network', 'bridge']).default('network'),
-    source: z.string().default('default'),
-  }).optional(),
-});
+import { createVMSchema } from '@/lib/validation';
+import { z } from 'zod';
 
 // GET /api/vms - List all VMs
 export async function GET(request: NextRequest) {
