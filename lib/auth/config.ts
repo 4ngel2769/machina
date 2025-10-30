@@ -16,10 +16,20 @@ export const authConfig: NextAuthConfig = {
 
         // Import user storage functions dynamically (only runs on server, not in Edge)
         const { getUserByUsername, verifyPassword, updateLastLogin } = await import('./user-storage');
+        const { logAudit } = await import('../audit-logger');
         
         const user = getUserByUsername(credentials.username as string);
         
         if (!user) {
+          // Log failed login attempt
+          await logAudit({
+            userId: 'unknown',
+            username: credentials.username as string,
+            action: 'login',
+            resourceType: 'auth',
+            success: false,
+            errorMessage: 'User not found',
+          });
           return null;
         }
 
@@ -29,11 +39,29 @@ export const authConfig: NextAuthConfig = {
         );
 
         if (!isValidPassword) {
+          // Log failed login attempt
+          await logAudit({
+            userId: user.id,
+            username: user.username,
+            action: 'login',
+            resourceType: 'auth',
+            success: false,
+            errorMessage: 'Invalid password',
+          });
           return null;
         }
 
         // Update last login
         updateLastLogin(user.id);
+
+        // Log successful login
+        await logAudit({
+          userId: user.id,
+          username: user.username,
+          action: 'login',
+          resourceType: 'auth',
+          success: true,
+        });
 
         // Return user without password
         return {

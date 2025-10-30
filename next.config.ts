@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {},
+  turbopack: {},
   // Reduce aggressive HMR recompilation in development
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {
