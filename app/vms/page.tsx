@@ -199,7 +199,7 @@ export default function VirtualMachinesPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick(() => fetchVMs()}
+                onClick={() => fetchVMs()}
                 disabled={isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
