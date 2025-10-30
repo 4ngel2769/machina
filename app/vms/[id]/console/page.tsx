@@ -3,11 +3,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
-import { VNCConsole } from '@/components/vms/vnc-console';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Lazy load VNC console to reduce initial bundle size
+const VNCConsole = dynamic(
+  () => import('@/components/vms/vnc-console').then(mod => ({ default: mod.VNCConsole })),
+  {
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    ),
+    ssr: false,
+  }
+);
 
 export default function VMConsolePage() {
   const params = useParams();
