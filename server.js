@@ -21,7 +21,20 @@ const port = parseInt(process.env.SERVER_PORT || process.env.PORT || '3000', 10)
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
+// Initialize default admin user (async import for ES modules)
+async function initializeAuth() {
+  try {
+    const { initializeDefaultAdmin } = await import('./lib/auth/user-storage.ts');
+    await initializeDefaultAdmin();
+  } catch (error) {
+    console.error('Error initializing authentication:', error);
+  }
+}
+
+app.prepare().then(async () => {
+  // Initialize authentication
+  await initializeAuth();
+
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
