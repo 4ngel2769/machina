@@ -52,13 +52,13 @@ export default function VMDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const vmName = params.id as string;
-  
   const { vms, startVM, stopVM, pauseVM, resumeVM, deleteVM, fetchVMs } = useVMs();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [displayConfig, setDisplayConfig] = useState<{ vnc?: { port: number; listen: string }; spice?: { port: number; listen: string } } | null>(null);
   const [proxyInfo, setProxyInfo] = useState<{ wsPort?: number; wsUrl?: string } | null>(null);
   const [isStartingProxy, setIsStartingProxy] = useState(false);
+  const [hasInitializedProxy, setHasInitializedProxy] = useState(false);
 
   // Derive VM from vms array instead of storing in state
   const vm = vms.find(v => v.name === vmName || v.id === vmName) || null;
@@ -72,8 +72,14 @@ export default function VMDetailsPage() {
   useEffect(() => {
     const fetchDisplayConfig = async () => {
       if (!vm || vm.status !== 'running') {
-        setTimeout(() => setDisplayConfig(null), 0);
-        setTimeout(() => setProxyInfo(null), 0);
+        setDisplayConfig(null);
+        setProxyInfo(null);
+        setHasInitializedProxy(false);
+        return;
+      }
+
+      // Don't re-initialize if we already have a proxy running
+      if (hasInitializedProxy && proxyInfo) {
         return;
       }
 
@@ -82,11 +88,11 @@ export default function VMDetailsPage() {
         const response = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/display`);
         if (response.ok) {
           const config = await response.json();
-          setTimeout(() => setDisplayConfig(config), 0);
+          setDisplayConfig(config);
           console.log('[Display Config]', config);
 
-          // Auto-start proxy if VNC is available
-          if (config.vnc && !isStartingProxy) {
+          // Auto-start proxy if VNC is available and not already started
+          if (config.vnc && !hasInitializedProxy && !isStartingProxy) {
             setIsStartingProxy(true);
             
             // Check if proxy already exists
@@ -95,7 +101,8 @@ export default function VMDetailsPage() {
 
             if (proxyData.active) {
               console.log('[Proxy] Already running on port', proxyData.wsPort);
-              setTimeout(() => setProxyInfo(proxyData), 0);
+              setProxyInfo(proxyData);
+              setHasInitializedProxy(true);
               setIsStartingProxy(false);
             } else {
               // Start new proxy
@@ -112,7 +119,8 @@ export default function VMDetailsPage() {
               if (startResponse.ok) {
                 const proxyResult = await startResponse.json();
                 console.log('[Proxy] Started:', proxyResult);
-                setTimeout(() => setProxyInfo(proxyResult), 0);
+                setProxyInfo(proxyResult);
+                setHasInitializedProxy(true);
               } else {
                 const error = await startResponse.json();
                 console.error('[Proxy] Failed to start:', error);
@@ -130,19 +138,22 @@ export default function VMDetailsPage() {
     };
 
     fetchDisplayConfig();
-  }, [vm, isStartingProxy]);
+  }, [vm, hasInitializedProxy, proxyInfo, isStartingProxy]);
 
-  // Cleanup proxy on unmount
+  // Cleanup proxy ONLY on unmount (empty dependency array)
   useEffect(() => {
     return () => {
-      if (vm && proxyInfo) {
-        // Stop proxy when leaving the page
-        fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`, {
+      // Only cleanup if we have valid VM name and proxy info at unmount time
+      const currentVmName = vm?.name;
+      if (currentVmName && proxyInfo) {
+        console.log('[Proxy] Cleaning up on unmount for', currentVmName);
+        fetch(`/api/vms/${encodeURIComponent(currentVmName)}/proxy`, {
           method: 'DELETE'
         }).catch(console.error);
       }
     };
-  }, [vm, proxyInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty array = only run on unmount
 
   const handleStart = async () => {
     if (!vm) return;
