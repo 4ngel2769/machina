@@ -5,13 +5,13 @@ import {
   isDockerAvailable,
 } from '@/lib/docker';
 import { Container, ContainerStatus, CreateContainerRequest } from '@/types/container';
-import { z } from 'zod';
 import { auth } from '@/lib/auth/config';
 import {
   attachOwnershipInfo,
   filterResourcesByUser,
 } from '@/lib/resource-ownership';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
+import { createContainerSchema } from '@/lib/validation';
 
 // Validation schema for container creation
 const createContainerSchema = z.object({
