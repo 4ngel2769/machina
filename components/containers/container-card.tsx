@@ -37,6 +37,7 @@ import { useContainers } from '@/hooks/use-containers';
 import { toast } from 'sonner';
 import { cn, formatBytes } from '@/lib/utils';
 import type { ContainerStats } from '@/types/stats';
+import { useRouter } from 'next/navigation';
 
 interface ContainerCardProps {
   container: Container;
@@ -48,6 +49,7 @@ interface ContainerCardProps {
 export function ContainerCard({ container, onTerminal, onLogs, liveStats }: ContainerCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { startContainer, stopContainer, restartContainer, deleteContainer } = useContainers();
+  const router = useRouter();
 
   const isRunning = container.status === 'running';
   const isAmnesic = container.type === 'amnesic';
@@ -67,6 +69,10 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
       default:
         return 'bg-red-600 hover:bg-red-700';
     }
+  };
+
+  const handleCardClick = () => {
+    router.push(`/containers/${container.id}`);
   };
 
   const handleStart = async () => {
