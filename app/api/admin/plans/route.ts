@@ -15,7 +15,7 @@ const changePlanSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     // Authentication check
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
     // If userId provided, get their current plan
     if (userId) {
       const quota = await getUserQuota(userId);
+      
+      if (!quota) {
+        return NextResponse.json({ error: 'User quota not found' }, { status: 404 });
+      }
+      
       const plan = getPlanById(quota.currentPlan);
       
       return NextResponse.json({
