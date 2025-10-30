@@ -19,6 +19,7 @@ import {
   Container,
 } from 'lucide-react';
 import { getSystemHealth } from '@/lib/thresholds';
+import { monitorAllThresholds } from '@/lib/notification-monitor';
 import { formatBytes, formatUptime } from '@/lib/utils';
 import type { ResourceTimeSeries } from '@/types/stats';
 import Link from 'next/link';
@@ -32,6 +33,12 @@ export default function DashboardPage() {
   const [cpuHistory, setCpuHistory] = useState<ResourceTimeSeries[]>([]);
   const [memoryHistory, setMemoryHistory] = useState<ResourceTimeSeries[]>([]);
   const [networkHistory, setNetworkHistory] = useState<ResourceTimeSeries[]>([]);
+
+  // Monitor thresholds and trigger notifications
+  useEffect(() => {
+    if (!stats) return;
+    monitorAllThresholds(stats);
+  }, [stats]);
 
   // Update history when stats change
   useEffect(() => {
