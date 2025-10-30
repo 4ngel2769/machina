@@ -100,6 +100,21 @@ export default function DashboardPage() {
 
   const isLoading = containersLoading || vmsLoading || statsLoading;
 
+  // Settings handlers
+  const handleSettingsChange = (newSettings: DashboardSettings) => {
+    setSettings(newSettings);
+    saveDashboardSettings(newSettings);
+    // Reload page to apply refresh interval change
+    window.location.reload();
+  };
+
+  const handleResetSettings = () => {
+    const defaults = resetDashboardSettings();
+    setSettings(defaults);
+    // Reload page to apply changes
+    window.location.reload();
+  };
+
   // Determine color theme based on value
   const getColorTheme = (value: number): 'default' | 'success' | 'warning' | 'danger' => {
     if (value >= 95) return 'danger';
@@ -109,7 +124,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className={`space-y-6 pb-20 ${settings.compactMode ? 'space-y-4' : 'space-y-6'}`}>
       {/* Header with Health Indicator */}
       <div className="flex items-center justify-between">
         <div>
@@ -118,6 +133,13 @@ export default function DashboardPage() {
             Real-time monitoring and system overview
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          {settings.showSystemHealth && <SystemHealthIndicator health={health} />}
+          <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)}>
+            <Settings className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
         {stats && <SystemHealthIndicator health={health} />}
       </div>
 
