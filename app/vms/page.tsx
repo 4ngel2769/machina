@@ -30,18 +30,12 @@ export default function VirtualMachinesPage() {
   // Fetch VMs on mount
   useEffect(() => {
     fetchVMs();
-  }, [fetchVMs]);
+    setAutoRefresh(true);
 
-  // Auto-refresh every 3 seconds if enabled
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      fetchVMs();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchVMs]);
+    return () => {
+      setAutoRefresh(false);
+    };
+  }, [fetchVMs, setAutoRefresh]);
 
   // Filter VMs based on search and status
   const filteredVMs = vms.filter((vm) => {

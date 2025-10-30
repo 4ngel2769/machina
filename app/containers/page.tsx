@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useContainers } from '@/hooks/use-containers';
 import { useLiveStats } from '@/hooks/use-live-stats';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Container } from '@/types/container';
 import { ContainerCard } from '@/components/containers/container-card';
 import { CreateContainerDialog } from '@/components/containers/create-dialog';
@@ -13,52 +14,139 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Search, RefreshCw, AlertCircle, Box } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Plus, Search, RefreshCw, AlertCircle, Box, Filter, ArrowUpDown } from 'lucide-react';
+
+type SortOption = 'name-asc' | 'name-desc' | 'created-desc' | 'created-asc' | 'cpu-desc' | 'memory-desc';
 
 export default function ContainersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { containers, loading, error, fetchContainers, setAutoRefresh } = useContainers();
   const { stats } = useLiveStats(); // Get live stats
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState<'all' | 'running' | 'stopped'>('all');
+  
+  // Filter and sort state from URL
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [filterTab, setFilterTab] = useState<'all' | 'running' | 'stopped'>(
+    (searchParams.get('status') as 'all' | 'running' | 'stopped') || 'all'
+  );
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [imageFilter, setImageFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<SortOption>(
+    (searchParams.get('sort') as SortOption) || 'name-asc'
+  );
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('search', searchQuery);
+    if (filterTab !== 'all') params.set('status', filterTab);
+    if (sortBy !== 'name-asc') params.set('sort', sortBy);
+    
+    const newUrl = params.toString() ? `?${params.toString()}` : '/containers';
+    router.replace(newUrl, { scroll: false });
+  }, [searchQuery, filterTab, sortBy, router]);
 
   // Fetch containers on mount and enable auto-refresh
   useEffect(() => {
     fetchContainers();
     setAutoRefresh(true);
 
-    // Set up auto-refresh interval (3 seconds)
-    const interval = setInterval(() => {
-      fetchContainers();
-    }, 3000);
-
     return () => {
-      clearInterval(interval);
       setAutoRefresh(false);
     };
   }, [fetchContainers, setAutoRefresh]);
 
-  // Filter containers
-  const filteredContainers = containers.filter((container) => {
-    // Filter by search query
-    const matchesSearch =
-      container.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      container.image.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filter and sort containers
+  const filteredAndSortedContainers = useMemo(() => {
+    let filtered = containers.filter((container) => {
+      // Filter by search query
+      const matchesSearch =
+        container.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        container.image.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    // Filter by status tab
-    if (filterTab === 'running') {
-      return container.status === 'running';
-    } else if (filterTab === 'stopped') {
-      return container.status !== 'running';
-    }
+      // Filter by status tab
+      if (filterTab === 'running') {
+        if (container.status !== 'running') return false;
+      } else if (filterTab === 'stopped') {
+        if (container.status === 'running') return false;
+      }
 
-    return true;
-  });
+      // Filter by type
+      if (typeFilter.length > 0) {
+        const containerType = container.type || 'normal';
+        if (!typeFilter.includes(containerType)) return false;
+      }
+
+      // Filter by image
+      if (imageFilter) {
+        if (!container.image.toLowerCase().includes(imageFilter.toLowerCase())) return false;
+      }
+
+      return true;
+    });
+
+    // Sort containers
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'created-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'created-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'cpu-desc': {
+          const aCpu = stats?.containers.find(s => s.id === a.id)?.cpu || 0;
+          const bCpu = stats?.containers.find(s => s.id === b.id)?.cpu || 0;
+          return bCpu - aCpu;
+        }
+        case 'memory-desc': {
+          const aMemory = stats?.containers.find(s => s.id === a.id);
+          const bMemory = stats?.containers.find(s => s.id === b.id);
+          const aMemPct = typeof aMemory?.memory === 'object' ? aMemory.memory.percentage : 0;
+          const bMemPct = typeof bMemory?.memory === 'object' ? bMemory.memory.percentage : 0;
+          return bMemPct - aMemPct;
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [containers, searchQuery, filterTab, typeFilter, imageFilter, sortBy, stats]);
+
+  // Get unique container types and images for filters
+  const containerTypes = useMemo(() => {
+    const types = new Set(containers.map(c => c.type || 'normal'));
+    return Array.from(types);
+  }, [containers]);
+
+  const containerImages = useMemo(() => {
+    const images = new Set(containers.map(c => c.image.split(':')[0]));
+    return Array.from(images).sort();
+  }, [containers]);
 
   const runningCount = containers.filter((c) => c.status === 'running').length;
   const stoppedCount = containers.filter((c) => c.status !== 'running').length;
