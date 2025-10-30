@@ -348,15 +348,25 @@ export default function VMDetailsPage() {
           <Card className="overflow-hidden">
             <CardContent className="p-0">
               {isRunning && displayConfig ? (
-                <div className="h-[600px]">
-                  <VMConsole
-                    vmName={vm.name}
-                    vncUrl={displayConfig.vnc ? `ws://localhost:${displayConfig.vnc.port}` : undefined}
-                    spiceHost={displayConfig.spice ? displayConfig.spice.listen : undefined}
-                    spicePort={displayConfig.spice?.port}
-                    className="h-full"
-                  />
-                </div>
+                <>
+                  <div className="p-4 bg-blue-500/10 border-b border-blue-500/20">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>💡 Setup Required:</strong> Start websockify proxy for the detected VNC port:
+                    </p>
+                    <code className="block mt-2 p-2 bg-background rounded text-xs">
+                      websockify 6080 localhost:{displayConfig.vnc?.port || 5901}
+                    </code>
+                  </div>
+                  <div className="h-[600px]">
+                    <VMConsole
+                      vmName={vm.name}
+                      vncUrl={displayConfig.vnc ? `ws://localhost:6080` : undefined}
+                      spiceHost={displayConfig.spice ? displayConfig.spice.listen : undefined}
+                      spicePort={displayConfig.spice?.port}
+                      className="h-full"
+                    />
+                  </div>
+                </>
               ) : isRunning && !displayConfig ? (
                 <div className="flex items-center justify-center h-[600px] bg-muted">
                   <div className="text-center">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import RFB from '@novnc/novnc/lib/rfb';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -24,7 +23,7 @@ import { toast } from 'sonner';
 
 interface VNCConsoleProps {
   vmName: string;
-  wsUrl: string;
+  wsUrl?: string;
   onDisconnect?: () => void;
   className?: string;
 }
@@ -34,108 +33,145 @@ type ScaleMode = 'remote' | 'local' | 'none';
 
 export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsoleProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const rfbRef = useRef<RFB | null>(null);
-  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
+  const rfbRef = useRef<any>(null);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [scaleMode, setScaleMode] = useState<ScaleMode>('remote');
   const [showSettings, setShowSettings] = useState(false);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const maxReconnectAttempts = 3;
+  const [noVNCLoaded, setNoVNCLoaded] = useState(false);
+
+  // Load noVNC dynamically from CDN
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Check if RFB is already loaded
+    if ((window as any).RFB) {
+      setNoVNCLoaded(true);
+      return;
+    }
+
+    // Load noVNC from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/noVNC/1.4.0/core/rfb.min.js';
+    script.async = true;
+    script.onload = () => {
+      console.log('[VNC] noVNC library loaded successfully');
+      setNoVNCLoaded(true);
+    };
+    script.onerror = () => {
+      console.error('[VNC] Failed to load noVNC library from CDN');
+      toast.error('Failed to load VNC library');
+      setConnectionState('failed');
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   const handleDisconnect = useCallback(() => {
     if (rfbRef.current) {
-      rfbRef.current.disconnect();
+      try {
+        rfbRef.current.disconnect();
+      } catch (err) {
+        console.error('[VNC] Disconnect error:', err);
+      }
       rfbRef.current = null;
     }
     setConnectionState('disconnected');
     onDisconnect?.();
   }, [onDisconnect]);
 
-  // Connect on mount and reconnect
-  useEffect(() => {
-    if (!canvasRef.current) return;
+  // Connect to VNC
+  const connectVNC = useCallback(() => {
+    if (!canvasRef.current || !noVNCLoaded) {
+      console.error('[VNC] Canvas ref or noVNC not ready');
+      toast.error('VNC library not loaded yet');
+      return;
+    }
 
-    let mounted = true;
-    let rfb: RFB | null = null;
+    if (!wsUrl) {
+      toast.error('VNC WebSocket URL not configured');
+      setConnectionState('failed');
+      return;
+    }
 
-    const connect = async () => {
-      try {
-        console.log('[VNC] Connecting to:', wsUrl);
-        
-        // Create RFB connection
-        rfb = new RFB(canvasRef.current!, wsUrl, {
-          credentials: { password: '' },
-        });
+    try {
+      console.log('[VNC] Connecting to:', wsUrl);
+      setConnectionState('connecting');
 
-        // Set scaling mode
-        rfb.scaleViewport = scaleMode === 'remote';
-        rfb.resizeSession = scaleMode === 'local';
-
-        // Connection events
-        rfb.addEventListener('connect', () => {
-          if (!mounted) return;
-          console.log('[VNC] Connected');
-          setConnectionState('connected');
-          setReconnectAttempts(0);
-          toast.success(`Connected to ${vmName}`);
-        });
-
-        rfb.addEventListener('disconnect', (e: unknown) => {
-          if (!mounted) return;
-          const eventDetail = e as { detail?: { clean?: boolean } };
-          console.log('[VNC] Disconnected:', eventDetail.detail);
-          setConnectionState('disconnected');
-          
-          // Auto-reconnect on unexpected disconnect
-          if (!eventDetail.detail?.clean && reconnectAttempts < maxReconnectAttempts) {
-            console.log(`[VNC] Will reconnect (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-            setReconnectAttempts(prev => prev + 1);
-          }
-        });
-
-        rfb.addEventListener('securityfailure', (e: unknown) => {
-          if (!mounted) return;
-          const eventDetail = e as { detail?: unknown };
-          console.error('[VNC] Security failure:', eventDetail.detail);
-          setConnectionState('failed');
-          toast.error('VNC authentication failed');
-        });
-
-        rfb.addEventListener('credentialsrequired', () => {
-          if (!mounted) return;
-          console.log('[VNC] Credentials required');
-          toast.error('VNC password required (not yet implemented)');
-        });
-
-        rfbRef.current = rfb;
-      } catch (error) {
-        if (!mounted) return;
-        console.error('[VNC] Connection error:', error);
-        // Schedule state update to avoid synchronous setState in effect
-        setTimeout(() => {
-          if (mounted) {
-            setConnectionState('failed');
-            toast.error('Failed to connect to VNC');
-          }
-        }, 0);
+      // Get RFB from window (loaded dynamically)
+      const RFB = (window as any).RFB;
+      if (!RFB) {
+        throw new Error('noVNC RFB not available');
       }
-    };
 
-    connect();
+      // Create RFB connection
+      const rfb = new RFB(canvasRef.current, wsUrl, {
+        credentials: { password: '' },
+      });
 
+      // Set scaling mode
+      rfb.scaleViewport = scaleMode === 'remote' || scaleMode === 'local';
+      rfb.resizeSession = scaleMode === 'local';
+
+      // Connection events
+      rfb.addEventListener('connect', () => {
+        console.log('[VNC] Connected successfully');
+        setConnectionState('connected');
+        toast.success(`Connected to ${vmName}`);
+      });
+
+      rfb.addEventListener('disconnect', (e: any) => {
+        console.log('[VNC] Disconnected:', e.detail);
+        setConnectionState('disconnected');
+        
+        if (!e.detail?.clean) {
+          toast.error('VNC connection lost');
+        }
+      });
+
+      rfb.addEventListener('securityfailure', (e: any) => {
+        console.error('[VNC] Security failure:', e.detail);
+        setConnectionState('failed');
+        toast.error('VNC authentication failed');
+      });
+
+      rfb.addEventListener('credentialsrequired', () => {
+        console.log('[VNC] Credentials required');
+        toast.error('VNC password required (not yet implemented)');
+        setConnectionState('failed');
+      });
+
+      rfbRef.current = rfb;
+    } catch (error) {
+      console.error('[VNC] Connection error:', error);
+      setConnectionState('failed');
+      toast.error(`Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [wsUrl, vmName, scaleMode, noVNCLoaded]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      mounted = false;
       if (rfbRef.current) {
-        rfbRef.current.disconnect();
+        try {
+          rfbRef.current.disconnect();
+        } catch (err) {
+          // Ignore disconnect errors on cleanup
+        }
         rfbRef.current = null;
       }
     };
-  }, [wsUrl, vmName, scaleMode, reconnectAttempts, maxReconnectAttempts]);
+  }, []);
 
   // Update scaling when mode changes
   useEffect(() => {
     if (rfbRef.current && connectionState === 'connected') {
-      rfbRef.current.scaleViewport = scaleMode === 'remote';
+      rfbRef.current.scaleViewport = scaleMode === 'remote' || scaleMode === 'local';
       rfbRef.current.resizeSession = scaleMode === 'local';
     }
   }, [scaleMode, connectionState]);
@@ -150,218 +186,204 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   const takeScreenshot = () => {
     if (!canvasRef.current) return;
 
-    try {
-      const canvas = canvasRef.current.querySelector('canvas');
-      if (!canvas) return;
+    const canvas = canvasRef.current.querySelector('canvas');
+    if (!canvas) return;
 
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${vmName}-screenshot-${Date.now()}.png`;
-          a.click();
-          URL.revokeObjectURL(url);
-          toast.success('Screenshot saved');
-        }
-      });
-    } catch (error) {
-      console.error('Screenshot failed:', error);
-      toast.error('Failed to take screenshot');
-    }
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${vmName}-screenshot-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Screenshot saved');
+    });
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      canvasRef.current?.requestFullscreen();
-      setIsFullscreen(true);
+  const toggleFullscreen = async () => {
+    if (!canvasRef.current) return;
+
+    if (!isFullscreen) {
+      try {
+        await canvasRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {
+        toast.error('Failed to enter fullscreen');
+      }
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      try {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } catch (err) {
+        toast.error('Failed to exit fullscreen');
+      }
     }
   };
 
   const reconnect = () => {
-    setReconnectAttempts(0);
-    setConnectionState('connecting');
+    handleDisconnect();
+    setTimeout(() => {
+      connectVNC();
+    }, 500);
   };
 
-  // Handle fullscreen change
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  // Keyboard shortcut for fullscreen (F11)
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'F11') {
-        e.preventDefault();
-        toggleFullscreen();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, []);
-
-  const getConnectionBadge = () => {
+  const getStatusColor = () => {
     switch (connectionState) {
-      case 'connecting':
-        return <Badge variant="outline" className="animate-pulse">Connecting...</Badge>;
       case 'connected':
-        return <Badge className="bg-green-500">Connected</Badge>;
-      case 'disconnected':
-        return <Badge variant="secondary">Disconnected</Badge>;
+        return 'bg-green-600';
+      case 'connecting':
+        return 'bg-yellow-600';
       case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
+        return 'bg-red-600';
+      default:
+        return 'bg-gray-600';
+    }
+  };
+
+  const getStatusText = () => {
+    switch (connectionState) {
+      case 'connected':
+        return 'Connected';
+      case 'connecting':
+        return 'Connecting...';
+      case 'failed':
+        return 'Failed';
+      default:
+        return 'Disconnected';
     }
   };
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
-      {/* Controls Bar */}
-      <div className="flex items-center justify-between gap-4 p-3 bg-card border-b">
+    <div className={`flex flex-col h-full ${className || ''}`}>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between p-3 bg-muted/50 border-b">
         <div className="flex items-center gap-3">
-          <h3 className="font-semibold">{vmName}</h3>
-          {getConnectionBadge()}
+          <Badge className={getStatusColor()}>
+            {getStatusText()}
+          </Badge>
+          <span className="text-sm text-muted-foreground">{vmName}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Scale Mode */}
-          <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as ScaleMode)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="remote">Remote</SelectItem>
-              <SelectItem value="local">Local</SelectItem>
-              <SelectItem value="none">None</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Scaling Mode */}
+          {connectionState === 'connected' && (
+            <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as ScaleMode)}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="remote">Scale: Remote</SelectItem>
+                <SelectItem value="local">Scale: Local</SelectItem>
+                <SelectItem value="none">Scale: None</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
 
-          {/* Ctrl+Alt+Del */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={sendCtrlAltDel}
-            disabled={connectionState !== 'connected'}
-            title="Send Ctrl+Alt+Del"
-          >
-            <Power className="h-4 w-4" />
-          </Button>
+          {/* Controls */}
+          {connectionState === 'disconnected' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={connectVNC}
+              disabled={!noVNCLoaded || !wsUrl}
+            >
+              <Power className="h-4 w-4 mr-2" />
+              Connect
+            </Button>
+          )}
 
-          {/* Screenshot */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={takeScreenshot}
-            disabled={connectionState !== 'connected'}
-            title="Take Screenshot"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+          {connectionState === 'connected' && (
+            <>
+              <Button size="sm" variant="outline" onClick={sendCtrlAltDel} title="Ctrl+Alt+Del">
+                <Power className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" onClick={takeScreenshot} title="Screenshot">
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" onClick={toggleFullscreen} title="Fullscreen">
+                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              </Button>
+            </>
+          )}
 
-          {/* Fullscreen */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleFullscreen}
-            title="Toggle Fullscreen (F11)"
-          >
-            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-          </Button>
+          {(connectionState === 'failed' || connectionState === 'disconnected') && (
+            <Button size="sm" variant="outline" onClick={reconnect} title="Reconnect">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
 
-          {/* Settings */}
+          {connectionState === 'connected' && (
+            <Button size="sm" variant="destructive" onClick={handleDisconnect} title="Disconnect">
+              <MonitorOff className="h-4 w-4" />
+            </Button>
+          )}
+
           <Button
-            variant="outline"
             size="sm"
+            variant="ghost"
             onClick={() => setShowSettings(!showSettings)}
             title="Settings"
           >
             <Settings className="h-4 w-4" />
-          </Button>
-
-          {/* Disconnect */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDisconnect}
-            title="Disconnect"
-          >
-            <MonitorOff className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="p-4 bg-muted border-b">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <strong>WebSocket URL:</strong> {wsUrl}
-            </div>
-            <div>
-              <strong>Scale Mode:</strong> {scaleMode}
-            </div>
-            <div>
-              <strong>State:</strong> {connectionState}
-            </div>
-            <div>
-              <strong>Reconnect Attempts:</strong> {reconnectAttempts}/{maxReconnectAttempts}
-            </div>
+        <div className="p-4 bg-muted/30 border-b space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">WebSocket URL:</span>
+            <code className="text-xs bg-background px-2 py-1 rounded">{wsUrl || 'Not configured'}</code>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">noVNC Library:</span>
+            <code className="text-xs bg-background px-2 py-1 rounded">
+              {noVNCLoaded ? '✓ Loaded' : '⏳ Loading...'}
+            </code>
+          </div>
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded text-xs">
+            <p className="font-semibold mb-1">💡 Setup Required:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Install websockify: <code>sudo apt install websockify</code></li>
+              <li>Start proxy: <code>websockify 6080 localhost:5901</code></li>
+              <li>Configure wsUrl prop to point to <code>ws://localhost:6080</code></li>
+            </ol>
           </div>
         </div>
       )}
 
-      {/* VNC Canvas */}
-      <div className="flex-1 relative bg-black">
-        <div 
-          ref={canvasRef} 
-          className="w-full h-full flex items-center justify-center"
-        />
-
-        {/* Connection States Overlay */}
-        {connectionState === 'connecting' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <div className="text-center text-white">
-              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <p>Connecting to {vmName}...</p>
+      {/* VNC Display */}
+      <div 
+        ref={canvasRef}
+        className="flex-1 bg-black relative overflow-hidden"
+        style={{ minHeight: '400px' }}
+      >
+        {connectionState === 'disconnected' && !wsUrl && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <MonitorOff className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">VNC Not Configured</p>
+              <p className="text-sm mt-2">WebSocket URL is required</p>
             </div>
           </div>
         )}
-
-        {connectionState === 'disconnected' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <div className="text-center text-white space-y-4">
-              <MonitorOff className="h-12 w-12 mx-auto mb-2" />
-              <p>Disconnected from {vmName}</p>
-              {reconnectAttempts < maxReconnectAttempts && (
-                <Button onClick={reconnect} variant="secondary">
-                  Reconnect
-                </Button>
-              )}
+        {connectionState === 'disconnected' && wsUrl && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <MonitorOff className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Not Connected</p>
+              <p className="text-sm mt-2">Click Connect to start VNC session</p>
             </div>
           </div>
         )}
-
         {connectionState === 'failed' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <div className="text-center text-white space-y-4">
-              <MonitorOff className="h-12 w-12 mx-auto mb-2 text-red-500" />
-              <p>Connection Failed</p>
-              <p className="text-sm text-gray-400">Check if VM is running and VNC is enabled</p>
-              <Button onClick={reconnect} variant="secondary">
-                Try Again
-              </Button>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center text-destructive">
+              <MonitorOff className="h-16 w-16 mx-auto mb-4" />
+              <p className="text-lg font-medium">Connection Failed</p>
+              <p className="text-sm mt-2">Check VNC server and websockify proxy</p>
             </div>
           </div>
         )}
