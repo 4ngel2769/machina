@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useVMs } from '@/hooks/use-vms';
 import { useLiveStats } from '@/hooks/use-live-stats';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,22 +11,59 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, RefreshCw, Server, AlertCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Plus, Search, RefreshCw, Server, AlertCircle, Filter, ArrowUpDown } from 'lucide-react';
 import { VMCard } from '@/components/vms/vm-card';
 import { CreateVMDialog } from '@/components/vms/create-vm-dialog';
 import { StoragePoolsDialog } from '@/components/vms/storage-pools-dialog';
 import { VirtualNetworksDialog } from '@/components/vms/virtual-networks-dialog';
 
 type FilterStatus = 'all' | 'running' | 'stopped' | 'paused';
+type SortOption = 'name-asc' | 'name-desc' | 'cpu-desc' | 'memory-desc';
 
 export default function VirtualMachinesPage() {
-  const { vms, isLoading, error, fetchVMs, autoRefresh, setAutoRefresh } = useVMs();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { vms, isLoading, error, fetchVMs, setAutoRefresh } = useVMs();
   const { stats } = useLiveStats(); // Get live stats
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  
+  // Filter and sort state from URL
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>(
+    (searchParams.get('status') as FilterStatus) || 'all'
+  );
+  const [osFilter, setOsFilter] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<SortOption>(
+    (searchParams.get('sort') as SortOption) || 'name-asc'
+  );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [storageDialogOpen, setStorageDialogOpen] = useState(false);
   const [networksDialogOpen, setNetworksDialogOpen] = useState(false);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('search', searchQuery);
+    if (filterStatus !== 'all') params.set('status', filterStatus);
+    if (sortBy !== 'name-asc') params.set('sort', sortBy);
+    
+    const newUrl = params.toString() ? `?${params.toString()}` : '/vms';
+    router.replace(newUrl, { scroll: false });
+  }, [searchQuery, filterStatus, sortBy, router]);
 
   // Fetch VMs on mount
   useEffect(() => {
@@ -37,20 +75,67 @@ export default function VirtualMachinesPage() {
     };
   }, [fetchVMs, setAutoRefresh]);
 
-  // Filter VMs based on search and status
-  const filteredVMs = vms.filter((vm) => {
-    const matchesSearch = vm.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         vm.os_variant?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (!matchesSearch) return false;
+  // Filter and sort VMs
+  const filteredAndSortedVMs = useMemo(() => {
+    const filtered = vms.filter((vm) => {
+      // Filter by search query
+      const matchesSearch = vm.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           vm.os_variant?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (!matchesSearch) return false;
 
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'running') return vm.status === 'running';
-    if (filterStatus === 'stopped') return vm.status === 'shut off' || vm.status === 'stopped';
-    if (filterStatus === 'paused') return vm.status === 'paused' || vm.status === 'suspended';
-    
-    return true;
-  });
+      // Filter by status
+      if (filterStatus === 'running' && vm.status !== 'running') return false;
+      if (filterStatus === 'stopped' && vm.status !== 'shut off' && vm.status !== 'stopped') return false;
+      if (filterStatus === 'paused' && vm.status !== 'paused' && vm.status !== 'suspended') return false;
+
+      // Filter by OS
+      if (osFilter.length > 0 && vm.os_variant) {
+        if (!osFilter.some(os => vm.os_variant?.toLowerCase().includes(os.toLowerCase()))) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    // Sort VMs
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'cpu-desc': {
+          const aCpu = stats?.vms.find(s => s.name === a.name)?.cpu;
+          const bCpu = stats?.vms.find(s => s.name === b.name)?.cpu;
+          const aCpuUsage = typeof aCpu === 'object' ? aCpu.usage : 0;
+          const bCpuUsage = typeof bCpu === 'object' ? bCpu.usage : 0;
+          return bCpuUsage - aCpuUsage;
+        }
+        case 'memory-desc': {
+          const aMemory = stats?.vms.find(s => s.name === a.name)?.memory;
+          const bMemory = stats?.vms.find(s => s.name === b.name)?.memory;
+          const aMemPct = typeof aMemory === 'object' ? aMemory.percentage : 0;
+          const bMemPct = typeof bMemory === 'object' ? bMemory.percentage : 0;
+          return bMemPct - aMemPct;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [vms, searchQuery, filterStatus, osFilter, sortBy, stats]);
+
+  // Get unique OS types for filter
+  const osTypes = useMemo(() => {
+    const types = new Set(
+      vms
+        .map(vm => vm.os_variant)
+        .filter(Boolean)
+        .map(os => os?.split('-')[0]) // Get base OS name (e.g., 'ubuntu' from 'ubuntu-22.04')
+    );
+    return Array.from(types).sort();
+  }, [vms]);
 
   // Count VMs by status
   const runningCount = vms.filter(vm => vm.status === 'running').length;
