@@ -20,7 +20,9 @@ export async function GET(
 
     // Get all containers and filter by userId
     const allContainers = await listContainers();
-    const containersWithOwnership = attachOwnershipInfo(allContainers, 'container');
+    // Map containers to have lowercase 'id' field for ownership tracking
+    const containersMapped = allContainers.map(c => ({ ...c, id: c.Id }));
+    const containersWithOwnership = attachOwnershipInfo(containersMapped, 'container');
     const userContainers = containersWithOwnership.filter(container => container.createdBy === id);
 
     return NextResponse.json({ containers: userContainers });
