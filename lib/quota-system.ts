@@ -1,9 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { RESOURCE_PLANS, ResourcePlan, getPlanById } from './token-plans';
 
 export interface UserQuota {
   userId: string;
   username: string;
+  currentPlan: string; // Plan ID (free, basic, pro, enterprise, admin)
+  tokenBalance: number; // Available tokens
   quotas: {
     maxVCpus: number;        // Total vCPUs across all VMs
     maxMemoryMB: number;     // Total RAM in MB across all VMs
@@ -19,6 +22,8 @@ export interface UserQuota {
     currentContainers: number;
   };
   suspended: boolean;
+  planActivatedAt?: string; // When current plan was activated
+  planExpiresAt?: string;   // When plan needs renewal (monthly)
   createdAt: string;
   updatedAt: string;
 }
@@ -38,23 +43,11 @@ export interface QuotaCheckResult {
 
 const QUOTA_FILE = path.join(process.cwd(), 'data', 'user-quotas.json');
 
-// Default quotas for new users
-const DEFAULT_QUOTAS: UserQuota['quotas'] = {
-  maxVCpus: 8,
-  maxMemoryMB: 16384,      // 16 GB
-  maxDiskGB: 100,
-  maxVMs: 5,
-  maxContainers: 10,
-};
+// Default plan for new users
+const DEFAULT_PLAN = 'free';
 
-// Unlimited quotas for admins
-export const UNLIMITED_QUOTAS: UserQuota['quotas'] = {
-  maxVCpus: 999,
-  maxMemoryMB: 999999,
-  maxDiskGB: 99999,
-  maxVMs: 999,
-  maxContainers: 999,
-};
+// Default token balance for new users
+const DEFAULT_TOKEN_BALANCE = 0;
 
 // Initialize quota file
 async function ensureQuotaFile() {
@@ -92,11 +85,15 @@ export async function setUserQuota(
   const existingIndex = allQuotas.findIndex(q => q.userId === userId);
   
   const now = new Date().toISOString();
-  const finalQuotas = isAdmin ? UNLIMITED_QUOTAS : { ...DEFAULT_QUOTAS, ...quotas };
+  const planId = isAdmin ? 'admin' : (existingIndex >= 0 ? allQuotas[existingIndex].currentPlan : DEFAULT_PLAN);
+  const plan = getPlanById(planId);
+  const finalQuotas = plan ? plan.quotas : { ...quotas };
   
   const userQuota: UserQuota = {
     userId,
     username,
+    currentPlan: planId,
+    tokenBalance: existingIndex >= 0 ? allQuotas[existingIndex].tokenBalance : DEFAULT_TOKEN_BALANCE,
     quotas: finalQuotas,
     usage: existingIndex >= 0 ? allQuotas[existingIndex].usage : {
       currentVCpus: 0,
@@ -106,6 +103,8 @@ export async function setUserQuota(
       currentContainers: 0,
     },
     suspended: existingIndex >= 0 ? allQuotas[existingIndex].suspended : false,
+    planActivatedAt: existingIndex >= 0 ? allQuotas[existingIndex].planActivatedAt : now,
+    planExpiresAt: existingIndex >= 0 ? allQuotas[existingIndex].planExpiresAt : undefined,
     createdAt: existingIndex >= 0 ? allQuotas[existingIndex].createdAt : now,
     updatedAt: now,
   };
