@@ -37,12 +37,15 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { cn, formatBytes } from '@/lib/utils';
+import type { VMStats } from '@/types/stats';
 
 interface VMCardProps {
   vm: VirtualMachine;
+  liveStats?: VMStats; // Real-time stats from live feed
 }
 
-export function VMCard({ vm }: VMCardProps) {
+export function VMCard({ vm, liveStats }: VMCardProps) {
   const { startVM, stopVM, forceStopVM, pauseVM, resumeVM, deleteVM } = useVMs();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -210,26 +213,128 @@ export function VMCard({ vm }: VMCardProps) {
             </div>
           </div>
 
-          {/* Resource Usage (if available) */}
-          {(vm.cpu_usage !== undefined || vm.memory_usage !== undefined) && (
-            <div className="space-y-2">
-              {vm.cpu_usage !== undefined && (
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
+          {/* Resource Usage - Enhanced with real-time stats */}
+          {(vm.status === 'running' || vm.status === 'paused' || vm.status === 'suspended') && (
+            <div className="space-y-3 pt-3 border-t">
+              {/* CPU Usage */}
+              {(liveStats?.cpu !== undefined || vm.cpu_usage !== undefined) && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">CPU</span>
-                    <span className="font-medium">{vm.cpu_usage.toFixed(1)}%</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {(liveStats?.cpu ?? vm.cpu_usage ?? 0).toFixed(1)}%
+                      </span>
+                      {(liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 95 && (
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                          Critical
+                        </Badge>
+                      )}
+                      {(liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 80 && 
+                       (liveStats?.cpu ?? vm.cpu_usage ?? 0) < 95 && (
+                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                          High
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <Progress value={vm.cpu_usage} className="h-1.5" />
+                  <Progress
+                    value={liveStats?.cpu ?? vm.cpu_usage ?? 0}
+                    className={cn(
+                      "h-2 transition-all duration-500",
+                      (liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 95 && "bg-red-950/20",
+                      (liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 80 &&
+                        (liveStats?.cpu ?? vm.cpu_usage ?? 0) < 95 && "bg-yellow-950/20"
+                    )}
+                    indicatorClassName={cn(
+                      "transition-all duration-500",
+                      (liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 95 && "bg-red-500",
+                      (liveStats?.cpu ?? vm.cpu_usage ?? 0) >= 80 &&
+                        (liveStats?.cpu ?? vm.cpu_usage ?? 0) < 95 && "bg-yellow-500",
+                      (liveStats?.cpu ?? vm.cpu_usage ?? 0) < 80 && "bg-blue-500"
+                    )}
+                  />
                 </div>
               )}
-              
-              {vm.memory_usage !== undefined && (
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
+
+              {/* Memory Usage */}
+              {(liveStats?.memory !== undefined || vm.memory_usage !== undefined) && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Memory</span>
-                    <span className="font-medium">{vm.memory_usage.toFixed(1)}%</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {(liveStats?.memory ?? vm.memory_usage ?? 0).toFixed(1)}%
+                      </span>
+                      {(liveStats?.memory ?? vm.memory_usage ?? 0) >= 95 && (
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                          Critical
+                        </Badge>
+                      )}
+                      {(liveStats?.memory ?? vm.memory_usage ?? 0) >= 80 && 
+                       (liveStats?.memory ?? vm.memory_usage ?? 0) < 95 && (
+                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                          High
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <Progress value={vm.memory_usage} className="h-1.5" />
+                  <Progress
+                    value={liveStats?.memory ?? vm.memory_usage ?? 0}
+                    className={cn(
+                      "h-2 transition-all duration-500",
+                      (liveStats?.memory ?? vm.memory_usage ?? 0) >= 95 && "bg-red-950/20",
+                      (liveStats?.memory ?? vm.memory_usage ?? 0) >= 80 &&
+                        (liveStats?.memory ?? vm.memory_usage ?? 0) < 95 && "bg-yellow-950/20"
+                    )}
+                    indicatorClassName={cn(
+                      "transition-all duration-500",
+                      (liveStats?.memory ?? vm.memory_usage ?? 0) >= 95 && "bg-red-500",
+                      (liveStats?.memory ?? vm.memory_usage ?? 0) >= 80 &&
+                        (liveStats?.memory ?? vm.memory_usage ?? 0) < 95 && "bg-yellow-500",
+                      (liveStats?.memory ?? vm.memory_usage ?? 0) < 80 && "bg-blue-500"
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Disk I/O */}
+              {liveStats?.diskRead !== undefined && liveStats?.diskWrite !== undefined && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Disk I/O</span>
+                    <span className="font-medium text-[10px]">
+                      R {formatBytes(liveStats.diskRead)} / W {formatBytes(liveStats.diskWrite)}
+                    </span>
+                  </div>
+                  <div className="flex gap-1 h-1.5">
+                    <div className="flex-1 bg-purple-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex-1 bg-orange-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Network I/O */}
+              {liveStats?.networkRx !== undefined && liveStats?.networkTx !== undefined && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Network I/O</span>
+                    <span className="font-medium text-[10px]">
+                      ↓ {formatBytes(liveStats.networkRx)} / ↑ {formatBytes(liveStats.networkTx)}
+                    </span>
+                  </div>
+                  <div className="flex gap-1 h-1.5">
+                    <div className="flex-1 bg-green-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex-1 bg-blue-500/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
