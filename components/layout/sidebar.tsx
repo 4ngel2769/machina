@@ -96,6 +96,14 @@ export function Sidebar() {
     await signOut({ callbackUrl: '/login' });
   };
 
+  const handleCreateNew = (type: 'container' | 'vm') => {
+    if (type === 'container') {
+      window.location.href = '/containers';
+    } else {
+      window.location.href = '/vms/create';
+    }
+  };
+
   const isActive = (href: string) => pathname === href;
 
   const getUserInitials = (name?: string | null) => {
