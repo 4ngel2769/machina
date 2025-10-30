@@ -13,24 +13,6 @@ import {
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 import { createContainerSchema } from '@/lib/validation';
 
-// Validation schema for container creation
-const createContainerSchema = z.object({
-  name: z.string().optional(),
-  image: z.string().min(1, 'Image is required'),
-  type: z.enum(['normal', 'amnesic']),
-  shell: z.string().min(1, 'Shell is required'),
-  ports: z
-    .array(
-      z.object({
-        container: z.number(),
-        host: z.number(),
-        protocol: z.string(),
-      })
-    )
-    .optional(),
-  env: z.record(z.string()).optional(),
-});
-
 /**
  * GET /api/containers - List all containers
  */
