@@ -3,10 +3,11 @@ import { getVMDisplayConfig } from '@/lib/libvirt';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const vmName = decodeURIComponent(params.id);
+    const { id } = await params;
+    const vmName = decodeURIComponent(id);
     const displayConfig = getVMDisplayConfig(vmName);
 
     if (!displayConfig) {
