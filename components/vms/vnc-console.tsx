@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import RFB from '@novnc/novnc/core/rfb';
+import RFB from '@novnc/novnc/lib/rfb';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -55,58 +55,76 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    try {
-      console.log('[VNC] Connecting to:', wsUrl);
-      
-      // Create RFB connection
-      const rfb = new RFB(canvasRef.current, wsUrl, {
-        credentials: { password: '' },
-      });
+    let mounted = true;
+    let rfb: RFB | null = null;
 
-      // Set scaling mode
-      rfb.scaleViewport = scaleMode === 'remote';
-      rfb.resizeSession = scaleMode === 'local';
-
-      // Connection events
-      rfb.addEventListener('connect', () => {
-        console.log('[VNC] Connected');
-        setConnectionState('connected');
-        setReconnectAttempts(0);
-        toast.success(`Connected to ${vmName}`);
-      });
-
-      rfb.addEventListener('disconnect', (e: unknown) => {
-        const eventDetail = e as { detail?: { clean?: boolean } };
-        console.log('[VNC] Disconnected:', eventDetail.detail);
-        setConnectionState('disconnected');
+    const connect = async () => {
+      try {
+        console.log('[VNC] Connecting to:', wsUrl);
         
-        // Auto-reconnect on unexpected disconnect
-        if (!eventDetail.detail?.clean && reconnectAttempts < maxReconnectAttempts) {
-          console.log(`[VNC] Will reconnect (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-          setReconnectAttempts(prev => prev + 1);
-        }
-      });
+        // Create RFB connection
+        rfb = new RFB(canvasRef.current!, wsUrl, {
+          credentials: { password: '' },
+        });
 
-      rfb.addEventListener('securityfailure', (e: unknown) => {
-        const eventDetail = e as { detail?: unknown };
-        console.error('[VNC] Security failure:', eventDetail.detail);
-        setConnectionState('failed');
-        toast.error('VNC authentication failed');
-      });
+        // Set scaling mode
+        rfb.scaleViewport = scaleMode === 'remote';
+        rfb.resizeSession = scaleMode === 'local';
 
-      rfb.addEventListener('credentialsrequired', () => {
-        console.log('[VNC] Credentials required');
-        toast.error('VNC password required (not yet implemented)');
-      });
+        // Connection events
+        rfb.addEventListener('connect', () => {
+          if (!mounted) return;
+          console.log('[VNC] Connected');
+          setConnectionState('connected');
+          setReconnectAttempts(0);
+          toast.success(`Connected to ${vmName}`);
+        });
 
-      rfbRef.current = rfb;
-    } catch (error) {
-      console.error('[VNC] Connection error:', error);
-      setConnectionState('failed');
-      toast.error('Failed to connect to VNC');
-    }
+        rfb.addEventListener('disconnect', (e: unknown) => {
+          if (!mounted) return;
+          const eventDetail = e as { detail?: { clean?: boolean } };
+          console.log('[VNC] Disconnected:', eventDetail.detail);
+          setConnectionState('disconnected');
+          
+          // Auto-reconnect on unexpected disconnect
+          if (!eventDetail.detail?.clean && reconnectAttempts < maxReconnectAttempts) {
+            console.log(`[VNC] Will reconnect (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+            setReconnectAttempts(prev => prev + 1);
+          }
+        });
+
+        rfb.addEventListener('securityfailure', (e: unknown) => {
+          if (!mounted) return;
+          const eventDetail = e as { detail?: unknown };
+          console.error('[VNC] Security failure:', eventDetail.detail);
+          setConnectionState('failed');
+          toast.error('VNC authentication failed');
+        });
+
+        rfb.addEventListener('credentialsrequired', () => {
+          if (!mounted) return;
+          console.log('[VNC] Credentials required');
+          toast.error('VNC password required (not yet implemented)');
+        });
+
+        rfbRef.current = rfb;
+      } catch (error) {
+        if (!mounted) return;
+        console.error('[VNC] Connection error:', error);
+        // Schedule state update to avoid synchronous setState in effect
+        setTimeout(() => {
+          if (mounted) {
+            setConnectionState('failed');
+            toast.error('Failed to connect to VNC');
+          }
+        }, 0);
+      }
+    };
+
+    connect();
 
     return () => {
+      mounted = false;
       if (rfbRef.current) {
         rfbRef.current.disconnect();
         rfbRef.current = null;
