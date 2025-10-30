@@ -66,6 +66,31 @@ export default function HelpPage() {
       question: 'Can I customize VM resources after creation?',
       answer: 'Not currently supported. You need to create a new VM with the desired specifications. We recommend planning your resource allocation before creation.',
       tags: ['vms', 'resources']
+    },
+    {
+      question: 'What are tokens and how do they work?',
+      answer: 'Tokens are the virtual currency used in Machina. Each plan comes with a token balance that automatically renews. Tokens can be used for premium features, additional resources, or add-ons. Admins can add or remove tokens from user accounts.',
+      tags: ['tokens', 'billing', 'plans']
+    },
+    {
+      question: 'How do I check my current plan and token balance?',
+      answer: 'Your current plan and token balance are displayed in the admin dashboard if you\'re an admin, or you can check with your administrator. Token usage and plan details are also visible in the Settings page.',
+      tags: ['tokens', 'plans', 'account']
+    },
+    {
+      question: 'Can I snapshot my VMs?',
+      answer: 'Yes! VM snapshots allow you to save the current state of a virtual machine. You can create snapshots, revert to previous states, and manage multiple snapshots per VM from the VM detail page.',
+      tags: ['vms', 'snapshots', 'backup']
+    },
+    {
+      question: 'What network modes are available for VMs?',
+      answer: 'VMs support NAT (default), bridged, and host-only networking. NAT provides internet access through the host, bridged gives the VM a direct network presence, and host-only restricts communication to the host machine.',
+      tags: ['vms', 'network', 'networking']
+    },
+    {
+      question: 'How do I access the VNC console?',
+      answer: 'Click on any VM card or navigate to the VM detail page, then click the "Console" button. This opens a browser-based VNC viewer for direct graphical access to your VM. No additional software required!',
+      tags: ['vms', 'vnc', 'console']
     }
   ];
 
