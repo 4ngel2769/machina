@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { VirtualMachine } from '@/types/vm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +46,7 @@ interface VMCardProps {
 }
 
 export function VMCard({ vm, liveStats }: VMCardProps) {
+  const router = useRouter();
   const { startVM, stopVM, forceStopVM, pauseVM, resumeVM, deleteVM } = useVMs();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -90,7 +92,10 @@ export function VMCard({ vm, liveStats }: VMCardProps) {
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow">
+      <Card 
+        className="hover:shadow-lg transition-shadow cursor-pointer" 
+        onClick={() => router.push(`/vms/${encodeURIComponent(vm.name)}`)}
+      >
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -104,11 +109,16 @@ export function VMCard({ vm, liveStats }: VMCardProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={isActionLoading}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  disabled={isActionLoading}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                 {/* Start/Stop/Pause Actions */}
                 {vm.status === 'running' && (
                   <>

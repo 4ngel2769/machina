@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { VNCConsole } from '@/components/vms/vnc-console';
 import {
   ArrowLeft,
   Play,
@@ -23,7 +24,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useVMs } from '@/hooks/use-vms';
-import type { VM } from '@/types/vm';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -306,16 +306,33 @@ export default function VMDetailsPage() {
 
         {/* Console Tab */}
         <TabsContent value="console" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>VM Console</CardTitle>
-              <CardDescription>Click the button below to open the VM console in a new view</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={handleOpenConsole} disabled={isStopped}>
-                <Monitor className="h-4 w-4 mr-2" />
-                Open Console
-              </Button>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              {isRunning ? (
+                <div className="h-[600px]">
+                  <VNCConsole
+                    vmName={vm.name}
+                    wsUrl={`ws://localhost:5900`}
+                    className="h-full"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-[600px] bg-muted">
+                  <div className="text-center">
+                    <Monitor className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-lg font-medium text-muted-foreground mb-2">
+                      VM is not running
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Start the VM to access the console
+                    </p>
+                    <Button onClick={handleStart} size="sm">
+                      <Play className="h-4 w-4 mr-2" />
+                      Start VM
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
