@@ -1,12 +1,104 @@
 import { execSync } from 'child_process';
 import { VirtualMachine, VMStatus, StoragePool, VirtualNetwork } from '@/types/vm';
+import path from 'path';
+
+// Security: Maximum resource limits per VM
+const MAX_VM_MEMORY = 32 * 1024; // 32GB in MB
+const MAX_VM_VCPUS = 16;
+const MAX_VM_DISK = 500 * 1024; // 500GB in MB
+
+// Security: Allowed ISO/image directories
+const ALLOWED_ISO_PATHS = [
+  '/var/lib/libvirt/images',
+  '/var/lib/libvirt/boot',
+  '/home',
+  'C:\\Users',
+  'C:\\libvirt\\images',
+];
+
+/**
+ * Validate VM name (prevent command injection)
+ */
+function validateVMName(name: string): void {
+  // Only allow alphanumeric, hyphens, and underscores
+  const validPattern = /^[a-zA-Z0-9_-]+$/;
+  if (!validPattern.test(name)) {
+    throw new Error('Invalid VM name. Use only alphanumeric characters, hyphens, and underscores.');
+  }
+  if (name.length === 0 || name.length > 255) {
+    throw new Error('VM name must be between 1 and 255 characters.');
+  }
+}
+
+/**
+ * Validate ISO path (prevent path traversal)
+ */
+function validateISOPath(isoPath: string): void {
+  // Normalize path
+  const normalizedPath = path.normalize(isoPath);
+  
+  // Check for path traversal attempts
+  if (normalizedPath.includes('..')) {
+    throw new Error('Invalid ISO path: path traversal detected');
+  }
+  
+  // Validate against whitelist
+  const isAllowed = ALLOWED_ISO_PATHS.some(allowedPath => {
+    const normalizedAllowed = path.normalize(allowedPath);
+    return normalizedPath.startsWith(normalizedAllowed);
+  });
+  
+  if (!isAllowed) {
+    throw new Error(`ISO path not allowed. Must be in: ${ALLOWED_ISO_PATHS.join(', ')}`);
+  }
+}
+
+/**
+ * Validate VM resources (prevent resource exhaustion)
+ */
+function validateVMResources(memory: number, vcpus: number, diskSize: number): void {
+  if (memory > MAX_VM_MEMORY) {
+    throw new Error(`Memory exceeds maximum allowed: ${MAX_VM_MEMORY}MB`);
+  }
+  if (memory < 512) {
+    throw new Error('Memory must be at least 512MB');
+  }
+  
+  if (vcpus > MAX_VM_VCPUS) {
+    throw new Error(`vCPUs exceed maximum allowed: ${MAX_VM_VCPUS}`);
+  }
+  if (vcpus < 1) {
+    throw new Error('vCPUs must be at least 1');
+  }
+  
+  if (diskSize > MAX_VM_DISK) {
+    throw new Error(`Disk size exceeds maximum allowed: ${MAX_VM_DISK}MB`);
+  }
+  if (diskSize < 1024) {
+    throw new Error('Disk size must be at least 1GB (1024MB)');
+  }
+}
+
+/**
+ * Sanitize virsh command arguments (prevent injection)
+ */
+function sanitizeArgs(args: string[]): string[] {
+  return args.map(arg => {
+    // Remove any dangerous characters
+    const sanitized = arg.replace(/[;&|`$(){}[\]<>]/g, '');
+    return sanitized;
+  });
+}
 
 /**
  * Execute virsh command and return output
  */
 function execVirsh(args: string[]): string {
   try {
-    const command = `virsh ${args.join(' ')}`;
+    // Security: Sanitize arguments
+    const sanitizedArgs = sanitizeArgs(args);
+    
+    const command = `virsh ${sanitizedArgs.join(' ')}`;
     console.log(`[libvirt] Executing: ${command}`);
     
     const output = execSync(command, {
