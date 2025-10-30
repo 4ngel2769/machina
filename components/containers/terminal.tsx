@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Container } from '@/types/container';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Terminal as TerminalIcon, X } from 'lucide-react';
+import { Terminal as TerminalIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Types for xterm (loaded dynamically)
@@ -214,31 +213,26 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0">
+      <DialogContent className="max-w-6xl max-h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <TerminalIcon className="h-5 w-5" />
-              <DialogTitle>Terminal - {container?.name}</DialogTitle>
-              <Badge
-                variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
-                className={
-                  connectionStatus === 'connected'
-                    ? 'bg-green-600'
-                    : connectionStatus === 'connecting'
-                    ? 'bg-yellow-600'
-                    : 'bg-gray-600'
-                }
-              >
-                {connectionStatus}
-              </Badge>
-            </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-3">
+            <TerminalIcon className="h-5 w-5" />
+            <DialogTitle>Terminal - {container?.name}</DialogTitle>
+            <Badge
+              variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
+              className={
+                connectionStatus === 'connected'
+                  ? 'bg-green-600'
+                  : connectionStatus === 'connecting'
+                  ? 'bg-yellow-600'
+                  : 'bg-gray-600'
+              }
+            >
+              {connectionStatus}
+            </Badge>
           </div>
         </DialogHeader>
-        <div className="p-6 pt-4">
+        <div className="p-6 pt-4 overflow-hidden">
           <div
             ref={terminalRef}
             className="rounded-lg overflow-hidden border border-border"
