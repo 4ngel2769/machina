@@ -15,7 +15,9 @@ import {
   Menu,
   LogOut,
   User,
-  Shield
+  Shield,
+  Search,
+  Command
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -144,6 +146,38 @@ export function Sidebar() {
                 </button>
               );
             })}
+
+            <Separator className="my-2" />
+
+            {/* Command Palette Trigger */}
+            <Button
+              variant="outline"
+              className={cn(
+                'w-full justify-start gap-3 text-muted-foreground',
+                isCollapsed && 'justify-center px-2'
+              )}
+              onClick={() => {
+                const event = new KeyboardEvent('keydown', {
+                  key: 'k',
+                  code: 'KeyK',
+                  metaKey: true,
+                  ctrlKey: true,
+                  bubbles: true
+                });
+                window.dispatchEvent(event);
+              }}
+              title={isCollapsed ? 'Search (Cmd+K)' : undefined}
+            >
+              <Search className="w-5 h-5 shrink-0" />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Search...</span>
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                    <Command className="h-3 w-3" />K
+                  </kbd>
+                </>
+              )}
+            </Button>
 
             <Separator className="my-2" />
 
