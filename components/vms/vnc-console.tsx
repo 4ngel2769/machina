@@ -18,6 +18,7 @@ import {
   MonitorOff,
   RefreshCw,
   Settings,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type RFB from '@novnc/novnc/lib/rfb.js';
