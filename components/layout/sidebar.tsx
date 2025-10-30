@@ -213,17 +213,33 @@ export function Sidebar() {
             <Separator className="my-2" />
 
             {/* Create New Button */}
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full justify-start gap-3',
-                isCollapsed && 'justify-center px-2'
-              )}
-              title={isCollapsed ? 'Create New' : undefined}
-            >
-              <Plus className="w-5 h-5 shrink-0" />
-              {!isCollapsed && <span>Create New</span>}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'w-full justify-start gap-3',
+                    isCollapsed && 'justify-center px-2'
+                  )}
+                  title={isCollapsed ? 'Create New' : undefined}
+                >
+                  <Plus className="w-5 h-5 shrink-0" />
+                  {!isCollapsed && <span>Create New</span>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Create Resource</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleCreateNew('container')} className="cursor-pointer">
+                  <Container className="mr-2 h-4 w-4" />
+                  <span>New Container</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleCreateNew('vm')} className="cursor-pointer">
+                  <MonitorPlay className="mr-2 h-4 w-4" />
+                  <span>New Virtual Machine</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
 
           {/* User Section */}
