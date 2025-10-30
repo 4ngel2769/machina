@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { ConditionalLayout } from "./conditional-layout";
 import { Toaster } from '@/components/ui/toaster';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +31,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
-          <ConditionalLayout>
-            {children}
-          </ConditionalLayout>
-          <Toaster />
-        </Providers>
+        <ErrorBoundary>
+          <Providers>
+            <ConditionalLayout>
+              {children}
+            </ConditionalLayout>
+            <Toaster />
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );
