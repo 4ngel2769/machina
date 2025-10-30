@@ -136,6 +136,22 @@ export async function POST(request: NextRequest) {
     const result = createVM(vmOptions);
     
     if (!result.success) {
+      logger.error('VM creation failed', { 
+        userId: session.user.id, 
+        vmName: vmOptions.name, 
+        error: result.message 
+      });
+      
+      await logAudit({
+        userId: session.user.id,
+        username: session.user.name || session.user.id,
+        action: 'create',
+        resourceType: 'vm',
+        resourceName: vmOptions.name,
+        success: false,
+        errorMessage: result.message,
+      });
+      
       return NextResponse.json(
         { error: result.message },
         { status: 400 }
@@ -147,6 +163,22 @@ export async function POST(request: NextRequest) {
     if (result.name) {
       addResourceOwnership(result.name, 'vm', session.user.id);
     }
+
+    logger.info('VM created successfully', { 
+      userId: session.user.id, 
+      vmName: result.name 
+    });
+    
+    await logAudit({
+      userId: session.user.id,
+      username: session.user.name || session.user.id,
+      action: 'create',
+      resourceType: 'vm',
+      resourceId: result.name,
+      resourceName: result.name,
+      success: true,
+      details: `CPU: ${validatedData.vcpus}, Memory: ${validatedData.memory}MB, Disk: ${validatedData.storage.size}GB`,
+    });
 
     return NextResponse.json({
       message: result.message,
@@ -162,6 +194,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    logger.error('Error creating VM', { error });
     console.error('Error creating VM:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create VM' },
