@@ -23,6 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -36,8 +43,12 @@ import {
   Ban,
   CheckCircle2,
   AlertTriangle,
+  Coins,
+  TrendingUp,
+  Crown,
 } from 'lucide-react';
 import { UserQuota, getQuotaUsagePercentage } from '@/lib/quota-system';
+import { getAvailablePlans, formatTokens, RESOURCE_PLANS } from '@/lib/token-plans';
 import { PageLoading } from '@/components/loading-skeletons';
 import { HelpTooltip } from '@/components/help-tooltips';
 
@@ -50,6 +61,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [editingQuota, setEditingQuota] = useState<UserQuota | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [editForm, setEditForm] = useState({
@@ -58,6 +71,15 @@ export default function AdminDashboard() {
     maxDiskGB: 100,
     maxVMs: 5,
     maxContainers: 10,
+  });
+
+  const [tokenForm, setTokenForm] = useState({
+    amount: 0,
+    action: 'add' as 'add' | 'remove' | 'set',
+  });
+
+  const [planForm, setPlanForm] = useState({
+    planId: 'free',
   });
 
   // Redirect if not admin
@@ -170,6 +192,108 @@ export default function AdminDashboard() {
         description: 'Failed to update suspension status',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Handle manage tokens
+  const handleManageTokens = (quota: UserQuota) => {
+    setEditingQuota(quota);
+    setTokenForm({ amount: 0, action: 'add' });
+    setShowTokenDialog(true);
+  };
+
+  const handleSaveTokens = async () => {
+    if (!editingQuota) return;
+    setSubmitting(true);
+
+    try {
+      const endpoint = '/api/admin/tokens';
+      const method = tokenForm.action === 'add' ? 'POST' : tokenForm.action === 'remove' ? 'DELETE' : 'PUT';
+      
+      const body = tokenForm.action === 'set' 
+        ? { userId: editingQuota.userId, balance: tokenForm.amount }
+        : { userId: editingQuota.userId, amount: tokenForm.amount };
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) throw new Error('Failed to update tokens');
+
+      const data = await response.json();
+      
+      toast({
+        title: 'Success',
+        description: `Token balance updated: ${data.tokenBalance} tokens`,
+      });
+
+      setShowTokenDialog(false);
+      fetchQuotas();
+    } catch (error) {
+      console.error('Error updating tokens:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update token balance',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle change plan
+  const handleChangePlan = (quota: UserQuota) => {
+    setEditingQuota(quota);
+    setPlanForm({ planId: quota.currentPlan });
+    setShowPlanDialog(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!editingQuota) return;
+    setSubmitting(true);
+
+    try {
+      const response = await fetch('/api/admin/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingQuota.userId,
+          planId: planForm.planId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        if (error.details?.shortage) {
+          toast({
+            title: 'Insufficient Tokens',
+            description: `User needs ${error.details.shortage} more tokens to activate this plan.`,
+            variant: 'destructive',
+          });
+          setSubmitting(false);
+          return;
+        }
+        throw new Error('Failed to change plan');
+      }
+
+      toast({
+        title: 'Success',
+        description: `Plan changed to ${planForm.planId}`,
+      });
+
+      setShowPlanDialog(false);
+      fetchQuotas();
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to change plan',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -289,6 +413,8 @@ export default function AdminDashboard() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Tokens</TableHead>
                 <TableHead>VMs</TableHead>
                 <TableHead>Containers</TableHead>
                 <TableHead>vCPUs</TableHead>
@@ -300,7 +426,7 @@ export default function AdminDashboard() {
             <TableBody>
               {quotas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground">
                     No users with quotas yet
                   </TableCell>
                 </TableRow>
@@ -339,6 +465,27 @@ export default function AdminDashboard() {
                             Active
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={
+                            quota.currentPlan === 'admin' ? 'default' :
+                            quota.currentPlan === 'enterprise' ? 'secondary' :
+                            quota.currentPlan === 'pro' ? 'secondary' :
+                            'outline'
+                          }
+                          className="flex items-center gap-1 w-fit capitalize"
+                        >
+                          {quota.currentPlan === 'admin' && <Crown className="h-3 w-3" />}
+                          {quota.currentPlan === 'enterprise' && <TrendingUp className="h-3 w-3" />}
+                          {quota.currentPlan}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Coins className="h-4 w-4 text-amber-500" />
+                          <span className="font-medium">{formatTokens(quota.tokenBalance)}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -387,13 +534,30 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleEditQuota(quota)}
+                            title="Edit Quotas"
                           >
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleManageTokens(quota)}
+                            title="Manage Tokens"
+                          >
+                            <Coins className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleChangePlan(quota)}
+                            title="Change Plan"
+                          >
+                            <TrendingUp className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
@@ -401,6 +565,7 @@ export default function AdminDashboard() {
                             onClick={() =>
                               handleToggleSuspend(quota.userId, quota.username, quota.suspended)
                             }
+                            title={quota.suspended ? 'Unsuspend User' : 'Suspend User'}
                           >
                             {quota.suspended ? (
                               <CheckCircle2 className="h-4 w-4" />
@@ -492,6 +657,169 @@ export default function AdminDashboard() {
             </Button>
             <Button onClick={handleSaveQuota} disabled={submitting}>
               {submitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Token Management Dialog */}
+      <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Tokens</DialogTitle>
+            <DialogDescription>
+              Manage token balance for {editingQuota?.username}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2">
+                <Coins className="h-5 w-5 text-amber-500" />
+                <div>
+                  <p className="text-sm font-medium">Current Balance</p>
+                  <p className="text-2xl font-bold">
+                    {editingQuota ? formatTokens(editingQuota.tokenBalance) : '0'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Action</Label>
+              <Select 
+                value={tokenForm.action} 
+                onValueChange={(value: 'add' | 'remove' | 'set') => 
+                  setTokenForm({ ...tokenForm, action: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="add">Add Tokens</SelectItem>
+                  <SelectItem value="remove">Remove Tokens</SelectItem>
+                  <SelectItem value="set">Set Balance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                {tokenForm.action === 'set' ? 'New Balance' : 'Amount'}
+              </Label>
+              <Input
+                type="number"
+                value={tokenForm.amount}
+                onChange={(e) => setTokenForm({ ...tokenForm, amount: parseInt(e.target.value) || 0 })}
+                min="0"
+              />
+              {tokenForm.action !== 'set' && (
+                <p className="text-xs text-muted-foreground">
+                  New balance will be:{' '}
+                  {tokenForm.action === 'add'
+                    ? (editingQuota?.tokenBalance || 0) + tokenForm.amount
+                    : Math.max(0, (editingQuota?.tokenBalance || 0) - tokenForm.amount)}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTokenDialog(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTokens} disabled={submitting}>
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Plan Dialog */}
+      <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Plan</DialogTitle>
+            <DialogDescription>
+              Change subscription plan for {editingQuota?.username}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Current Plan</span>
+                <Badge className="capitalize">{editingQuota?.currentPlan}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Token Balance</span>
+                <div className="flex items-center gap-1">
+                  <Coins className="h-4 w-4 text-amber-500" />
+                  <span className="font-bold">
+                    {editingQuota ? formatTokens(editingQuota.tokenBalance) : '0'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>New Plan</Label>
+              <Select 
+                value={planForm.planId} 
+                onValueChange={(value) => setPlanForm({ planId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailablePlans().map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      <div className="flex items-center gap-2">
+                        <span className="capitalize">{plan.name}</span>
+                        {plan.tokenCost > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            ({plan.tokenCost} tokens/month)
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {planForm.planId && RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS] && (
+              <div className="p-3 bg-muted rounded-lg space-y-2">
+                <p className="text-sm font-medium">Plan Details</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">vCPUs:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].quotas.maxVCpus}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Memory:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].quotas.maxMemoryMB / 1024}GB
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Disk:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].quotas.maxDiskGB}GB
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">VMs:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].quotas.maxVMs}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Containers:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].quotas.maxContainers}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Cost:</span>{' '}
+                    {RESOURCE_PLANS[planForm.planId as keyof typeof RESOURCE_PLANS].tokenCost} tokens/month
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPlanDialog(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePlan} disabled={submitting}>
+              {submitting ? 'Changing...' : 'Change Plan'}
             </Button>
           </DialogFooter>
         </DialogContent>
