@@ -1,6 +1,9 @@
 import { auth } from '@/lib/auth/config';
 import { NextResponse } from 'next/server';
 
+// Force Node.js runtime (not Edge) so we can use fs/path
+export const runtime = 'nodejs';
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
