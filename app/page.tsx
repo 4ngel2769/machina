@@ -255,19 +255,20 @@ export default function DashboardPage() {
       {/* Active Resources */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Active Containers */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Container className="h-5 w-5" />
-              Active Containers
-            </h2>
-            <Link href="/containers">
-              <Button variant="ghost" size="sm">
-                View All
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
+        {settings.showContainersSection && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Container className="h-5 w-5" />
+                Active Containers
+              </h2>
+              <Link href="/containers">
+                <Button variant="ghost" size="sm">
+                  View All
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           {runningContainers.length === 0 ? (
             <div className="rounded-lg border bg-card p-8 text-center">
               <Container className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -304,14 +305,16 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Active VMs */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Server className="h-5 w-5" />
-              Active VMs
+        {settings.showVMsSection && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                Active VMs
             </h2>
             <Link href="/vms">
               <Button variant="ghost" size="sm">
@@ -354,7 +357,8 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Activity Feed */}
