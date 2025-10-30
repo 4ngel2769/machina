@@ -159,14 +159,11 @@ export function Sidebar() {
                 isCollapsed && 'justify-center px-2'
               )}
               onClick={() => {
-                const event = new KeyboardEvent('keydown', {
-                  key: 'k',
-                  code: 'KeyK',
-                  metaKey: true,
-                  ctrlKey: true,
-                  bubbles: true
-                });
-                window.dispatchEvent(event);
+                // Use global function to toggle command palette
+                if (typeof window !== 'undefined') {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (window as any).toggleCommandPalette?.();
+                }
               }}
               title={isCollapsed ? 'Search (Cmd+K)' : undefined}
             >

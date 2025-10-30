@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth/config';
+import { getUserById } from '@/lib/auth/user-storage';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     const { id } = await params;
 
     if (!session || session.user?.role !== 'admin') {
@@ -19,17 +18,7 @@ export async function GET(
     }
 
     // Get user details
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-        suspended: true,
-      },
-    });
+    const user = getUserById(id);
 
     if (!user) {
       return NextResponse.json(
@@ -38,7 +27,14 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(user);
+    // Return user without password hash
+    return NextResponse.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      createdAt: user.createdAt,
+      lastLogin: user.lastLogin,
+    });
   } catch (error) {
     console.error('Error fetching user details:', error);
     return NextResponse.json(
