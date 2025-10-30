@@ -169,6 +169,25 @@ export async function POST(request: NextRequest) {
 
     const config: CreateContainerRequest = validationResult.data;
 
+    // Check quota before creating container
+    const quotaCheck = await checkContainerQuota(
+      session.user.id,
+      session.user.role === 'admin'
+    );
+    
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Quota exceeded',
+          reason: quotaCheck.reason,
+          currentUsage: quotaCheck.currentUsage,
+          quotas: quotaCheck.quotas
+        },
+        { status: 403 }
+      );
+    }
+
     // Create the container
     const container = await createContainer(config);
 
