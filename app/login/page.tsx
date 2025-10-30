@@ -147,3 +147,11 @@ function LoginForm() {
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
