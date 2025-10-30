@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { VNCConsole } from '@/components/vms/vnc-console';
 import {
   ArrowLeft,
   Play,
@@ -34,6 +34,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+// Dynamically import VNCConsole to avoid SSR issues with noVNC
+const VNCConsole = dynamic(
+  () => import('@/components/vms/vnc-console').then(mod => ({ default: mod.VNCConsole })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-[600px] bg-muted">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+);
 
 export default function VMDetailsPage() {
   const params = useParams();
