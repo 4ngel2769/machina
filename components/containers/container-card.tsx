@@ -221,79 +221,81 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                       )}
                       {(liveStats?.cpu ?? container.cpu ?? 0) >= 80 && 
                        (liveStats?.cpu ?? container.cpu ?? 0) < 95 && (
-                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                        <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
                           High
                         </Badge>
                       )}
                     </div>
                   </div>
-                  <Progress
-                    value={liveStats?.cpu ?? container.cpu ?? 0}
-                    className={cn(
-                      "h-2 transition-all duration-500",
-                      (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-950/20",
-                      (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
-                        (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-950/20"
-                    )}
-                    indicatorClassName={cn(
-                      "transition-all duration-500",
-                      (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-500",
-                      (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
-                        (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-500",
-                      (liveStats?.cpu ?? container.cpu ?? 0) < 80 && "bg-blue-500"
-                    )}
-                  />
+                  <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-500",
+                        (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
+                          (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-500",
+                        (liveStats?.cpu ?? container.cpu ?? 0) < 80 && "bg-blue-500"
+                      )}
+                      style={{ width: `${Math.min(liveStats?.cpu ?? container.cpu ?? 0, 100)}%` }}
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Memory Usage */}
-              {(liveStats?.memory !== undefined || container.memory !== undefined) && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Memory</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {(liveStats?.memory ?? container.memory ?? 0).toFixed(1)}%
-                      </span>
-                      {(liveStats?.memory ?? container.memory ?? 0) >= 95 && (
-                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
-                          Critical
-                        </Badge>
-                      )}
-                      {(liveStats?.memory ?? container.memory ?? 0) >= 80 && 
-                       (liveStats?.memory ?? container.memory ?? 0) < 95 && (
-                        <Badge variant="warning" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                          High
-                        </Badge>
-                      )}
+              {(liveStats?.memory !== undefined || container.memory !== undefined) && (() => {
+                const memoryPct = typeof liveStats?.memory === 'object' 
+                  ? liveStats.memory.percentage 
+                  : (typeof container.memory === 'number' ? container.memory : 0);
+                
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Memory</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {memoryPct.toFixed(1)}%
+                        </span>
+                        {memoryPct >= 95 && (
+                          <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                            Critical
+                          </Badge>
+                        )}
+                        {memoryPct >= 80 && memoryPct < 95 && (
+                          <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                            High
+                          </Badge>
+                        )}
+                      </div>
                     </div>
+                    <Progress
+                      value={memoryPct}
+                      className={cn(
+                        "h-2 transition-all duration-500",
+                        memoryPct >= 95 && "bg-red-950/20",
+                        memoryPct >= 80 && memoryPct < 95 && "bg-yellow-950/20"
+                      )}
+                    />
+                    <div 
+                      className={cn(
+                        "h-2 rounded-full transition-all duration-500",
+                        memoryPct >= 95 && "bg-red-500",
+                        memoryPct >= 80 && memoryPct < 95 && "bg-yellow-500",
+                        memoryPct < 80 && "bg-blue-500"
+                      )}
+                      style={{ width: `${Math.min(memoryPct, 100)}%` }}
+                    />
                   </div>
-                  <Progress
-                    value={liveStats?.memory ?? container.memory ?? 0}
-                    className={cn(
-                      "h-2 transition-all duration-500",
-                      (liveStats?.memory ?? container.memory ?? 0) >= 95 && "bg-red-950/20",
-                      (liveStats?.memory ?? container.memory ?? 0) >= 80 &&
-                        (liveStats?.memory ?? container.memory ?? 0) < 95 && "bg-yellow-950/20"
-                    )}
-                    indicatorClassName={cn(
-                      "transition-all duration-500",
-                      (liveStats?.memory ?? container.memory ?? 0) >= 95 && "bg-red-500",
-                      (liveStats?.memory ?? container.memory ?? 0) >= 80 &&
-                        (liveStats?.memory ?? container.memory ?? 0) < 95 && "bg-yellow-500",
-                      (liveStats?.memory ?? container.memory ?? 0) < 80 && "bg-blue-500"
-                    )}
-                  />
-                </div>
-              )}
+                );
+              })()}
 
               {/* Network I/O */}
-              {liveStats?.networkRx !== undefined && liveStats?.networkTx !== undefined && (
+              {liveStats?.network !== undefined && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Network I/O</span>
                     <span className="font-medium text-[10px]">
-                      ↓ {formatBytes(liveStats.networkRx)} / ↑ {formatBytes(liveStats.networkTx)}
+                      ↓ {formatBytes(liveStats.network.rx)} / ↑ {formatBytes(liveStats.network.tx)}
                     </span>
                   </div>
                   <div className="flex gap-1 h-1.5">
@@ -308,12 +310,12 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
               )}
 
               {/* Disk I/O */}
-              {liveStats?.blockRead !== undefined && liveStats?.blockWrite !== undefined && (
+              {liveStats?.blockIO !== undefined && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Disk I/O</span>
                     <span className="font-medium text-[10px]">
-                      R {formatBytes(liveStats.blockRead)} / W {formatBytes(liveStats.blockWrite)}
+                      R {formatBytes(liveStats.blockIO.read)} / W {formatBytes(liveStats.blockIO.write)}
                     </span>
                   </div>
                   <div className="flex gap-1 h-1.5">

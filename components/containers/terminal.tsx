@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Terminal as TerminalIcon, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Dynamic import for xterm to avoid SSR issues
-// Note: xterm requires client-side only rendering
+// Types for xterm (loaded dynamically)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type XTermTerminal = any;
+type FitAddon = any;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 interface TerminalProps {
   container: Container | null;
@@ -20,13 +23,13 @@ interface TerminalProps {
 export function Terminal({ container, open, onClose }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  const [term, setTerm] = useState<any>(null);
+  const [term, setTerm] = useState<XTermTerminal | null>(null);
 
   useEffect(() => {
     if (!open || !container) return;
 
-    let terminal: any;
-    let fitAddon: any;
+    let terminal: XTermTerminal | null = null;
+    let fitAddon: FitAddon | null = null;
 
     const initTerminal = async () => {
       try {
@@ -151,7 +154,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
     };
   }, [open, container]);
 
-  const executeCommand = async (terminal: any, containerId: string, command: string) => {
+  const executeCommand = async (terminal: XTermTerminal, containerId: string, command: string) => {
     try {
       terminal.writeln(`\x1b[90mExecuting: ${command}\x1b[0m`);
       const response = await fetch(`/api/containers/${containerId}/terminal`, {
