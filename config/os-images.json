@@ -1,0 +1,70 @@
+[
+  {
+    "id": "ubuntu-22.04",
+    "name": "Ubuntu 22.04 LTS",
+    "variant": "ubuntu22.04",
+    "version": "22.04",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 25,
+    "downloadUrl": "https://releases.ubuntu.com/22.04/ubuntu-22.04.3-live-server-amd64.iso"
+  },
+  {
+    "id": "ubuntu-24.04",
+    "name": "Ubuntu 24.04 LTS",
+    "variant": "ubuntu24.04",
+    "version": "24.04",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 25,
+    "downloadUrl": "https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso"
+  },
+  {
+    "id": "debian-12",
+    "name": "Debian 12 (Bookworm)",
+    "variant": "debian12",
+    "version": "12",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 20,
+    "downloadUrl": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.0.0-amd64-netinst.iso"
+  },
+  {
+    "id": "fedora-39",
+    "name": "Fedora 39",
+    "variant": "fedora39",
+    "version": "39",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 20,
+    "downloadUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/39/Server/x86_64/iso/"
+  },
+  {
+    "id": "centos-9",
+    "name": "CentOS Stream 9",
+    "variant": "centos-stream9",
+    "version": "9",
+    "architecture": "x86_64",
+    "minMemory": 2048,
+    "minDisk": 20,
+    "downloadUrl": "https://www.centos.org/download/"
+  },
+  {
+    "id": "windows-10",
+    "name": "Windows 10",
+    "variant": "win10",
+    "version": "10",
+    "architecture": "x86_64",
+    "minMemory": 4096,
+    "minDisk": 40
+  },
+  {
+    "id": "windows-11",
+    "name": "Windows 11",
+    "variant": "win11",
+    "version": "11",
+    "architecture": "x86_64",
+    "minMemory": 4096,
+    "minDisk": 64
+  }
+]
