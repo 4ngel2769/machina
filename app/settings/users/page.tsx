@@ -108,6 +108,7 @@ export default function UsersPage() {
     if (session?.user?.role === 'admin') {
       fetchUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   // Handle add user
