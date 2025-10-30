@@ -7,6 +7,7 @@ import {
   deleteUser,
   getUserById,
 } from '@/lib/auth/user-storage';
+import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 // GET /api/users - List all users (admin only)
 export async function GET() {
