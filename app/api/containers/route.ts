@@ -12,6 +12,7 @@ import {
 } from '@/lib/resource-ownership';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 import { createContainerSchema } from '@/lib/validation';
+import { checkContainerQuota } from '@/lib/quota-system';
 
 /**
  * GET /api/containers - List all containers
