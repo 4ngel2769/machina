@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { isLibvirtAvailable } from '@/lib/libvirt';
 
-// GET /api/vms/[name]/stats - Get VM performance statistics
+// GET /api/vms/[id]/stats - Get VM performance statistics
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const vmName = params.name;
+  const { id: name } = await params;
+  const vmName = name;
 
   if (!isLibvirtAvailable()) {
     return NextResponse.json(
