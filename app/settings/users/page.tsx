@@ -40,7 +40,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, Edit, Shield, User as UserIcon } from 'lucide-react';
+import { UserPlus, Trash2, Edit, Shield, User as UserIcon, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -238,6 +238,38 @@ export default function UsersPage() {
     }
   };
 
+  // Handle generate password reset link
+  const handleGenerateResetLink = async (user: User) => {
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/reset-password-link`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate reset link');
+      }
+
+      const data = await response.json();
+      const resetLink = data.resetLink;
+
+      // Copy link to clipboard
+      await navigator.clipboard.writeText(resetLink);
+
+      toast({
+        title: 'Success',
+        description: `Password reset link generated and copied to clipboard for user "${user.username}"`,
+      });
+    } catch (error) {
+      console.error('Error generating reset link:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate reset link',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Open edit dialog
   const openEditDialog = (user: User) => {
     setSelectedUser(user);
@@ -340,6 +372,14 @@ export default function UsersPage() {
                         onClick={() => openEditDialog(user)}
                       >
                         <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleGenerateResetLink(user)}
+                        title="Generate password reset link"
+                      >
+                        <Lock className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
