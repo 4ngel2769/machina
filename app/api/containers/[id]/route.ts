@@ -52,7 +52,7 @@ export async function GET(
     }
 
     // Parse ports from NetworkSettings
-    const ports: Array<{ container: number; host: number; protocol: 'tcp' | 'udp' }> = [];
+    const ports: Array<{ container: number; host: number; protocol: string }> = [];
 
     // For now, we'll skip detailed port parsing as it requires more complex logic
     // The ports will be populated from the container list if needed
