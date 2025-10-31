@@ -88,6 +88,11 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
           terminalRef.current.addEventListener('click', () => {
             terminal.focus();
           });
+          
+          // Also focus on any keydown to ensure it stays focused
+          terminalRef.current.addEventListener('keydown', () => {
+            terminal.focus();
+          });
         }
 
         termRef.current = terminal;
@@ -118,6 +123,9 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
               cols: terminal.cols,
             }));
           }
+          
+          // Ensure terminal stays focused
+          setTimeout(() => terminal.focus(), 100);
         };
 
         ws.onmessage = (event) => {
@@ -132,12 +140,15 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
               case 'output':
                 if (typeof message.data === 'string') {
                   terminal.write(message.data);
+                  // Re-focus terminal after writing output
+                  setTimeout(() => terminal.focus(), 10);
                 } else {
                   console.warn('Received non-string output:', message.data);
                 }
                 break;
               case 'error':
                 terminal.writeln(`\r\n\x1b[31mError: ${message.data}\x1b[0m\r\n`);
+                setTimeout(() => terminal.focus(), 10);
                 break;
               case 'disconnected':
                 terminal.writeln(`\r\n\x1b[33m${message.data}\x1b[0m\r\n`);
@@ -152,6 +163,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
             // Try to display raw data if it's not JSON
             if (typeof event.data === 'string') {
               terminal.write(event.data);
+              setTimeout(() => terminal.focus(), 10);
             }
           }
         };
