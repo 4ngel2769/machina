@@ -41,13 +41,22 @@ export async function GET(
 
     const info = await getContainerInfo(id);
 
+    // Ensure we have valid container info
+    if (!info || typeof info !== 'object') {
+      return NextResponse.json(
+        { error: 'Invalid container data received from Docker' },
+        { status: 500 }
+      );
+    }
+
     // Transform Docker inspect result to our Container type
-    const status = info.State.Status.toLowerCase() as ContainerStatus;
-    const name = info.Name?.replace(/^\//, '') || 'unknown';
+    const rawStatus = info.State?.Status || 'unknown';
+    const status = (typeof rawStatus === 'string' ? rawStatus.toLowerCase() : 'unknown') as ContainerStatus;
+    const name = (info.Name || 'unknown').toString().replace(/^\//, '');
 
     // Calculate uptime if running
     let uptime: string | undefined;
-    if (status === 'running' && info.State.StartedAt) {
+    if (status === 'running' && info.State?.StartedAt) {
       uptime = info.State.Status; // Use the status string which includes uptime
     }
 
@@ -61,16 +70,16 @@ export async function GET(
     const type: 'normal' | 'amnesic' = info.HostConfig?.AutoRemove ? 'amnesic' : 'normal';
 
     const container = {
-      id: info.Id,
+      id: String(info.Id || id),
       name,
-      image: info.Config?.Image || info.Image,
+      image: info.Config?.Image || info.Image || 'unknown',
       status,
-      created: new Date(info.Created),
+      created: info.Created ? new Date(info.Created) : new Date(),
       ports,
       type,
       uptime,
       state: {
-        startedAt: info.State.StartedAt ? new Date(info.State.StartedAt) : undefined,
+        startedAt: info.State?.StartedAt ? new Date(info.State.StartedAt) : undefined,
       },
     };
 
