@@ -97,7 +97,7 @@ app.prepare().then(async () => {
         AttachStdout: true,
         AttachStderr: true,
         Tty: true,
-        Env: ['TERM=xterm-256color', 'PS1=$ ', 'HOME=/root'],
+        Env: ['TERM=xterm-256color', 'HOME=/root'],
       });
 
       // Start the exec
@@ -121,8 +121,8 @@ app.prepare().then(async () => {
       setTimeout(() => {
         if (stream && !stream.destroyed) {
           console.log('[Terminal] Shell initialized');
-          // Send a simple prompt setup
-          stream.write('PS1="$ " && clear\n');
+          // Just send a newline to get the prompt
+          stream.write('\n');
         }
       }, 500);
 
