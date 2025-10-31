@@ -57,17 +57,22 @@ export function ContainerTerminal({ containerId }: ContainerTerminalProps) {
         if (terminalRef.current) {
           terminal.open(terminalRef.current);
           fitAddon.fit();
+          
+          // Focus the terminal to enable input
+          terminal.focus();
+          
+          // Add a click handler to focus the terminal
+          terminalRef.current.addEventListener('click', () => {
+            terminal.focus();
+          });
         }
 
         termRef.current = terminal;
 
         // Show connection message
         setConnectionStatus('connecting');
-        terminal.writeln('\x1b[1;32m╔═══════════════════════════════════════════════╗\x1b[0m');
-        terminal.writeln('\x1b[1;32m║      Machina - Container Terminal            ║\x1b[0m');
-        terminal.writeln('\x1b[1;32m╚═══════════════════════════════════════════════╝\x1b[0m');
-        terminal.writeln('');
-        terminal.writeln('\x1b[36mConnecting to container shell via WebSocket...\x1b[0m');
+        terminal.writeln('\x1b[1;32mContainer Terminal\x1b[0m');
+        terminal.writeln('\x1b[36mConnecting to container...\x1b[0m');
         terminal.writeln('');
 
         // Connect to WebSocket
@@ -79,13 +84,36 @@ export function ContainerTerminal({ containerId }: ContainerTerminalProps) {
 
         ws.onopen = () => {
           setConnectionStatus('connected');
-          terminal?.writeln('\x1b[1;32m✓ Connected to interactive shell\x1b[0m');
+          terminal?.writeln('\x1b[32m✓ Connected to container shell\x1b[0m');
           terminal?.writeln('');
         };
 
         ws.onmessage = (event) => {
-          if (terminal && event.data) {
-            terminal.write(event.data);
+          try {
+            const message = JSON.parse(event.data);
+            
+            switch (message.type) {
+              case 'connected':
+                // Initial connection info
+                break;
+              case 'output':
+                if (terminal && typeof message.data === 'string') {
+                  terminal.write(message.data);
+                }
+                break;
+              case 'error':
+                terminal?.writeln(`\r\n\x1b[31mError: ${message.data}\x1b[0m\r\n`);
+                break;
+              case 'disconnected':
+                terminal?.writeln(`\r\n\x1b[33m${message.data}\x1b[0m\r\n`);
+                setConnectionStatus('disconnected');
+                break;
+            }
+          } catch {
+            // Try to display raw data if it's not JSON
+            if (terminal && typeof event.data === 'string') {
+              terminal.write(event.data);
+            }
           }
         };
 
@@ -101,8 +129,17 @@ export function ContainerTerminal({ containerId }: ContainerTerminalProps) {
         };
 
         terminal.onData((data: string) => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
+          if (ws && ws.readyState === WebSocket.OPEN && data.length > 0) {
+            try {
+              const message = JSON.stringify({
+                type: 'input',
+                data: data,
+              });
+              ws.send(message);
+            } catch {
+              // Fallback: send raw data
+              ws.send(data);
+            }
           }
         });
 
