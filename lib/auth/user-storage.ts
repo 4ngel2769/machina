@@ -214,7 +214,17 @@ export async function updateLastLogin(id: string): Promise<void> {
   await UserModel.findByIdAndUpdate(id, { lastLogin: new Date() });
 }
 
-// Initialize with default admin user if no users exist
+// Initialize quota for existing user (if missing)
+export async function initializeUserQuota(userId: string, username: string, role: UserRole = 'user'): Promise<void> {
+  try {
+    await setUserQuota(userId, username, undefined, role === 'admin');
+  } catch (error) {
+    console.error(`Failed to initialize quota for user ${username}:`, error);
+    throw error;
+  }
+}
+
+// Initialize default admin user if no users exist
 export async function initializeDefaultAdmin(): Promise<void> {
   await connectDB();
   
