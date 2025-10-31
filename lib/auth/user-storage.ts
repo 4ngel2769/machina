@@ -31,7 +31,7 @@ export async function getAllUsers(): Promise<UserWithoutPassword[]> {
   const users = await UserModel.find({}).sort({ createdAt: -1 }).lean<IUser[]>();
   
   return users.map(user => ({
-    id: (user._id as any).toString(),
+    id: (user._id as string).toString(),
     username: user.username,
     role: user.role,
     createdAt: user.createdAt.toISOString(),
@@ -49,7 +49,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   if (!user) return null;
   
   return {
-    id: (user._id as any).toString(),
+    id: (user._id as string).toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,
@@ -66,7 +66,7 @@ export async function getUserById(id: string): Promise<User | null> {
   if (!user) return null;
   
   return {
-    id: (user._id as any).toString(),
+    id: (user._id as string).toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,
