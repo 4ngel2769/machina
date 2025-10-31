@@ -323,13 +323,13 @@ async function main() {
     console.log('✅ Connected to MongoDB\n');
     
     // Import models dynamically
-    const { default: UserModel } = await import('../lib/models/User.js');
-    const { default: ContainerModel } = await import('../lib/models/Container.js');
-    const { default: VMModel } = await import('../lib/models/VM.js');
-    const { default: QuotaModel } = await import('../lib/models/Quota.js');
-    const { default: PricingTemplateModel } = await import('../lib/models/PricingTemplate.js');
-    const { default: TokenRequestModel } = await import('../lib/models/TokenRequest.js');
-    const { default: UserContractModel } = await import('../lib/models/UserContract.js');
+    const { default: UserModel } = await import('../lib/models/User.ts');
+    const { default: ContainerModel } = await import('../lib/models/Container.ts');
+    const { default: VMModel } = await import('../lib/models/VM.ts');
+    const { default: QuotaModel } = await import('../lib/models/Quota.ts');
+    const { default: PricingTemplateModel } = await import('../lib/models/PricingTemplate.ts');
+    const { default: TokenRequestModel } = await import('../lib/models/TokenRequest.ts');
+    const { default: UserContractModel } = await import('../lib/models/UserContract.ts');
     
     // Run migrations
     await migrateUsers(UserModel);
