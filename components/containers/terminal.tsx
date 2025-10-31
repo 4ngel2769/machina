@@ -123,9 +123,14 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
             switch (message.type) {
               case 'connected':
                 // Initial connection info
+                console.log('Terminal connected:', message.data);
                 break;
               case 'output':
-                terminal.write(message.data);
+                if (typeof message.data === 'string') {
+                  terminal.write(message.data);
+                } else {
+                  console.warn('Received non-string output:', message.data);
+                }
                 break;
               case 'error':
                 terminal.writeln(`\r\n\x1b[31mError: ${message.data}\x1b[0m\r\n`);
@@ -134,9 +139,16 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
                 terminal.writeln(`\r\n\x1b[33m${message.data}\x1b[0m\r\n`);
                 setConnectionStatus('disconnected');
                 break;
+              default:
+                console.warn('Unknown message type:', message.type);
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);
+            console.error('Raw message data:', event.data);
+            // Try to display raw data if it's not JSON
+            if (typeof event.data === 'string') {
+              terminal.write(event.data);
+            }
           }
         };
 
@@ -155,10 +167,15 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
         // Send input to container via WebSocket
         terminal.onData((data: string) => {
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'input',
-              data: data,
-            }));
+            try {
+              const message = JSON.stringify({
+                type: 'input',
+                data: data,
+              });
+              ws.send(message);
+            } catch (error) {
+              console.error('Error sending input to WebSocket:', error);
+            }
           }
         });
 
