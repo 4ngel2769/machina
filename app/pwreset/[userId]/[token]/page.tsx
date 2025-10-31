@@ -139,9 +139,8 @@ export default function PasswordResetPage({ params }: PasswordResetPageProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={gradientBackground}>
-      <style jsx>{gradientKeyframes}</style>
-      <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm border-white/20 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lock className="w-5 h-5" />
