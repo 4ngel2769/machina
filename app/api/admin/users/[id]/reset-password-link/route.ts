@@ -5,10 +5,10 @@ import PasswordResetToken from '@/lib/models/PasswordResetToken';
 import { randomBytes } from 'crypto';
 import { rateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
-// POST /api/admin/users/[userId]/reset-password-link - Generate password reset link (admin only)
+// POST /api/admin/users/[id]/reset-password-link - Generate password reset link (admin only)
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -28,14 +28,14 @@ export async function POST(
       return rateLimitResult;
     }
 
-    const { userId } = await params;
+    const { id } = await params;
 
-    if (!userId) {
+    if (!id) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
     // Check if user exists
-    const user = await getUserById(userId);
+    const user = await getUserById(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
