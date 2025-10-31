@@ -58,7 +58,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
       const response = await fetch(`/api/containers/${resolvedParams.id}`);
       if (response.ok) {
         const data = await response.json();
-        setContainer(data.container);
+        setContainer(data.data);
       }
     } catch (error) {
       console.error('Error fetching container:', error);
