@@ -20,21 +20,6 @@ export default function PasswordResetPage({ params }: PasswordResetPageProps) {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Animated gradient background styles
-  const gradientBackground = {
-    background: 'linear-gradient(132deg, #000000,#00ff00, #0000ff,#e60073,#ff0000,#ffffff)',
-    backgroundSize: '400% 400%',
-    animation: 'BackgroundGradient 15s ease infinite'
-  };
-
-  const gradientKeyframes = `
-    @keyframes BackgroundGradient {
-      0% {background-position: 0% 50%;}
-      50% {background-position: 100% 50%;}
-      100% {background-position: 0% 50%;}
-    }
-  `;
-
   const [userId, setUserId] = useState<string>('');
   const [token, setToken] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -118,11 +103,10 @@ export default function PasswordResetPage({ params }: PasswordResetPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={gradientBackground}>
-        <style jsx>{gradientKeyframes}</style>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
-          <p className="mt-4 text-white">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -130,9 +114,8 @@ export default function PasswordResetPage({ params }: PasswordResetPageProps) {
 
   if (resetComplete) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={gradientBackground}>
-        <style jsx>{gradientKeyframes}</style>
-        <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm border-white/20 shadow-2xl">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="w-6 h-6 text-green-600" />
