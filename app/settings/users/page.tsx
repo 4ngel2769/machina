@@ -253,13 +253,30 @@ export default function UsersPage() {
       const data = await response.json();
       const resetLink = data.resetLink;
 
-      // Copy link to clipboard
-      await navigator.clipboard.writeText(resetLink);
+      // Try to copy link to clipboard
+      let copiedToClipboard = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(resetLink);
+          copiedToClipboard = true;
+        }
+      } catch (clipboardError) {
+        console.warn('Clipboard API not available or failed:', clipboardError);
+      }
 
-      toast({
-        title: 'Success',
-        description: `Password reset link generated and copied to clipboard for user "${user.username}"`,
-      });
+      if (copiedToClipboard) {
+        toast({
+          title: 'Success',
+          description: `Password reset link generated and copied to clipboard for user "${user.username}"`,
+        });
+      } else {
+        // Fallback: show link in a dialog or alert
+        toast({
+          title: 'Success',
+          description: `Password reset link generated for user "${user.username}". Link: ${resetLink}`,
+          duration: 10000, // Show longer for manual copying
+        });
+      }
     } catch (error) {
       console.error('Error generating reset link:', error);
       toast({
