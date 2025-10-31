@@ -9,7 +9,8 @@
     "lint": "eslint",
     "analyze": "ANALYZE=true next build",
     "init-data": "node scripts/init-data.js",
-    "migrate-to-mongodb": "tsx scripts/migrate-to-mongodb.ts"
+    "migrate-to-mongodb": "tsx scripts/migrate-to-mongodb.ts",
+    "initialize-quotas": "node scripts/initialize-quotas.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
