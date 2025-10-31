@@ -102,7 +102,7 @@ app.prepare().then(async () => {
 
       // Start the exec
       stream = await exec.start({
-        hijack: true,
+        hijack: false,
         stdin: true,
         Tty: true,
       });
@@ -119,11 +119,31 @@ app.prepare().then(async () => {
 
       // Forward data from container to WebSocket
       stream.on('data', (chunk) => {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'output',
-            data: chunk.toString('utf-8')
-          }));
+        try {
+          if (ws.readyState === ws.OPEN) {
+            // Ensure chunk is buffer and convert to string safely
+            let data;
+            if (Buffer.isBuffer(chunk)) {
+              data = chunk.toString('utf-8');
+            } else {
+              data = String(chunk);
+            }
+            
+            // Filter out any null bytes or invalid characters that might break JSON
+            data = data.replace(/\0/g, '');
+            
+            if (data.length > 0) {
+              console.log(`[Terminal] Sending data to client: ${data.length} bytes, starts with: ${data.substring(0, 20).replace(/\n/g, '\\n').replace(/\r/g, '\\r')}`);
+              ws.send(JSON.stringify({
+                type: 'output',
+                data: data
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('[Terminal] Error sending data to WebSocket:', error);
+          console.error('[Terminal] Chunk type:', typeof chunk);
+          console.error('[Terminal] Chunk length:', chunk ? chunk.length : 'null');
         }
       });
 
@@ -153,11 +173,16 @@ app.prepare().then(async () => {
       // Forward data from WebSocket to container
       ws.on('message', (message) => {
         try {
-          const data = JSON.parse(message.toString());
+          const rawMessage = message.toString();
+          console.log(`[Terminal] Received message from client: ${rawMessage.length} bytes`);
+          
+          const data = JSON.parse(rawMessage);
           
           if (data.type === 'input') {
             // Write input to container
-            stream.write(data.data);
+            if (stream && !stream.destroyed) {
+              stream.write(data.data);
+            }
           } else if (data.type === 'resize') {
             // Handle terminal resize
             exec.resize({
@@ -169,6 +194,7 @@ app.prepare().then(async () => {
           }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
+          console.error('Raw message:', message.toString());
         }
       });
 
