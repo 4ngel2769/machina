@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import connectDB from '../mongoose';
 import UserModel, { IUser } from '../models/User';
+import { setUserQuota } from '../quota-system';
 
 export type UserRole = 'admin' | 'user';
 
