@@ -18,7 +18,7 @@ export const authConfig: NextAuthConfig = {
         const { getUserByUsername, verifyPassword, updateLastLogin } = await import('./user-storage');
         const { logAudit } = await import('../audit-logger');
         
-        const user = getUserByUsername(credentials.username as string);
+        const user = await getUserByUsername(credentials.username as string);
         
         if (!user) {
           // Log failed login attempt
@@ -52,7 +52,7 @@ export const authConfig: NextAuthConfig = {
         }
 
         // Update last login
-        updateLastLogin(user.id);
+        await updateLastLogin(user.id);
 
         // Log successful login
         await logAudit({

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     );
     if (rateLimitResult) return rateLimitResult;
 
-    const users = getAllUsers();
+    const users = await getAllUsers();
     return NextResponse.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -141,7 +141,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check if user exists
-    const existingUser = getUserById(id);
+    const existingUser = await getUserById(id);
     if (!existingUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -202,12 +202,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if user exists
-    const existingUser = getUserById(userId);
+    const existingUser = await getUserById(userId);
     if (!existingUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    deleteUser(userId);
+    await deleteUser(userId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting user:', error);

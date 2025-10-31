@@ -8,7 +8,8 @@
     "start": "NODE_ENV=production node server.js",
     "lint": "eslint",
     "analyze": "ANALYZE=true next build",
-    "init-data": "node scripts/init-data.js"
+    "init-data": "node scripts/init-data.js",
+    "migrate-to-mongodb": "node scripts/migrate-to-mongodb.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

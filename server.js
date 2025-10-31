@@ -21,11 +21,11 @@ const port = parseInt(process.env.SERVER_PORT || process.env.PORT || '3000', 10)
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-// Import auth initialization
-const { initializeDefaultAdmin } = require('./lib/auth/user-storage-init.cjs');
+// Import auth initialization (MongoDB-enabled)
+const { initializeDefaultAdmin } = require('./lib/auth/user-storage-mongo-init.cjs');
 
 app.prepare().then(async () => {
-  // Initialize authentication
+  // Initialize authentication (will use MongoDB if available, fallback to JSON)
   await initializeDefaultAdmin();
 
   const server = createServer(async (req, res) => {
