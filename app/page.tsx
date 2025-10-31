@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { useContainers } from '@/hooks/use-containers';
 import { useVMs } from '@/hooks/use-vms';
 import { useLiveStats } from '@/hooks/use-live-stats';
@@ -33,6 +34,7 @@ import type { ResourceTimeSeries } from '@/types/stats';
 import Link from 'next/link';
 
 export default function DashboardPage() {
+  const { data: session } = useSession();
   const { containers, loading: containersLoading } = useContainers();
   const { vms, isLoading: vmsLoading } = useVMs();
   
@@ -141,79 +143,81 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="CPU Usage"
-          value={stats ? `${stats.host.cpu.usage.toFixed(1)}%` : '—'}
-          subtitle={stats ? `${stats.host.cpu.cores} cores` : 'Loading...'}
-          icon={Cpu}
-          chartData={cpuHistory}
-          chartType="area"
-          chartColor={
-            (stats?.host.cpu.usage ?? 0) >= 90 ? '#ef4444' :
-            (stats?.host.cpu.usage ?? 0) >= 80 ? '#eab308' :
-            '#3b82f6'
-          }
-          colorTheme={stats ? getColorTheme(stats.host.cpu.usage) : 'default'}
-          isLoading={isLoading}
-        />
+      {/* Main Stats Cards - Admin Only */}
+      {session?.user?.role === 'admin' && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="CPU Usage"
+            value={stats ? `${stats.host.cpu.usage.toFixed(1)}%` : '—'}
+            subtitle={stats ? `${stats.host.cpu.cores} cores` : 'Loading...'}
+            icon={Cpu}
+            chartData={cpuHistory}
+            chartType="area"
+            chartColor={
+              (stats?.host.cpu.usage ?? 0) >= 90 ? '#ef4444' :
+              (stats?.host.cpu.usage ?? 0) >= 80 ? '#eab308' :
+              '#3b82f6'
+            }
+            colorTheme={stats ? getColorTheme(stats.host.cpu.usage) : 'default'}
+            isLoading={isLoading}
+          />
 
-        <StatCard
-          title="Memory Usage"
-          value={
-            stats
-              ? `${formatBytes(stats.host.memory.used)} / ${formatBytes(stats.host.memory.total)}`
-              : '—'
-          }
-          subtitle={stats ? `${stats.host.memory.percentage.toFixed(1)}% used` : 'Loading...'}
-          icon={MemoryStick}
-          chartData={memoryHistory}
-          chartType="area"
-          chartColor={
-            (stats?.host.memory.percentage ?? 0) >= 95 ? '#ef4444' :
-            (stats?.host.memory.percentage ?? 0) >= 90 ? '#eab308' :
-            '#10b981'
-          }
-          colorTheme={stats ? getColorTheme(stats.host.memory.percentage) : 'default'}
-          isLoading={isLoading}
-        />
+          <StatCard
+            title="Memory Usage"
+            value={
+              stats
+                ? `${formatBytes(stats.host.memory.used)} / ${formatBytes(stats.host.memory.total)}`
+                : '—'
+            }
+            subtitle={stats ? `${stats.host.memory.percentage.toFixed(1)}% used` : 'Loading...'}
+            icon={MemoryStick}
+            chartData={memoryHistory}
+            chartType="area"
+            chartColor={
+              (stats?.host.memory.percentage ?? 0) >= 95 ? '#ef4444' :
+              (stats?.host.memory.percentage ?? 0) >= 90 ? '#eab308' :
+              '#10b981'
+            }
+            colorTheme={stats ? getColorTheme(stats.host.memory.percentage) : 'default'}
+            isLoading={isLoading}
+          />
 
-        <StatCard
-          title="Disk Usage"
-          value={
-            stats
-              ? `${formatBytes(stats.host.disk.used)} / ${formatBytes(stats.host.disk.total)}`
-              : '—'
-          }
-          subtitle={stats ? `${stats.host.disk.percentage.toFixed(1)}% used` : 'Loading...'}
-          icon={HardDrive}
-          colorTheme={stats ? getColorTheme(stats.host.disk.percentage) : 'default'}
-          isLoading={isLoading}
-        />
+          <StatCard
+            title="Disk Usage"
+            value={
+              stats
+                ? `${formatBytes(stats.host.disk.used)} / ${formatBytes(stats.host.disk.total)}`
+                : '—'
+            }
+            subtitle={stats ? `${stats.host.disk.percentage.toFixed(1)}% used` : 'Loading...'}
+            icon={HardDrive}
+            colorTheme={stats ? getColorTheme(stats.host.disk.percentage) : 'default'}
+            isLoading={isLoading}
+          />
 
-        <StatCard
-          title="Network"
-          value={
-            stats
-              ? `↓ ${formatBytes(stats.host.network.rx_rate)}/s`
-              : '—'
-          }
-          subtitle={
-            stats
-              ? `↑ ${formatBytes(stats.host.network.tx_rate)}/s`
-              : 'Loading...'
-          }
-          icon={Network}
-          chartData={networkHistory}
-          chartType="line"
-          chartColor="#8b5cf6"
-          isLoading={isLoading}
-        />
-      </div>
+          <StatCard
+            title="Network"
+            value={
+              stats
+                ? `↓ ${formatBytes(stats.host.network.rx_rate)}/s`
+                : '—'
+            }
+            subtitle={
+              stats
+                ? `↑ ${formatBytes(stats.host.network.tx_rate)}/s`
+                : 'Loading...'
+            }
+            icon={Network}
+            chartData={networkHistory}
+            chartType="line"
+            chartColor="#8b5cf6"
+            isLoading={isLoading}
+          />
+        </div>
+      )}
 
-      {/* System Overview */}
-      {stats && (
+      {/* System Overview - Admin Only */}
+      {session?.user?.role === 'admin' && stats && (
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border bg-card p-6">
             <div className="flex items-center justify-between mb-2">
@@ -237,6 +241,27 @@ export default function DashboardPage() {
           <div className="rounded-lg border bg-card p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Total Resources</span>
+            </div>
+            <div className="flex gap-4">
+              <div>
+                <div className="text-2xl font-bold">{containers.length}</div>
+                <div className="text-xs text-muted-foreground">Containers</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{vms.length}</div>
+                <div className="text-xs text-muted-foreground">VMs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Resources - Always Visible */}
+      {(!stats || session?.user?.role !== 'admin') && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border bg-card p-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Your Resources</span>
             </div>
             <div className="flex gap-4">
               <div>
