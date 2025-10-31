@@ -94,14 +94,8 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
         // Show connection message
         setConnectionStatus('connecting');
-        terminal.writeln('\x1b[1;32m╔═══════════════════════════════════════════════╗\x1b[0m');
-        terminal.writeln('\x1b[1;32m║      Machina - Container Terminal            ║\x1b[0m');
-        terminal.writeln('\x1b[1;32m╚═══════════════════════════════════════════════╝\x1b[0m');
-        terminal.writeln('');
-        terminal.writeln(`\x1b[1mContainer:\x1b[0m ${container.name}`);
-        terminal.writeln(`\x1b[1mImage:\x1b[0m ${container.image}`);
-        terminal.writeln('');
-        terminal.writeln('\x1b[36mConnecting to container shell via WebSocket...\x1b[0m');
+        terminal.writeln('\x1b[1;32mContainer Terminal\x1b[0m');
+        terminal.writeln(`\x1b[36mConnecting to ${container.name}...\x1b[0m`);
         terminal.writeln('');
 
         // Connect to WebSocket
@@ -113,9 +107,7 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
         ws.onopen = () => {
           setConnectionStatus('connected');
-          terminal.writeln('\x1b[32m✓ Connected to interactive shell\x1b[0m');
-          terminal.writeln('\x1b[36mType commands below. Click the terminal to focus it.\x1b[0m');
-          terminal.writeln('\x1b[90mTerminal is ready for input...\x1b[0m');
+          terminal.writeln('\x1b[32m✓ Connected to container shell\x1b[0m');
           terminal.writeln('');
           
           // Send initial terminal size
@@ -178,27 +170,17 @@ export function Terminal({ container, open, onClose }: TerminalProps) {
 
         // Send input to container via WebSocket
         terminal.onData((data: string) => {
-          console.log('Terminal onData received:', data.length, 'bytes:', JSON.stringify(data));
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            if (data.length > 0) {
-              try {
-                const message = JSON.stringify({
-                  type: 'input',
-                  data: data,
-                });
-                console.log('Sending JSON to WebSocket:', message);
-                ws.send(message);
-              } catch (error) {
-                console.error('Error creating JSON message:', error);
-                // Fallback: send raw data
-                console.log('Sending raw data to WebSocket:', JSON.stringify(data));
-                ws.send(data);
-              }
-            } else {
-              console.log('Skipping empty data');
+          if (ws && ws.readyState === WebSocket.OPEN && data.length > 0) {
+            try {
+              const message = JSON.stringify({
+                type: 'input',
+                data: data,
+              });
+              ws.send(message);
+            } catch {
+              // Fallback: send raw data
+              ws.send(data);
             }
-          } else {
-            console.log('WebSocket not ready, skipping data');
           }
         });
 

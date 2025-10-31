@@ -117,15 +117,14 @@ app.prepare().then(async () => {
         }
       }));
 
-      // Give the shell a moment to initialize and send a newline to get the prompt
+      // Give the shell a moment to initialize
       setTimeout(() => {
         if (stream && !stream.destroyed) {
-          console.log('[Terminal] Sending initial commands to set up shell');
-          // Send some setup commands
-          stream.write('export PS1="$ "\n');
-          stream.write('clear\n');
+          console.log('[Terminal] Shell initialized');
+          // Send a simple prompt setup
+          stream.write('PS1="$ " && clear\n');
         }
-      }, 1000);
+      }, 500);
 
       // Forward data from container to WebSocket
       stream.on('data', (chunk) => {
@@ -143,7 +142,6 @@ app.prepare().then(async () => {
             data = data.replace(/\0/g, '');
             
             if (data.length > 0) {
-              console.log(`[Terminal] Sending data to client: ${data.length} bytes, starts with: ${data.substring(0, 20).replace(/\n/g, '\\n').replace(/\r/g, '\\r')}`);
               ws.send(JSON.stringify({
                 type: 'output',
                 data: data
@@ -151,9 +149,7 @@ app.prepare().then(async () => {
             }
           }
         } catch (error) {
-          console.error('[Terminal] Error sending data to WebSocket:', error);
-          console.error('[Terminal] Chunk type:', typeof chunk);
-          console.error('[Terminal] Chunk length:', chunk ? chunk.length : 'null');
+          console.error('[Terminal] Error sending data:', error.message);
         }
       });
 
@@ -184,11 +180,9 @@ app.prepare().then(async () => {
       ws.on('message', (message) => {
         try {
           const rawMessage = message.toString();
-          console.log(`[Terminal] Received message from client: ${rawMessage.length} bytes: ${JSON.stringify(rawMessage)}`);
           
           // Skip empty messages
           if (!rawMessage || rawMessage.trim().length === 0) {
-            console.log('[Terminal] Skipping empty message');
             return;
           }
           
@@ -198,17 +192,13 @@ app.prepare().then(async () => {
             data = JSON.parse(rawMessage);
           } catch (jsonError) {
             // If not JSON, treat as raw input data
-            console.log('[Terminal] Treating as raw input data');
             data = { type: 'input', data: rawMessage };
           }
           
           if (data.type === 'input') {
             // Write input to container
             if (stream && !stream.destroyed && data.data && data.data.length > 0) {
-              console.log(`[Terminal] Writing ${data.data.length} bytes to container: ${JSON.stringify(data.data)}`);
               stream.write(data.data);
-            } else {
-              console.log('[Terminal] Skipping empty input data');
             }
           } else if (data.type === 'resize') {
             // Handle terminal resize
@@ -216,12 +206,11 @@ app.prepare().then(async () => {
               h: data.rows || 30,
               w: data.cols || 100,
             }).catch(err => {
-              console.error('Resize error:', err);
+              console.error('[Terminal] Resize error:', err.message);
             });
           }
         } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-          console.error('Raw message:', JSON.stringify(message.toString()));
+          console.error('[Terminal] Message processing error:', error.message);
         }
       });
 
