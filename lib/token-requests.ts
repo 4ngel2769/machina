@@ -48,6 +48,20 @@ export async function getPendingRequests(): Promise<TokenRequest[]> {
   );
 }
 
+export async function getApprovedRequests(): Promise<TokenRequest[]> {
+  const requests = await getAllRequests();
+  return requests.filter(r => r.status === 'approved').sort((a, b) => 
+    new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+  );
+}
+
+export async function getDeniedRequests(): Promise<TokenRequest[]> {
+  const requests = await getAllRequests();
+  return requests.filter(r => r.status === 'denied').sort((a, b) => 
+    new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+  );
+}
+
 export async function getUserRequests(userId: string): Promise<TokenRequest[]> {
   const requests = await getAllRequests();
   return requests.filter(r => r.userId === userId).sort((a, b) => 

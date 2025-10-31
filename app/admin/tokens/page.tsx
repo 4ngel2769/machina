@@ -47,6 +47,7 @@ export default function TokenManagementPage() {
   const [selectedRequest, setSelectedRequest] = useState<TokenRequest | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [showCreateContractDialog, setShowCreateContractDialog] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'denied'>('all');
   const [reviewNotes, setReviewNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -75,7 +76,8 @@ export default function TokenManagementPage() {
 
   const fetchRequests = async () => {
     try {
-      const response = await fetch('/api/token-requests?filter=pending');
+      const filterParam = filter === 'all' ? '' : `?filter=${filter}`;
+      const response = await fetch(`/api/token-requests${filterParam}`);
       if (!response.ok) throw new Error('Failed to fetch requests');
       const data = await response.json();
       setRequests(data);
@@ -113,7 +115,7 @@ export default function TokenManagementPage() {
       fetchContracts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session, filter]);
 
   const handleApprove = async (requestId: string) => {
     setSubmitting(true);
@@ -284,6 +286,15 @@ export default function TokenManagementPage() {
 
         {/* Token Requests Tab */}
         <TabsContent value="requests" className="space-y-4">
+          <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all">All Requests</TabsTrigger>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="approved">Approved</TabsTrigger>
+              <TabsTrigger value="denied">Denied</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={filter} className="space-y-4 mt-4">
           <div className="grid gap-4">
             {requests.map((request) => (
               <Card key={request.id}>
@@ -370,6 +381,8 @@ export default function TokenManagementPage() {
               </Card>
             )}
           </div>
+          </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* Contracts Tab */}

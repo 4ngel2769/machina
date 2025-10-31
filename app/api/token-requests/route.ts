@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth/config';
 import {
   getAllRequests,
   getPendingRequests,
+  getApprovedRequests,
+  getDeniedRequests,
   getUserRequests,
   createRequest,
   approveRequest,
@@ -28,6 +30,10 @@ export async function GET(req: NextRequest) {
     if (session.user.role === 'admin') {
       if (filter === 'pending') {
         requests = await getPendingRequests();
+      } else if (filter === 'approved') {
+        requests = await getApprovedRequests();
+      } else if (filter === 'denied') {
+        requests = await getDeniedRequests();
       } else {
         requests = await getAllRequests();
       }
