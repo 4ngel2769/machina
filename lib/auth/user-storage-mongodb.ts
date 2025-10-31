@@ -15,6 +15,18 @@ export interface User {
 
 export type UserWithoutPassword = Omit<User, 'passwordHash'>;
 
+// Helper to convert Mongoose document to User object
+function documentToUser(doc: IUser): User {
+  return {
+    id: doc._id.toString(),
+    username: doc.username,
+    passwordHash: doc.passwordHash,
+    role: doc.role,
+    createdAt: doc.createdAt.toISOString(),
+    lastLogin: doc.lastLogin?.toISOString(),
+  };
+}
+
 // Hash password
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -28,10 +40,10 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 // Get all users (without passwords)
 export async function getAllUsers(): Promise<UserWithoutPassword[]> {
   await connectDB();
-  const users = await UserModel.find({}).sort({ createdAt: -1 }).lean<IUser[]>();
+  const users = await UserModel.find({}).sort({ createdAt: -1 }).lean();
   
   return users.map(user => ({
-    id: (user._id as any).toString(),
+    id: user._id.toString(),
     username: user.username,
     role: user.role,
     createdAt: user.createdAt.toISOString(),
@@ -44,12 +56,12 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   await connectDB();
   const user = await UserModel.findOne({ 
     username: { $regex: new RegExp(`^${username}$`, 'i') } 
-  }).lean<IUser>();
+  }).lean();
   
   if (!user) return null;
   
   return {
-    id: (user._id as any).toString(),
+    id: user._id.toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,
@@ -61,12 +73,12 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 // Get user by ID
 export async function getUserById(id: string): Promise<User | null> {
   await connectDB();
-  const user = await UserModel.findById(id).lean<IUser>();
+  const user = await UserModel.findById(id).lean();
   
   if (!user) return null;
   
   return {
-    id: (user._id as any).toString(),
+    id: user._id.toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,

@@ -18,7 +18,7 @@ export async function GET(
     }
 
     // Get user details
-    const user = getUserById(id);
+    const user = await getUserById(id);
 
     if (!user) {
       return NextResponse.json(
