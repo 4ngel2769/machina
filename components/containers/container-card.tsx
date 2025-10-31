@@ -48,7 +48,7 @@ interface ContainerCardProps {
 
 export function ContainerCard({ container, onTerminal, onLogs, liveStats }: ContainerCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const { startContainer, stopContainer, restartContainer, deleteContainer } = useContainers();
+  const { startContainer, stopContainer, restartContainer, deleteContainer, loadingActions } = useContainers();
   const router = useRouter();
 
   const isRunning = container.status === 'running';
@@ -148,20 +148,29 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                 )}
                 <DropdownMenuSeparator />
                 {!isRunning && (
-                  <DropdownMenuItem onClick={handleStart}>
+                  <DropdownMenuItem 
+                    onClick={handleStart}
+                    disabled={loadingActions[`start-${container.id}`]}
+                  >
                     <Play className="mr-2 h-4 w-4" />
-                    Start
+                    {loadingActions[`start-${container.id}`] ? 'Starting...' : 'Start'}
                   </DropdownMenuItem>
                 )}
                 {isRunning && (
-                  <DropdownMenuItem onClick={handleStop}>
+                  <DropdownMenuItem 
+                    onClick={handleStop}
+                    disabled={loadingActions[`stop-${container.id}`]}
+                  >
                     <Square className="mr-2 h-4 w-4" />
-                    Stop
+                    {loadingActions[`stop-${container.id}`] ? 'Stopping...' : 'Stop'}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={handleRestart}>
+                <DropdownMenuItem 
+                  onClick={handleRestart}
+                  disabled={loadingActions[`restart-${container.id}`]}
+                >
                   <RotateCw className="mr-2 h-4 w-4" />
-                  Restart
+                  {loadingActions[`restart-${container.id}`] ? 'Restarting...' : 'Restart'}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

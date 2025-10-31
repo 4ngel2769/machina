@@ -24,6 +24,7 @@ import { Container } from '@/types/container';
 
 // Terminal component (we'll inline a simpler version)
 import dynamic from 'next/dynamic';
+import { useContainers } from '@/hooks/use-containers';
 
 const ContainerTerminal = dynamic(
   () => import('@/components/containers/container-terminal').then(mod => ({ default: mod.ContainerTerminal })),
@@ -45,6 +46,7 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
   const router = useRouter();
   const [container, setContainer] = useState<Container | null>(null);
   const [loading, setLoading] = useState(true);
+  const { startContainer, stopContainer, restartContainer, loadingActions } = useContainers();
 
   useEffect(() => {
     fetchContainer();
@@ -81,19 +83,23 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
 
   const performAction = async (action: 'start' | 'stop' | 'restart') => {
     try {
-      const response = await fetch(`/api/containers/${resolvedParams.id}/${action}`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        toast.success(`Container ${action}ed successfully`);
-        fetchContainer();
-      } else {
-        const error = await response.json();
-        toast.error(error.error || `Failed to ${action} container`);
+      switch (action) {
+        case 'start':
+          await startContainer(resolvedParams.id);
+          toast.success(`Container started successfully`);
+          break;
+        case 'stop':
+          await stopContainer(resolvedParams.id);
+          toast.success(`Container stopped successfully`);
+          break;
+        case 'restart':
+          await restartContainer(resolvedParams.id);
+          toast.success(`Container restarted successfully`);
+          break;
       }
-    } catch {
-      toast.error(`Failed to ${action} container`);
+      fetchContainer();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${action} container`);
     }
   };
 
@@ -163,19 +169,30 @@ function ContainerDetailContent({ params }: { params: Promise<{ id: string }> })
         <div className="flex gap-2">
           {container.status === 'running' ? (
             <>
-              <Button variant="outline" onClick={() => performAction('restart')}>
+              <Button 
+                variant="outline" 
+                onClick={() => performAction('restart')}
+                disabled={loadingActions[`restart-${container.id}`]}
+              >
                 <RotateCw className="mr-2 h-4 w-4" />
-                Restart
+                {loadingActions[`restart-${container.id}`] ? 'Restarting...' : 'Restart'}
               </Button>
-              <Button variant="outline" onClick={() => performAction('stop')}>
+              <Button 
+                variant="outline" 
+                onClick={() => performAction('stop')}
+                disabled={loadingActions[`stop-${container.id}`]}
+              >
                 <Square className="mr-2 h-4 w-4" />
-                Stop
+                {loadingActions[`stop-${container.id}`] ? 'Stopping...' : 'Stop'}
               </Button>
             </>
           ) : (
-            <Button onClick={() => performAction('start')}>
+            <Button 
+              onClick={() => performAction('start')}
+              disabled={loadingActions[`start-${container.id}`]}
+            >
               <Play className="mr-2 h-4 w-4" />
-              Start
+              {loadingActions[`start-${container.id}`] ? 'Starting...' : 'Start'}
             </Button>
           )}
           <Button variant="destructive" onClick={deleteContainer}>
