@@ -28,10 +28,10 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 // Get all users (without passwords)
 export async function getAllUsers(): Promise<UserWithoutPassword[]> {
   await connectDB();
-  const users = await UserModel.find({}).sort({ createdAt: -1 }).lean();
+  const users = await UserModel.find({}).sort({ createdAt: -1 }).lean<IUser[]>();
   
   return users.map(user => ({
-    id: user._id.toString(),
+    id: (user._id as any).toString(),
     username: user.username,
     role: user.role,
     createdAt: user.createdAt.toISOString(),
@@ -44,12 +44,12 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   await connectDB();
   const user = await UserModel.findOne({ 
     username: { $regex: new RegExp(`^${username}$`, 'i') } 
-  }).lean();
+  }).lean<IUser>();
   
   if (!user) return null;
   
   return {
-    id: user._id.toString(),
+    id: (user._id as any).toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,
@@ -61,12 +61,12 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 // Get user by ID
 export async function getUserById(id: string): Promise<User | null> {
   await connectDB();
-  const user = await UserModel.findById(id).lean();
+  const user = await UserModel.findById(id).lean<IUser>();
   
   if (!user) return null;
   
   return {
-    id: user._id.toString(),
+    id: (user._id as any).toString(),
     username: user.username,
     passwordHash: user.passwordHash,
     role: user.role,
