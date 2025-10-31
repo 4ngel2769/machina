@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useContainers } from '@/hooks/use-containers';
 import { useVMs } from '@/hooks/use-vms';
 import {
@@ -36,11 +37,11 @@ if (typeof window !== 'undefined') {
 
 export function CommandPalette() {
   const router = useRouter();
+  const { data: session } = useSession();
   const { containers, startContainer, stopContainer } = useContainers();
   const { vms, startVM, stopVM } = useVMs();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [awaitingNavKey, setAwaitingNavKey] = useState(false);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -51,26 +52,43 @@ export function CommandPalette() {
         return;
       }
 
-      // Handle navigation shortcuts (G + letter)
-      if (awaitingNavKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        
+      // Handle navigation shortcuts (Shift + letter)
+      if (e.shiftKey) {
         switch (e.key.toLowerCase()) {
           case 'd':
+            e.preventDefault();
             router.push('/');
             break;
           case 'c':
+            e.preventDefault();
             router.push('/containers');
             break;
           case 'v':
+            e.preventDefault();
             router.push('/vms');
             break;
           case 's':
+            e.preventDefault();
             router.push('/settings');
             break;
+          case 'n':
+            e.preventDefault();
+            // Context-aware create new
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/containers')) {
+              router.push('/containers?action=create');
+            } else if (currentPath.startsWith('/vms')) {
+              router.push('/vms?action=create');
+            } else {
+              // Default to containers
+              router.push('/containers?action=create');
+            }
+            break;
+          case 'r':
+            e.preventDefault();
+            window.location.reload();
+            break;
         }
-        setAwaitingNavKey(false);
         return;
       }
 
@@ -97,29 +115,7 @@ export function CommandPalette() {
             // Toggle sidebar - dispatch custom event
             window.dispatchEvent(new CustomEvent('toggle-sidebar'));
             break;
-          case 'n':
-            e.preventDefault();
-            // Context-aware create new
-            const currentPath = window.location.pathname;
-            if (currentPath.startsWith('/containers')) {
-              router.push('/containers?action=create');
-            } else if (currentPath.startsWith('/vms')) {
-              router.push('/vms?action=create');
-            } else {
-              // Default to containers
-              router.push('/containers?action=create');
-            }
-            break;
-          case 'r':
-            e.preventDefault();
-            window.location.reload();
-            break;
         }
-      } else if (e.key === 'g') {
-        // Start navigation mode
-        setAwaitingNavKey(true);
-        // Clear the awaiting state after 2 seconds if no key is pressed
-        setTimeout(() => setAwaitingNavKey(false), 2000);
       } else if (e.key === '?') {
         e.preventDefault();
         router.push('/help');
@@ -138,7 +134,7 @@ export function CommandPalette() {
       document.removeEventListener('keydown', down);
       window.removeEventListener('toggle-command-palette', toggleHandler);
     };
-  }, [router, awaitingNavKey]);
+  }, [router]);
 
   const closeAndNavigate = useCallback((path: string) => {
     setOpen(false);
@@ -151,6 +147,57 @@ export function CommandPalette() {
     setSearch('');
     await action();
   }, []);
+
+  // Define all available pages and actions
+  const allPages = [
+    // User pages (always available)
+    { title: 'Dashboard', path: '/', icon: Home, keywords: ['home', 'overview', 'stats', 'dashboard'], user: true, admin: true },
+    { title: 'Containers', path: '/containers', icon: Box, keywords: ['containers', 'docker', 'apps', 'services'], user: true, admin: true },
+    { title: 'Virtual Machines', path: '/vms', icon: Server, keywords: ['vms', 'virtual machines', 'servers', 'hypervisor'], user: true, admin: true },
+    { title: 'Settings', path: '/settings', icon: Settings, keywords: ['settings', 'preferences', 'config', 'profile'], user: true, admin: true },
+    { title: 'Profile', path: '/profile', icon: LayoutDashboard, keywords: ['profile', 'account', 'user', 'tokens'], user: true, admin: true },
+    { title: 'Help', path: '/help', icon: Search, keywords: ['help', 'documentation', 'guide', 'support'], user: true, admin: true },
+
+    // Admin-only pages
+    { title: 'Admin Dashboard', path: '/admin', icon: LayoutDashboard, keywords: ['admin', 'administration', 'management'], user: false, admin: true },
+    { title: 'User Management', path: '/admin/users', icon: LayoutDashboard, keywords: ['users', 'accounts', 'management'], user: false, admin: true },
+    { title: 'Token Management', path: '/admin/tokens', icon: LayoutDashboard, keywords: ['tokens', 'requests', 'approvals'], user: false, admin: true },
+    { title: 'System Logs', path: '/admin/logs', icon: LayoutDashboard, keywords: ['logs', 'system', 'events', 'audit'], user: false, admin: true },
+    { title: 'Backup Management', path: '/admin/backup', icon: LayoutDashboard, keywords: ['backup', 'restore', 'data'], user: false, admin: true },
+    { title: 'Pricing Templates', path: '/admin/pricing', icon: LayoutDashboard, keywords: ['pricing', 'plans', 'billing'], user: false, admin: true },
+    { title: 'Global Settings', path: '/admin/settings', icon: LayoutDashboard, keywords: ['global', 'system', 'configuration'], user: false, admin: true },
+  ];
+
+  // Fuzzy search function
+  const fuzzySearch = (query: string, text: string): boolean => {
+    if (!query) return true;
+    const queryLower = query.toLowerCase();
+    const textLower = text.toLowerCase();
+    
+    // Exact match
+    if (textLower.includes(queryLower)) return true;
+    
+    // Fuzzy match - check if all characters in query appear in order in text
+    let queryIndex = 0;
+    for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
+      if (textLower[i] === queryLower[queryIndex]) {
+        queryIndex++;
+      }
+    }
+    return queryIndex === queryLower.length;
+  };
+
+  // Filter pages based on user role and search
+  const filteredPages = allPages.filter(page => {
+    const isAdmin = session?.user?.role === 'admin';
+    const hasAccess = (isAdmin && page.admin) || (!isAdmin && page.user);
+    
+    if (!hasAccess) return false;
+    
+    // Search in title and keywords
+    return fuzzySearch(search, page.title) || 
+           page.keywords.some(keyword => fuzzySearch(search, keyword));
+  });
 
   // Filter items based on search
   const filteredContainers = containers.filter((c) =>
@@ -173,36 +220,18 @@ export function CommandPalette() {
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
-        {/* Navigation */}
-        <CommandGroup heading="Navigation">
-          <CommandItem
-            onSelect={() => closeAndNavigate('/')}
-            className="cursor-pointer"
-          >
-            <Home className="mr-2 h-4 w-4" />
-            Dashboard
-          </CommandItem>
-          <CommandItem
-            onSelect={() => closeAndNavigate('/containers')}
-            className="cursor-pointer"
-          >
-            <Box className="mr-2 h-4 w-4" />
-            Containers
-          </CommandItem>
-          <CommandItem
-            onSelect={() => closeAndNavigate('/vms')}
-            className="cursor-pointer"
-          >
-            <Server className="mr-2 h-4 w-4" />
-            Virtual Machines
-          </CommandItem>
-          <CommandItem
-            onSelect={() => closeAndNavigate('/settings')}
-            className="cursor-pointer"
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </CommandItem>
+        {/* Pages */}
+        <CommandGroup heading="Pages">
+          {filteredPages.map((page) => (
+            <CommandItem
+              key={page.path}
+              onSelect={() => closeAndNavigate(page.path)}
+              className="cursor-pointer"
+            >
+              <page.icon className="mr-2 h-4 w-4" />
+              {page.title}
+            </CommandItem>
+          ))}
         </CommandGroup>
 
         <CommandSeparator />
