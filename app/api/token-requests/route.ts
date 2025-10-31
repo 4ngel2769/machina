@@ -105,10 +105,8 @@ export async function PATCH(req: NextRequest) {
       updatedRequest = await approveRequest(requestId, session.user.name || session.user.id, notes);
       
       if (updatedRequest) {
-        console.log(`Approving token request ${requestId} for user ${updatedRequest.userId}, adding ${updatedRequest.amount} tokens`);
         // Add tokens to user's balance
-        const newBalance = await addTokens(updatedRequest.userId, updatedRequest.amount);
-        console.log(`Token balance for user ${updatedRequest.userId} is now ${newBalance}`);
+        await addTokens(updatedRequest.userId, updatedRequest.amount);
       }
     } else if (action === 'deny') {
       updatedRequest = await denyRequest(requestId, session.user.name || session.user.id, notes);
