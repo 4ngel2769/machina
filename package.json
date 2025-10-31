@@ -9,7 +9,7 @@
     "lint": "eslint",
     "analyze": "ANALYZE=true next build",
     "init-data": "node scripts/init-data.js",
-    "migrate-to-mongodb": "node scripts/migrate-to-mongodb.js"
+    "migrate-to-mongodb": "node scripts/migrate-to-mongodb.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
