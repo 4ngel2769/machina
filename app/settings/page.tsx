@@ -96,7 +96,7 @@ export default function UserSettingsPage() {
     toast.info('Settings reset to last saved values');
   };
 
-  const updatePreference = (key: keyof UserSettings['preferences'], value: any) => {
+  const updatePreference = (key: keyof UserSettings['preferences'], value: string | boolean) => {
     if (!settings) return;
 
     setSettings({
