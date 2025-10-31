@@ -299,16 +299,13 @@ export function isApproachingLimit(usage: number, quota: number): boolean {
 
 // Add tokens to user balance (admin only)
 export async function addTokens(userId: string, amount: number): Promise<number> {
-  console.log(`addTokens called for user ${userId} with amount ${amount}`);
   const allQuotas = await getAllQuotas();
   const index = allQuotas.findIndex(q => q.userId === userId);
   
   if (index >= 0) {
-    console.log(`Found existing quota for user ${userId}, current balance: ${allQuotas[index].tokenBalance}`);
     allQuotas[index].tokenBalance += amount;
     allQuotas[index].updatedAt = new Date().toISOString();
     await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: allQuotas }, null, 2));
-    console.log(`Updated balance for user ${userId} to ${allQuotas[index].tokenBalance}`);
     return allQuotas[index].tokenBalance;
   }
   
@@ -323,7 +320,6 @@ export async function addTokens(userId: string, amount: number): Promise<number>
     updatedQuotas[newIndex].tokenBalance += amount;
     updatedQuotas[newIndex].updatedAt = new Date().toISOString();
     await fs.writeFile(QUOTA_FILE, JSON.stringify({ quotas: updatedQuotas }, null, 2));
-    console.log(`Created new quota for user ${userId} with balance ${updatedQuotas[newIndex].tokenBalance}`);
     return updatedQuotas[newIndex].tokenBalance;
   }
   

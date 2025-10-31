@@ -40,14 +40,89 @@ export function CommandPalette() {
   const { vms, startVM, stopVM } = useVMs();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [awaitingNavKey, setAwaitingNavKey] = useState(false);
 
-  // Keyboard shortcut: Cmd+K / Ctrl+K
+  // Keyboard shortcuts
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+      // Ignore shortcuts when typing in input fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return;
+      }
+
+      // Handle navigation shortcuts (G + letter)
+      if (awaitingNavKey) {
         e.preventDefault();
         e.stopPropagation();
-        setOpen((open) => !open);
+        
+        switch (e.key.toLowerCase()) {
+          case 'd':
+            router.push('/');
+            break;
+          case 'c':
+            router.push('/containers');
+            break;
+          case 'v':
+            router.push('/vms');
+            break;
+          case 's':
+            router.push('/settings');
+            break;
+        }
+        setAwaitingNavKey(false);
+        return;
+      }
+
+      // Global shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'k':
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((open) => !open);
+            break;
+          case 'f':
+            e.preventDefault();
+            // Focus search input if it exists, otherwise open command palette
+            const searchInput = document.querySelector('input[placeholder*="search" i]') as HTMLInputElement;
+            if (searchInput) {
+              searchInput.focus();
+            } else {
+              setOpen(true);
+            }
+            break;
+          case 'b':
+            e.preventDefault();
+            // Toggle sidebar - dispatch custom event
+            window.dispatchEvent(new CustomEvent('toggle-sidebar'));
+            break;
+          case 'n':
+            e.preventDefault();
+            // Context-aware create new
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/containers')) {
+              router.push('/containers?action=create');
+            } else if (currentPath.startsWith('/vms')) {
+              router.push('/vms?action=create');
+            } else {
+              // Default to containers
+              router.push('/containers?action=create');
+            }
+            break;
+          case 'r':
+            e.preventDefault();
+            window.location.reload();
+            break;
+        }
+      } else if (e.key === 'g') {
+        // Start navigation mode
+        setAwaitingNavKey(true);
+        // Clear the awaiting state after 2 seconds if no key is pressed
+        setTimeout(() => setAwaitingNavKey(false), 2000);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        router.push('/help');
       }
     };
 
@@ -63,7 +138,7 @@ export function CommandPalette() {
       document.removeEventListener('keydown', down);
       window.removeEventListener('toggle-command-palette', toggleHandler);
     };
-  }, []);
+  }, [router, awaitingNavKey]);
 
   const closeAndNavigate = useCallback((path: string) => {
     setOpen(false);

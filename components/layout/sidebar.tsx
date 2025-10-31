@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -89,19 +89,30 @@ export function Sidebar() {
   });
   const pathname = usePathname();
 
-  // Fetch version info on mount
-  useEffect(() => {
-    fetch('/api/version')
-      .then(res => res.json())
-      .then(data => setVersionInfo(data))
-      .catch(console.error);
-  }, []);
-
   const toggleSidebar = () => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', JSON.stringify(newState));
   };
+
+  // Fetch version info and setup keyboard shortcuts on mount
+  useEffect(() => {
+    fetch('/api/version')
+      .then(res => res.json())
+      .then(data => setVersionInfo(data))
+      .catch(console.error);
+
+    // Listen for toggle-sidebar events from keyboard shortcuts
+    const handleToggleSidebar = () => {
+      toggleSidebar();
+    };
+
+    window.addEventListener('toggle-sidebar', handleToggleSidebar);
+    
+    return () => {
+      window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: '/login' });
