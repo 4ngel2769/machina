@@ -15,18 +15,6 @@ export interface User {
 
 export type UserWithoutPassword = Omit<User, 'passwordHash'>;
 
-// Helper to convert Mongoose document to User object
-function documentToUser(doc: IUser): User {
-  return {
-    id: doc._id.toString(),
-    username: doc.username,
-    passwordHash: doc.passwordHash,
-    role: doc.role,
-    createdAt: doc.createdAt.toISOString(),
-    lastLogin: doc.lastLogin?.toISOString(),
-  };
-}
-
 // Hash password
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
