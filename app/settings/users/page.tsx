@@ -40,7 +40,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, Edit, Shield, User as UserIcon, Lock } from 'lucide-react';
+import { UserPlus, Trash2, Edit, Shield, User as UserIcon, Lock, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -63,6 +63,7 @@ export default function UsersPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetLinkGeneratedFor, setResetLinkGeneratedFor] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -253,16 +254,37 @@ export default function UsersPage() {
       const data = await response.json();
       const resetLink = data.resetLink;
 
-      // Try to copy link to clipboard
+      // Try to copy link to clipboard with better error handling
       let copiedToClipboard = false;
       try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
+        // Check if we're in a secure context (HTTPS or localhost)
+        const isSecureContext = window.location.protocol === 'https:' ||
+                               window.location.hostname === 'localhost' ||
+                               window.location.hostname === '127.0.0.1';
+
+        if (isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(resetLink);
           copiedToClipboard = true;
+        } else if (document.execCommand) {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = resetLink;
+          document.body.appendChild(textArea);
+          textArea.select();
+          copiedToClipboard = document.execCommand('copy');
+          document.body.removeChild(textArea);
         }
       } catch (clipboardError) {
-        console.warn('Clipboard API not available or failed:', clipboardError);
+        console.warn('Clipboard copy failed:', clipboardError);
       }
+
+      // Set the confirmation state
+      setResetLinkGeneratedFor(user.id);
+
+      // Clear the confirmation state after 3 seconds
+      setTimeout(() => {
+        setResetLinkGeneratedFor(null);
+      }, 3000);
 
       if (copiedToClipboard) {
         toast({
@@ -270,7 +292,7 @@ export default function UsersPage() {
           description: `Password reset link generated and copied to clipboard for user "${user.username}"`,
         });
       } else {
-        // Fallback: show link in a dialog or alert
+        // Fallback: show link in toast for manual copying
         toast({
           title: 'Success',
           description: `Password reset link generated for user "${user.username}". Link: ${resetLink}`,
@@ -395,8 +417,16 @@ export default function UsersPage() {
                         size="sm"
                         onClick={() => handleGenerateResetLink(user)}
                         title="Generate password reset link"
+                        disabled={submitting}
                       >
-                        <Lock className="h-4 w-4" />
+                        {resetLinkGeneratedFor === user.id ? (
+                          <>
+                            <Check className="h-4 w-4 text-green-600" />
+                            <span className="text-green-600">Copied!</span>
+                          </>
+                        ) : (
+                          <Lock className="h-4 w-4" />
+                        )}
                       </Button>
                       <Button
                         variant="outline"
