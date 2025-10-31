@@ -2,17 +2,18 @@ import { z } from 'zod';
 
 /**
  * Container name validation
- * - Must be 1-63 characters
- * - Can contain lowercase letters, numbers, hyphens, underscores
+ * - Must be 2-63 characters (Docker requirement)
+ * - Can contain lowercase letters, numbers, hyphens, underscores, dots
  * - Must start with a letter or number
+ * - Follows Docker naming conventions: [a-zA-Z0-9][a-zA-Z0-9_.-]*
  */
 export const containerNameSchema = z
   .string()
-  .min(1, 'Container name is required')
+  .min(2, 'Container name must be at least 2 characters')
   .max(63, 'Container name must be 63 characters or less')
   .regex(
-    /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/,
-    'Container name must start with a letter or number and contain only letters, numbers, hyphens, and underscores'
+    /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/,
+    'Container name must start with a letter or number and contain only letters, numbers, hyphens, underscores, and dots'
   );
 
 /**

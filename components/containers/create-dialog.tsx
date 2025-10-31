@@ -38,8 +38,10 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { containerNameSchema } from '@/lib/validation';
+
 const formSchema = z.object({
-  name: z.string().optional(),
+  name: containerNameSchema.optional(),
   image: z.string().min(1, 'Image is required'),
   type: z.enum(['normal', 'amnesic']),
   shell: z.string().min(1, 'Shell is required'),
@@ -146,9 +148,11 @@ export function CreateContainerDialog({ open, onOpenChange }: CreateContainerDia
                 <FormItem>
                   <FormLabel>Container Name (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Auto-generated if empty" {...field} />
+                    <Input placeholder="e.g., my-container, web-server-01" {...field} />
                   </FormControl>
-                  <FormDescription>Leave empty for auto-generated name</FormDescription>
+                  <FormDescription>
+                    Leave empty for auto-generated name. Must be 2-63 characters, start with letter/number, contain only letters, numbers, hyphens, underscores, and dots.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
