@@ -5,6 +5,7 @@
  * Run this script to create quota records for users who don't have them
  */
 
+import 'dotenv/config';
 import { getAllUsers, initializeUserQuota } from '../lib/auth/user-storage';
 import { getAllQuotas } from '../lib/quota-system';
 
