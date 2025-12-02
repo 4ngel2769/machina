@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import osImagesData from '@/config/os-images.json';
+import { useSession } from 'next-auth/react';
 
 // Client-side VM name generator
 function generateVMName(osVariant?: string): string {
@@ -50,6 +51,10 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
   const { createVM, storagePools, networks, fetchStoragePools, fetchNetworks } = useVMs();
   const [step, setStep] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'admin';
+  const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024; // Mirror server-side default (4 GiB)
   
   // Form state
   const [installationType, setInstallationType] = useState<InstallationType>('download');
@@ -61,6 +66,8 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
   const [diskSize, setDiskSize] = useState('25');
   const [selectedPool, setSelectedPool] = useState('default');
   const [selectedNetwork, setSelectedNetwork] = useState('default');
+  const [uploadedIsoName, setUploadedIsoName] = useState('');
+  const [isUploadingIso, setIsUploadingIso] = useState(false);
 
   // Fetch pools and networks when dialog opens
   useEffect(() => {
@@ -84,6 +91,8 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
         setDiskSize('25');
         setSelectedPool('default');
         setSelectedNetwork('default');
+        setUploadedIsoName('');
+        setIsUploadingIso(false);
       }, 300);
     }
   }, [open]);
@@ -186,6 +195,51 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOS]);
 
+  const handleIsoUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleIsoFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.iso')) {
+      toast.error('Only .iso files are allowed');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error('ISO exceeds upload limit of 4 GiB');
+      event.target.value = '';
+      return;
+    }
+
+    const form = new FormData();
+    form.append('iso', file);
+    setIsUploadingIso(true);
+
+    try {
+      const response = await fetch('/api/isos/upload', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload ISO');
+      }
+      setIsoSource(data.path);
+      setUploadedIsoName(file.name);
+      setInstallationType('local');
+      toast.success(`Uploaded ${file.name}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to upload ISO');
+    } finally {
+      setIsUploadingIso(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -262,18 +316,52 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
             )}
 
             {installationType === 'local' && (
-              <div className="space-y-2">
-                <Label htmlFor="iso-path">ISO File Path</Label>
-                <Input
-                  id="iso-path"
-                  placeholder="/path/to/your/image.iso"
-                  value={isoSource}
-                  onChange={(e) => setIsoSource(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Enter the full path to an ISO file on your system
-                </p>
-              </div>
+              isAdmin ? (
+                <div className="space-y-2">
+                  <Label htmlFor="iso-path">ISO File Path</Label>
+                  <Input
+                    id="iso-path"
+                    placeholder="/var/lib/libvirt/boot/my.iso"
+                    value={isoSource}
+                    onChange={(e) => setIsoSource(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the full path to an ISO file on the host system
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label>Upload ISO</Label>
+                  <input
+                    type="file"
+                    accept=".iso"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleIsoFileSelected}
+                  />
+                  <Button variant="outline" onClick={handleIsoUploadClick} disabled={isUploadingIso}>
+                    {isUploadingIso ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="h-4 w-4 mr-2" />
+                        Choose ISO
+                      </>
+                    )}
+                  </Button>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {uploadedIsoName ? (
+                      <p className="text-foreground">Selected: {uploadedIsoName}</p>
+                    ) : (
+                      <p>No ISO uploaded yet</p>
+                    )}
+                    <p>Files are stored in your private tenant space. Max size: 4 GiB.</p>
+                  </div>
+                </div>
+              )
             )}
 
             {installationType === 'url' && (
@@ -404,25 +492,36 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
 
             <div className="space-y-2">
               <Label htmlFor="network">Virtual Network</Label>
-              <Select value={selectedNetwork} onValueChange={setSelectedNetwork}>
-                <SelectTrigger id="network">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {networks.length === 0 ? (
-                    <SelectItem value="default">default (no networks available)</SelectItem>
-                  ) : (
-                    networks.map((net) => (
-                      <SelectItem key={net.name} value={net.name}>
-                        {net.name} ({net.mode})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Network configuration for the VM
-              </p>
+              {isAdmin ? (
+                <>
+                  <Select value={selectedNetwork} onValueChange={setSelectedNetwork}>
+                    <SelectTrigger id="network">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {networks.length === 0 ? (
+                        <SelectItem value="default">default (no networks available)</SelectItem>
+                      ) : (
+                        networks.map((net) => (
+                          <SelectItem key={net.name} value={net.name}>
+                            {net.name} ({net.mode})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Network configuration for the VM
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-sm font-medium">Tenant network enforced</p>
+                  <p className="text-xs text-muted-foreground">
+                    Your VMs are automatically connected to your isolated network with static IP assignments.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -462,7 +561,9 @@ export function CreateVMDialog({ open, onOpenChange }: CreateVMDialogProps) {
                   <span className="font-medium">{selectedPool}</span>
                   
                   <span className="text-muted-foreground">Network:</span>
-                  <span className="font-medium">{selectedNetwork}</span>
+                  <span className="font-medium">
+                    {isAdmin ? selectedNetwork : 'Private tenant network (auto)'}
+                  </span>
                 </div>
               </CardContent>
             </Card>

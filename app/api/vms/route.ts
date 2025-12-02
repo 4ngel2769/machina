@@ -12,6 +12,8 @@ import { checkVMQuota } from '@/lib/quota-system';
 import { logAudit } from '@/lib/audit-logger';
 import logger from '@/lib/logger';
 import { z } from 'zod';
+import { assignStaticIP } from '@/lib/user-networks';
+import { isPathWithinUserIsoDir } from '@/lib/iso-storage';
 
 // GET /api/vms - List all VMs
 export async function GET(request: NextRequest) {
@@ -96,9 +98,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
+
     // Validate request body
     const validatedData = createVMSchema.parse(body);
+    const vmName = validatedData.name || `vm-${Date.now()}`;
     
     // Check quota before creating VM (use storage.size for disk)
     const quotaCheck = await checkVMQuota(
@@ -121,15 +124,33 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    const isAdmin = session.user.role === 'admin';
+    const installationType = validatedData.installation_medium.type;
+    let isoPath: string | undefined;
+    if (installationType === 'local') {
+      if (!validatedData.installation_medium.source) {
+        return NextResponse.json({ error: 'ISO source is required for local installations' }, { status: 400 });
+      }
+      isoPath = validatedData.installation_medium.source;
+      if (!isAdmin && !isPathWithinUserIsoDir(session.user.id, isoPath)) {
+        return NextResponse.json({ error: 'Users must upload ISOs via the secure uploader. Host filesystem paths are not allowed.' }, { status: 403 });
+      }
+    }
+
+    const tenantNetwork = await assignStaticIP(session.user.id, vmName, session.user.name || undefined);
+    
     // Map validated data to createVM format
     const vmOptions = {
-      name: validatedData.name || `vm-${Date.now()}`,
+      name: vmName,
       memory: validatedData.memory,
       vcpus: validatedData.vcpus,
       disk_size: validatedData.storage.size * 1024, // Convert GB to MB
-      iso_path: validatedData.installation_medium.type === 'local' 
-        ? validatedData.installation_medium.source 
-        : undefined,
+      iso_path: isoPath,
+      network: {
+        source: tenantNetwork.networkName,
+        mac: tenantNetwork.macAddress,
+        static_ip: tenantNetwork.ipAddress,
+      },
     };
     
     // Create VM
@@ -184,6 +205,7 @@ export async function POST(request: NextRequest) {
       message: result.message,
       vm: {
         name: result.name,
+        network: tenantNetwork,
       },
     }, { status: 201 });
   } catch (error) {
