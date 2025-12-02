@@ -1,6 +1,14 @@
 import NextAuth, { NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 
+const allowInsecureAuthCookies = process.env.AUTH_ALLOW_INSECURE_COOKIES === 'true';
+const csrfCookieName = allowInsecureAuthCookies
+  ? 'next-auth.csrf-token'
+  : '__Host-next-auth.csrf-token';
+const sessionCookieName = allowInsecureAuthCookies
+  ? 'next-auth.session-token'
+  : '__Secure-next-auth.session-token';
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -96,6 +104,27 @@ export const authConfig: NextAuthConfig = {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  cookies: {
+    sessionToken: {
+      name: sessionCookieName,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: !allowInsecureAuthCookies,
+      },
+    },
+    csrfToken: {
+      name: csrfCookieName,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: !allowInsecureAuthCookies,
+      },
+    },
+  },
+  useSecureCookies: !allowInsecureAuthCookies,
   secret: process.env.NEXTAUTH_SECRET || 'machina-super-secret-change-in-production',
   trustHost: true, // Trust all hosts (required for production deployment on different IPs)
 };
