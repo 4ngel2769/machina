@@ -11,8 +11,9 @@ import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// ES Module __filename equivalent (dir not used)
+// ES Module helper retained for future debugging
 const __filename = fileURLToPath(import.meta.url);
+void __filename;
 
 // Load environment variables
 dotenv.config();

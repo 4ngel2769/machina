@@ -241,7 +241,7 @@ async function migrateTokenRequests() {
   let migrated = 0;
   for (const request of requests) {
     try {
-      const doc = await TokenRequestModel.create({
+      await TokenRequestModel.create({
         userId: request.userId,
         username: request.username,
         amount: request.amount,
@@ -277,7 +277,7 @@ async function migrateUserContracts() {
   let migrated = 0;
   for (const contract of contracts) {
     try {
-      const doc = await UserContractModel.create({
+      await UserContractModel.create({
         userId: contract.userId,
         username: contract.username,
         tokensPerMonth: contract.tokensPerMonth,
