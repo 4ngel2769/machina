@@ -108,8 +108,6 @@ export default function VMConsolePage() {
     };
 
     initializeVNC();
-
-    // Cleanup: stop proxy when leaving page
   }, [vmName, searchParams]);
 
   const handleDisconnect = () => {
