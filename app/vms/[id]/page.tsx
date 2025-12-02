@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -251,6 +251,28 @@ export default function VMDetailsPage() {
     router.push(`/vms/${vmName}/edit`);
   };
 
+  const handleRequestPopupSession = useCallback(async () => {
+    if (!vm) return null;
+    try {
+      const response = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy/session`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to mint popup session');
+      }
+      const data = await response.json();
+      setProxyInfo((prev) => ({
+        ...(prev || {}),
+        session: data.session,
+      }));
+      return data.session;
+    } catch (err) {
+      console.error('[Proxy] Popup session error:', err);
+      toast.error('Unable to prepare a secure popup session');
+      return null;
+    }
+  }, [vm]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -478,6 +500,7 @@ export default function VMDetailsPage() {
                       vncPopupUrl={proxyInfo.session?.popupUrl}
                       spiceHost={displayConfig.spice?.host}
                       spicePort={displayConfig.spice?.port}
+                      onRequestPopupSession={handleRequestPopupSession}
                       className="h-full"
                     />
                   </div>
