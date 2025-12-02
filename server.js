@@ -290,25 +290,23 @@ app.prepare().then(async () => {
       }
     };
 
-    upstream.on('open', () => {
-      clientWs.on('message', (data) => {
-        if (upstream.readyState === WebSocket.OPEN) {
-          upstream.send(data);
-        }
-      });
+    clientWs.on('message', (data) => {
+      if (upstream.readyState === WebSocket.OPEN) {
+        upstream.send(data);
+      }
+    });
 
-      clientWs.on('close', () => {
-        if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
-          upstream.close();
-        }
-      });
+    clientWs.on('close', () => {
+      if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+        upstream.close();
+      }
+    });
 
-      clientWs.on('error', (error) => {
-        console.error(`[VNC Proxy] Client error for ${vmName}:`, error.message);
-        if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
-          upstream.close();
-        }
-      });
+    clientWs.on('error', (error) => {
+      console.error(`[VNC Proxy] Client error for ${vmName}:`, error.message);
+      if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+        upstream.close();
+      }
     });
 
     upstream.on('message', (data) => {
