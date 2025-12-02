@@ -8,7 +8,8 @@ require('dotenv').config();
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
-const { WebSocketServer } = require('ws');
+const WebSocket = require('ws');
+const { WebSocketServer } = WebSocket;
 const Docker = require('dockerode');
 
 // Import proxy manager
@@ -41,6 +42,7 @@ app.prepare().then(async () => {
 
   // Create WebSocket server
   const wss = new WebSocketServer({ noServer: true });
+  const vncWss = new WebSocketServer({ noServer: true });
 
   // Handle WebSocket upgrade
   server.on('upgrade', (request, socket, head) => {
@@ -50,6 +52,10 @@ app.prepare().then(async () => {
     if (pathname?.startsWith('/api/containers/') && pathname.endsWith('/terminal/ws')) {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
+      });
+    } else if (pathname?.startsWith('/api/vms/') && pathname.endsWith('/console/ws')) {
+      vncWss.handleUpgrade(request, socket, head, (ws) => {
+        vncWss.emit('connection', ws, request);
       });
     } else {
       socket.destroy();
@@ -240,6 +246,85 @@ app.prepare().then(async () => {
         ws.close(1011, 'Internal error');
       }
     }
+  });
+
+  // Secure VNC proxy websocket handling
+  vncWss.on('connection', async (clientWs, request) => {
+    const { pathname, query } = parse(request.url || '', true);
+    const match = pathname?.match(/\/api\/vms\/([^/]+)\/console\/ws/);
+
+    if (!match) {
+      clientWs.close(1008, 'Invalid endpoint');
+      return;
+    }
+
+    const vmName = decodeURIComponent(match[1]);
+    const token = query?.token;
+
+    if (!token) {
+      clientWs.close(1008, 'Missing session token');
+      return;
+    }
+
+    const session = proxyManager.getSession(token);
+    if (!session || session.vmName !== vmName) {
+      clientWs.close(4401, 'Invalid or expired session');
+      return;
+    }
+
+    const proxy = proxyManager.getProxy(vmName);
+    if (!proxy) {
+      clientWs.close(1011, 'Proxy not available');
+      return;
+    }
+
+    proxyManager.touchSession(token);
+
+    const upstream = new WebSocket(`ws://${session.wsHost || proxy.wsHost || '127.0.0.1'}:${session.wsPort}`, {
+      perMessageDeflate: false,
+    });
+
+    const closeClient = (code, reason) => {
+      if (clientWs.readyState === WebSocket.OPEN || clientWs.readyState === WebSocket.CONNECTING) {
+        clientWs.close(code, reason);
+      }
+    };
+
+    upstream.on('open', () => {
+      clientWs.on('message', (data) => {
+        if (upstream.readyState === WebSocket.OPEN) {
+          upstream.send(data);
+        }
+      });
+
+      clientWs.on('close', () => {
+        if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+          upstream.close();
+        }
+      });
+
+      clientWs.on('error', (error) => {
+        console.error(`[VNC Proxy] Client error for ${vmName}:`, error.message);
+        if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+          upstream.close();
+        }
+      });
+    });
+
+    upstream.on('message', (data) => {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(data);
+      }
+    });
+
+    upstream.on('close', () => {
+      closeClient(1011, 'Console proxy closed');
+    });
+
+    upstream.on('error', (error) => {
+      console.error(`[VNC Proxy] Upstream error for ${vmName}:`, error.message);
+      closeClient(1011, 'Console proxy error');
+    });
   });
 
   server.listen(port, (err) => {
