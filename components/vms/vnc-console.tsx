@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -33,14 +33,25 @@ const loadRFB = async () => {
 interface VNCConsoleProps {
   vmName: string;
   wsUrl?: string;
+  wsPath?: string;
+  popupUrl?: string;
   onDisconnect?: () => void;
+  onConnectionStateChange?: (state: ConnectionState) => void;
   className?: string;
 }
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed';
 type ScaleMode = 'remote' | 'local' | 'auto' | 'none';
 
-export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsoleProps) {
+export function VNCConsole({
+  vmName,
+  wsUrl,
+  wsPath,
+  popupUrl,
+  onDisconnect,
+  onConnectionStateChange,
+  className,
+}: VNCConsoleProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<RFB | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
@@ -49,10 +60,25 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   const [showSettings, setShowSettings] = useState(false);
   const [noVNCLoaded, setNoVNCLoaded] = useState(false);
 
+  const resolvedWsUrl = useMemo(() => {
+    if (wsUrl) {
+      return wsUrl;
+    }
+    if (wsPath && typeof window !== 'undefined') {
+      const base = window.location.origin.replace('http', 'ws');
+      return `${base}${wsPath}`;
+    }
+    return undefined;
+  }, [wsUrl, wsPath]);
+
   // Debug: Log wsUrl whenever it changes
   useEffect(() => {
-    console.log('[VNC] Component mounted/updated. wsUrl:', wsUrl);
-  }, [wsUrl]);
+    console.log('[VNC] Component mounted/updated. wsUrl:', resolvedWsUrl);
+  }, [resolvedWsUrl]);
+
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
 
   // Load noVNC from npm package
   useEffect(() => {
@@ -94,14 +120,14 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       return;
     }
 
-    if (!wsUrl) {
+    if (!resolvedWsUrl) {
       toast.error('VNC WebSocket URL not configured');
       setConnectionState('failed');
       return;
     }
 
     try {
-      console.log('[VNC] Connecting to:', wsUrl);
+      console.log('[VNC] Connecting to:', resolvedWsUrl);
       setConnectionState('connecting');
 
       // Get RFB from window (loaded dynamically)
@@ -112,7 +138,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       }
 
       // Create RFB connection
-      const rfb = new RFB(canvasRef.current, wsUrl, {
+      const rfb = new RFB(canvasRef.current, resolvedWsUrl, {
         credentials: { password: '' },
       });
 
@@ -170,18 +196,18 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
       setConnectionState('failed');
       toast.error(`Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [wsUrl, vmName, scaleMode, noVNCLoaded]);
+  }, [resolvedWsUrl, vmName, scaleMode, noVNCLoaded]);
 
   // Auto-connect when wsUrl and noVNC are ready
   useEffect(() => {
-    if (wsUrl && noVNCLoaded && canvasRef.current && connectionState === 'disconnected') {
+    if (resolvedWsUrl && noVNCLoaded && canvasRef.current && connectionState === 'disconnected') {
       console.log('[VNC] Auto-connecting...');
       // Small delay to ensure DOM is ready
       setTimeout(() => {
         connectVNC();
       }, 100);
     }
-  }, [wsUrl, noVNCLoaded, connectionState, connectVNC]);
+  }, [resolvedWsUrl, noVNCLoaded, connectionState, connectVNC]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -291,8 +317,8 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
   };
 
   const openInNewWindow = () => {
-    if (!wsUrl) {
-      toast.error('VNC URL not available');
+    if (!popupUrl) {
+      toast.error('Console popup URL not available');
       return;
     }
     
@@ -303,7 +329,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
     const top = (screen.height - height) / 2;
     
     const windowFeatures = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`;
-    const newWindow = window.open('/vms/' + vmName + '/console?popup=true', `VNC_${vmName}`, windowFeatures);
+    const newWindow = window.open(popupUrl, `VNC_${vmName}`, windowFeatures);
     
     if (newWindow) {
       toast.success('Opened in new window');
@@ -345,7 +371,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
             variant="outline"
             onClick={openInNewWindow}
             title="Open in New Window"
-            disabled={!wsUrl}
+            disabled={!popupUrl}
           >
             <ExternalLink className="h-4 w-4" />
           </Button>
@@ -356,7 +382,7 @@ export function VNCConsole({ vmName, wsUrl, onDisconnect, className }: VNCConsol
               size="sm"
               variant="default"
               onClick={connectVNC}
-              disabled={!noVNCLoaded || !wsUrl}
+              disabled={!noVNCLoaded || !resolvedWsUrl}
             >
               <Power className="h-4 w-4 mr-2" />
               Connect
