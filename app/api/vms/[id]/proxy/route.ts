@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function buildSessionPayload(vmName: string, session: { token: string; expiresAt: Date }) {
+  const encodedVm = encodeURIComponent(vmName);
+  return {
+    token: session.token,
+    expiresAt: session.expiresAt.toISOString(),
+    wsPath: `/api/vms/${encodedVm}/console/ws?token=${session.token}`,
+    popupUrl: `/vms/${encodedVm}/console?popup=1&session=${session.token}`,
+  };
+}
+
 // Helper to get proxy manager (dynamic import for CommonJS module)
 async function getProxyManager() {
   return (await import('@/lib/proxy-manager.cjs')).default;
@@ -12,6 +22,8 @@ export async function GET(
   try {
     const { id } = await params;
     const vmName = decodeURIComponent(id);
+    const url = new URL(request.url);
+    const issueSession = url.searchParams.get('issueSession') === '1';
 
     const proxyManager = await getProxyManager();
 
@@ -20,13 +32,24 @@ export async function GET(
     
     if (proxy) {
       const publicHost = process.env.PUBLIC_HOST || 'localhost';
-      return NextResponse.json({
+      const response: Record<string, unknown> = {
         active: true,
         wsPort: proxy.wsPort,
         vncPort: proxy.vncPort,
         wsUrl: `ws://${publicHost}:${proxy.wsPort}`,
-        uptime: Date.now() - proxy.startedAt.getTime()
-      });
+        uptime: Date.now() - proxy.startedAt.getTime(),
+      };
+
+      if (issueSession) {
+        try {
+          const session = proxyManager.createSession(vmName);
+          response.session = buildSessionPayload(vmName, session);
+        } catch (sessionError) {
+          console.error('[Proxy API] Failed to issue session:', sessionError);
+        }
+      }
+
+      return NextResponse.json(response);
     }
 
     return NextResponse.json({
@@ -50,6 +73,8 @@ export async function POST(
     const { id } = await params;
     const vmName = decodeURIComponent(id);
     const body = await request.json();
+    const url = new URL(request.url);
+    const issueSession = url.searchParams.get('issueSession') !== '0';
     const { vncPort, listen } = body;
 
     if (!vncPort) {
@@ -75,13 +100,22 @@ export async function POST(
 
     // Start the proxy
     const wsPort = await proxyManager.startProxy(vmName, vncPort, listen);
-
+    const proxy = proxyManager.getProxy(vmName);
     const publicHost = process.env.PUBLIC_HOST || 'localhost';
+
+    let sessionPayload: Record<string, unknown> | undefined;
+    if (issueSession) {
+      const session = proxyManager.createSession(vmName);
+      sessionPayload = buildSessionPayload(vmName, session);
+    }
+
     return NextResponse.json({
       success: true,
       wsPort,
       vncPort,
       wsUrl: `ws://${publicHost}:${wsPort}`,
+      proxy,
+      session: sessionPayload,
       message: `Proxy started on port ${wsPort}`
     });
   } catch (error) {
