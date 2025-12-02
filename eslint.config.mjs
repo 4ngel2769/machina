@@ -19,6 +19,7 @@ const eslintConfig = defineConfig([
     "lib/proxy-manager.js",
     "lib/auth/user-storage-init.cjs",
     "lib/auth/user-storage-mongo-init.cjs",
+    "lib/vendor/**",
     "*.config.js",
   ]),
   {
