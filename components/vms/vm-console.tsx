@@ -8,6 +8,8 @@ import { Monitor } from 'lucide-react';
 interface VMConsoleProps {
   vmName: string;
   vncUrl?: string;
+   vncPath?: string;
+   vncPopupUrl?: string;
   spiceHost?: string;
   spicePort?: number;
   spicePassword?: string;
@@ -18,13 +20,16 @@ interface VMConsoleProps {
 export function VMConsole({ 
   vmName, 
   vncUrl, 
+  vncPath,
+  vncPopupUrl,
   spiceHost, 
   spicePort = 5900,
   spicePassword,
   onDisconnect, 
   className 
 }: VMConsoleProps) {
-  const [protocol, setProtocol] = useState<'vnc' | 'spice'>(vncUrl ? 'vnc' : 'spice');
+  const [protocol, setProtocol] = useState<'vnc' | 'spice'>((vncUrl || vncPath) ? 'vnc' : 'spice');
+  const [vncFailed, setVncFailed] = useState(false);
 
   // Use PUBLIC_HOST from environment if spiceHost is not provided or is a local address
   const effectiveSpiceHost = spiceHost && 
@@ -35,9 +40,10 @@ export function VMConsole({
       : (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
 
   // Check if both protocols are available
-  const hasVnc = !!vncUrl;
+  const hasVnc = Boolean(vncUrl || vncPath);
   const hasSpice = !!effectiveSpiceHost && !!spicePort;
   const hasBoth = hasVnc && hasSpice;
+  const allowSpiceFallback = !hasVnc || vncFailed;
 
   if (!hasVnc && !hasSpice) {
     return (
@@ -64,8 +70,17 @@ export function VMConsole({
         {hasVnc ? (
           <VNCConsoleWrapper 
             vmName={vmName} 
-            wsUrl={vncUrl!} 
-            onDisconnect={onDisconnect} 
+            wsUrl={vncUrl}
+            wsPath={vncPath}
+            popupUrl={vncPopupUrl}
+            onDisconnect={onDisconnect}
+            onConnectionStateChange={(state) => {
+              if (state === 'failed') {
+                setVncFailed(true);
+              } else if (state === 'connected') {
+                setVncFailed(false);
+              }
+            }}
           />
         ) : (
           <SpiceConsoleWrapper
@@ -86,15 +101,29 @@ export function VMConsole({
       <Tabs value={protocol} onValueChange={(v) => setProtocol(v as 'vnc' | 'spice')}>
         <TabsList className="mb-2">
           <TabsTrigger value="vnc">VNC</TabsTrigger>
-          <TabsTrigger value="spice">SPICE</TabsTrigger>
+          <TabsTrigger value="spice" disabled={!allowSpiceFallback}>SPICE</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vnc" className="mt-0">
           <VNCConsoleWrapper 
             vmName={vmName} 
-            wsUrl={vncUrl!} 
-            onDisconnect={onDisconnect} 
+            wsUrl={vncUrl}
+            wsPath={vncPath}
+            popupUrl={vncPopupUrl}
+            onDisconnect={onDisconnect}
+            onConnectionStateChange={(state) => {
+              if (state === 'failed') {
+                setVncFailed(true);
+              } else if (state === 'connected') {
+                setVncFailed(false);
+              }
+            }}
           />
+          {hasSpice && !allowSpiceFallback && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              SPICE will become available if the VNC session cannot be established.
+                  wsUrl={vncUrl}
+          )}
         </TabsContent>
 
         <TabsContent value="spice" className="mt-0">
@@ -112,11 +141,28 @@ export function VMConsole({
 }
 
 // Wrapper components to handle lazy loading
-function VNCConsoleWrapper({ vmName, wsUrl, onDisconnect }: { vmName: string; wsUrl: string; onDisconnect?: () => void }) {
+function VNCConsoleWrapper({
+  vmName,
+  wsUrl,
+  wsPath,
+  popupUrl,
+  onDisconnect,
+  onConnectionStateChange,
+}: {
+  vmName: string;
+  wsUrl?: string;
+  wsPath?: string;
+  popupUrl?: string;
+  onDisconnect?: () => void;
+  onConnectionStateChange?: (state: 'connecting' | 'connected' | 'disconnected' | 'failed') => void;
+}) {
   const [VNCConsole, setVNCConsole] = useState<React.ComponentType<{
     vmName: string;
-    wsUrl: string;
+    wsUrl?: string;
+    wsPath?: string;
+    popupUrl?: string;
     onDisconnect?: () => void;
+    onConnectionStateChange?: (state: 'connecting' | 'connected' | 'disconnected' | 'failed') => void;
     className?: string;
   }> | null>(null);
 
@@ -137,7 +183,16 @@ function VNCConsoleWrapper({ vmName, wsUrl, onDisconnect }: { vmName: string; ws
     );
   }
 
-  return <VNCConsole vmName={vmName} wsUrl={wsUrl} onDisconnect={onDisconnect} />;
+  return (
+    <VNCConsole
+      vmName={vmName}
+      wsUrl={wsUrl}
+      wsPath={wsPath}
+      popupUrl={popupUrl}
+      onDisconnect={onDisconnect}
+      onConnectionStateChange={onConnectionStateChange}
+    />
+  );
 }
 
 function SpiceConsoleWrapper({ 
