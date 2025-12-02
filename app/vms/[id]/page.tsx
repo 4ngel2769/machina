@@ -69,7 +69,6 @@ export default function VMDetailsPage() {
       expiresAt: string;
     };
   } | null>(null);
-  const [isStartingProxy, setIsStartingProxy] = useState(false);
   const [hasInitializedProxy, setHasInitializedProxy] = useState(false);
   const isStartingProxyRef = useRef(false);
 
@@ -113,7 +112,6 @@ export default function VMDetailsPage() {
           // Auto-start proxy if VNC is available and not already started
           if (config.vnc && !hasInitializedProxy) {
             isStartingProxyRef.current = true;
-            setIsStartingProxy(true);
             
             // Check if proxy already exists
             const proxyCheck = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy?issueSession=1`);
@@ -138,7 +136,6 @@ export default function VMDetailsPage() {
 
               setProxyInfo({ ...proxyData, session: sessionPayload });
               setHasInitializedProxy(true);
-              setIsStartingProxy(false);
               isStartingProxyRef.current = false;
             } else {
               // Start new proxy
@@ -174,7 +171,6 @@ export default function VMDetailsPage() {
                 const error = await startResponse.json();
                 console.error('[Proxy] Failed to start:', error);
               }
-              setIsStartingProxy(false);
               isStartingProxyRef.current = false;
             }
           }
@@ -183,7 +179,6 @@ export default function VMDetailsPage() {
         }
       } catch (error) {
         console.error('Error fetching display config:', error);
-        setIsStartingProxy(false);
         isStartingProxyRef.current = false;
       }
     };

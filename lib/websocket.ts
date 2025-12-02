@@ -26,11 +26,20 @@ export function broadcastToClients(wss: WSServer, message: unknown) {
   });
 }
 
-export function handleTerminalConnection(_ws: WebSocket, _containerId: string) {
+export function handleTerminalConnection(ws: WebSocket, containerId: string) {
+  void ws;
+  void containerId;
   // TODO: Implement terminal connection to container
   // Would use docker exec with interactive TTY
 }
 
-export function handleStatsStream(_ws: WebSocket, _resourceId: string, _type: 'container' | 'vm') {
+export function handleStatsStream(
+  ws: WebSocket,
+  resourceId: string,
+  type: 'container' | 'vm'
+) {
+  void ws;
+  void resourceId;
+  void type;
   // TODO: Implement real-time stats streaming
 }
