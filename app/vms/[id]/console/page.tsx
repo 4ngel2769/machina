@@ -27,6 +27,7 @@ export default function VMConsolePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const vmName = params.id as string;
+  const sessionParam = searchParams.get('session');
   const [sessionInfo, setSessionInfo] = useState<{ wsPath: string; popupUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function VMConsolePage() {
         setError(null);
 
         const encodedVm = encodeURIComponent(vmName);
-        const preSharedToken = searchParams.get('session');
+        const preSharedToken = sessionParam;
 
         // Check if a proxy is already running (issue session only if we don't already have a token)
         const statusRes = await fetch(`/api/vms/${encodedVm}/proxy?issueSession=${preSharedToken ? '0' : '1'}`);
@@ -108,7 +109,7 @@ export default function VMConsolePage() {
     };
 
     initializeVNC();
-  }, [vmName, searchParams]);
+  }, [vmName, sessionParam]);
 
   const handleDisconnect = () => {
     router.push(`/vms/${vmName}`);
