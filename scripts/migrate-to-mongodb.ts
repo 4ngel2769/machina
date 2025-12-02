@@ -24,6 +24,93 @@ dotenv.config();
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
+interface UserSeed {
+  username: string;
+  passwordHash: string;
+  role: string;
+  createdAt: string;
+  lastLogin?: string | null;
+}
+
+interface ContainerSeed {
+  id: string;
+  name: string;
+  userId: string;
+  username: string;
+  dockerImage: string;
+  port?: number;
+  vnc?: unknown;
+  status: string;
+  createdAt: string;
+  lastStarted?: string | null;
+  specs?: Record<string, unknown>;
+}
+
+interface VMSeed {
+  id: string;
+  name: string;
+  userId: string;
+  username: string;
+  os: string;
+  vcpus: number;
+  memory: number;
+  disk: number;
+  vncPort?: number;
+  vncPassword?: string;
+  status: string;
+  createdAt: string;
+  lastStarted?: string | null;
+  imageUrl?: string;
+}
+
+interface QuotaSeed {
+  userId: string;
+  username: string;
+  maxContainers: number;
+  maxVMs: number;
+  maxCPU: number;
+  maxMemory: number;
+  maxDisk: number;
+  tokenBalance: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface PricingTemplateSeed {
+  name: string;
+  description?: string;
+  pricing: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface TokenRequestSeed {
+  userId: string;
+  username: string;
+  amount: number;
+  reason?: string;
+  status: string;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string;
+  adminNotes?: string;
+}
+
+interface UserContractSeed {
+  userId: string;
+  username: string;
+  tokensPerMonth: number;
+  durationMonths: number;
+  startDate: string;
+  endDate: string;
+  nextRefillDate: string;
+  status: string;
+  totalRefills: number;
+  createdAt: string;
+  createdBy?: string;
+  notes?: string;
+}
+
 // Helper function to read JSON file
 function readJSONFile<T = unknown>(filename: string): T[] {
   const filePath = path.join(DATA_DIR, filename);
@@ -44,7 +131,7 @@ function readJSONFile<T = unknown>(filename: string): T[] {
 // Migration functions
 async function migrateUsers() {
   console.log('\n📥 Migrating users...');
-  const users = readJSONFile('users.json');
+  const users = readJSONFile<UserSeed>('users.json');
   
   if (users.length === 0) {
     console.log('  No users to migrate');
@@ -77,7 +164,7 @@ async function migrateUsers() {
 
 async function migrateContainers() {
   console.log('\n📥 Migrating containers...');
-  const containers = readJSONFile('containers.json');
+  const containers = readJSONFile<ContainerSeed>('containers.json');
   
   if (containers.length === 0) {
     console.log('  No containers to migrate');
@@ -116,7 +203,7 @@ async function migrateContainers() {
 
 async function migrateVMs() {
   console.log('\n📥 Migrating VMs...');
-  const vms = readJSONFile('vms.json');
+  const vms = readJSONFile<VMSeed>('vms.json');
   
   if (vms.length === 0) {
     console.log('  No VMs to migrate');
@@ -158,7 +245,7 @@ async function migrateVMs() {
 
 async function migrateQuotas() {
   console.log('\n📥 Migrating quotas...');
-  const quotas = readJSONFile('quotas.json');
+  const quotas = readJSONFile<QuotaSeed>('quotas.json');
   
   if (quotas.length === 0) {
     console.log('  No quotas to migrate');
@@ -196,7 +283,7 @@ async function migrateQuotas() {
 
 async function migratePricingTemplates() {
   console.log('\n📥 Migrating pricing templates...');
-  const templates = readJSONFile('pricing-templates.json');
+  const templates = readJSONFile<PricingTemplateSeed>('pricing-templates.json');
   
   if (templates.length === 0) {
     console.log('  No pricing templates to migrate');
@@ -234,7 +321,7 @@ async function migratePricingTemplates() {
 
 async function migrateTokenRequests() {
   console.log('\n📥 Migrating token requests...');
-  const requests = readJSONFile('token-requests.json');
+  const requests = readJSONFile<TokenRequestSeed>('token-requests.json');
   
   if (requests.length === 0) {
     console.log('  No token requests to migrate');
@@ -271,7 +358,7 @@ async function migrateTokenRequests() {
 
 async function migrateUserContracts() {
   console.log('\n📥 Migrating user contracts...');
-  const contracts = readJSONFile('user-contracts.json');
+  const contracts = readJSONFile<UserContractSeed>('user-contracts.json');
   
   if (contracts.length === 0) {
     console.log('  No user contracts to migrate');
