@@ -30,20 +30,32 @@ export function VMConsole({
   onRequestPopupSession,
   className 
 }: VMConsoleProps) {
-  const [protocol, setProtocol] = useState<'vnc' | 'spice'>((vncUrl || vncPath) ? 'vnc' : 'spice');
+  const hasVncConfigured = Boolean(vncUrl || vncPath);
+  const [protocol, setProtocol] = useState<'vnc' | 'spice'>(hasVncConfigured ? 'vnc' : 'spice');
   const [vncFailed, setVncFailed] = useState(false);
 
-  // Use PUBLIC_HOST from environment if spiceHost is not provided or is a local address
+  // Prefer proxy path to ensure the websocket shares the active origin, fallback to explicit URL
   const resolvedWsUrl = useMemo(() => {
     if (vncPath && typeof window !== 'undefined') {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       return `${protocol}//${window.location.host}${vncPath}`;
     }
-    if (wsUrl) {
-      return wsUrl;
+    return vncUrl;
+  }, [vncPath, vncUrl]);
+
+  // Use PUBLIC_HOST/NEXT_PUBLIC_PUBLIC_HOST or browser host when SPICE host is missing/loopback
+  const effectiveSpiceHost = useMemo(() => {
+    if (spiceHost && !['localhost', '127.0.0.1'].includes(spiceHost)) {
+      return spiceHost;
     }
-    return undefined;
-  }, [wsUrl, vncPath]);
+    if (typeof window !== 'undefined') {
+      return window.location.hostname;
+    }
+    return process.env.NEXT_PUBLIC_PUBLIC_HOST || process.env.PUBLIC_HOST || 'localhost';
+  }, [spiceHost]);
+
+  const hasSpice = Boolean(spicePort && effectiveSpiceHost);
+  const hasVnc = Boolean(resolvedWsUrl || vncPath);
   const hasBoth = hasVnc && hasSpice;
   const allowSpiceFallback = !hasVnc || vncFailed;
 
@@ -72,7 +84,7 @@ export function VMConsole({
         {hasVnc ? (
           <VNCConsoleWrapper 
             vmName={vmName} 
-            wsUrl={vncUrl}
+            wsUrl={resolvedWsUrl}
             wsPath={vncPath}
             popupUrl={vncPopupUrl}
             onDisconnect={onDisconnect}
@@ -110,7 +122,7 @@ export function VMConsole({
         <TabsContent value="vnc" className="mt-0">
           <VNCConsoleWrapper 
             vmName={vmName} 
-            wsUrl={vncUrl}
+            wsUrl={resolvedWsUrl}
             wsPath={vncPath}
             popupUrl={vncPopupUrl}
             onDisconnect={onDisconnect}
