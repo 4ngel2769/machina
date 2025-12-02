@@ -14,6 +14,7 @@ interface VMConsoleProps {
   spicePort?: number;
   spicePassword?: string;
   onDisconnect?: () => void;
+  onRequestPopupSession?: () => Promise<{ popupUrl?: string; wsPath?: string } | null>;
   className?: string;
 }
 
@@ -26,6 +27,7 @@ export function VMConsole({
   spicePort = 5900,
   spicePassword,
   onDisconnect, 
+  onRequestPopupSession,
   className 
 }: VMConsoleProps) {
   const [protocol, setProtocol] = useState<'vnc' | 'spice'>((vncUrl || vncPath) ? 'vnc' : 'spice');
@@ -74,6 +76,7 @@ export function VMConsole({
             wsPath={vncPath}
             popupUrl={vncPopupUrl}
             onDisconnect={onDisconnect}
+            onRequestPopupSession={onRequestPopupSession}
             onConnectionStateChange={(state) => {
               if (state === 'failed') {
                 setVncFailed(true);
@@ -111,6 +114,7 @@ export function VMConsole({
             wsPath={vncPath}
             popupUrl={vncPopupUrl}
             onDisconnect={onDisconnect}
+            onRequestPopupSession={onRequestPopupSession}
             onConnectionStateChange={(state) => {
               if (state === 'failed') {
                 setVncFailed(true);
@@ -147,6 +151,7 @@ function VNCConsoleWrapper({
   wsPath,
   popupUrl,
   onDisconnect,
+  onRequestPopupSession,
   onConnectionStateChange,
 }: {
   vmName: string;
@@ -154,6 +159,7 @@ function VNCConsoleWrapper({
   wsPath?: string;
   popupUrl?: string;
   onDisconnect?: () => void;
+  onRequestPopupSession?: () => Promise<{ popupUrl?: string; wsPath?: string } | null>;
   onConnectionStateChange?: (state: 'connecting' | 'connected' | 'disconnected' | 'failed') => void;
 }) {
   const [VNCConsole, setVNCConsole] = useState<React.ComponentType<{
@@ -162,6 +168,7 @@ function VNCConsoleWrapper({
     wsPath?: string;
     popupUrl?: string;
     onDisconnect?: () => void;
+    onRequestPopupSession?: () => Promise<{ popupUrl?: string; wsPath?: string } | null>;
     onConnectionStateChange?: (state: 'connecting' | 'connected' | 'disconnected' | 'failed') => void;
     className?: string;
   }> | null>(null);
@@ -190,6 +197,7 @@ function VNCConsoleWrapper({
       wsPath={wsPath}
       popupUrl={popupUrl}
       onDisconnect={onDisconnect}
+      onRequestPopupSession={onRequestPopupSession}
       onConnectionStateChange={onConnectionStateChange}
     />
   );
