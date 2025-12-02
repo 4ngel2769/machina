@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Container } from '@/types/container';
 import {
   Dialog,
@@ -34,7 +34,7 @@ export function LogsViewer({ container, open, onClose }: LogsViewerProps) {
     if (open && container) {
       fetchLogs();
     }
-  }, [open, container]);
+  }, [open, container, fetchLogs]);
 
   useEffect(() => {
     // Filter logs based on search query
@@ -56,7 +56,7 @@ export function LogsViewer({ container, open, onClose }: LogsViewerProps) {
     }
   }, [filteredLogs, autoScroll]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     if (!container) return;
 
     setLoading(true);
@@ -74,7 +74,7 @@ export function LogsViewer({ container, open, onClose }: LogsViewerProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [container]);
 
   const downloadLogs = () => {
     const blob = new Blob([logs], { type: 'text/plain' });
