@@ -7,6 +7,8 @@ const MAX_VM_MEMORY = 32 * 1024; // 32GB in MB
 const MAX_VM_VCPUS = 16;
 const MAX_VM_DISK = 500 * 1024; // 500GB in MB
 
+const USER_ISO_UPLOAD_DIR = process.env.USER_ISO_UPLOAD_DIR || path.join(process.cwd(), 'data', 'user-isos');
+
 // Security: Allowed ISO/image directories
 const ALLOWED_ISO_PATHS = [
   '/var/lib/libvirt/images',
@@ -15,6 +17,11 @@ const ALLOWED_ISO_PATHS = [
   'C:\\Users',
   'C:\\libvirt\\images',
 ];
+
+const normalizedUploadDir = path.normalize(USER_ISO_UPLOAD_DIR);
+if (!ALLOWED_ISO_PATHS.includes(normalizedUploadDir)) {
+  ALLOWED_ISO_PATHS.push(normalizedUploadDir);
+}
 
 /**
  * Validate VM name (prevent command injection)
@@ -27,6 +34,27 @@ function validateVMName(name: string): void {
   }
   if (name.length === 0 || name.length > 255) {
     throw new Error('VM name must be between 1 and 255 characters.');
+  }
+}
+
+function validateNetworkName(name: string): void {
+  const validPattern = /^[a-zA-Z0-9_-]+$/;
+  if (!validPattern.test(name)) {
+    throw new Error('Invalid network name. Use only alphanumeric characters, hyphens, and underscores.');
+  }
+}
+
+function validateMacAddress(mac: string): void {
+  const macPattern = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+  if (!macPattern.test(mac)) {
+    throw new Error('Invalid MAC address provided');
+  }
+}
+
+function validateIPv4(address: string): void {
+  const ipv4Pattern = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+  if (!ipv4Pattern.test(address)) {
+    throw new Error('Invalid IPv4 address provided');
   }
 }
 
@@ -346,6 +374,11 @@ export function createVM(options: {
   vcpus: number;
   disk_size: number;
   iso_path?: string;
+  network?: {
+    source: string;
+    mac?: string;
+    static_ip?: string;
+  };
   [key: string]: unknown;
 }): { success: boolean; message: string; name?: string } {
   try {
@@ -358,6 +391,16 @@ export function createVM(options: {
     // Security: Validate ISO path if provided
     if (options.iso_path) {
       validateISOPath(options.iso_path);
+    }
+
+    if (options.network) {
+      validateNetworkName(options.network.source);
+      if (options.network.mac) {
+        validateMacAddress(options.network.mac);
+      }
+      if (options.network.static_ip) {
+        validateIPv4(options.network.static_ip);
+      }
     }
     
     // This is a placeholder - actual implementation will use virt-install
