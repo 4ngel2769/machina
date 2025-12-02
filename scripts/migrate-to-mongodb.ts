@@ -77,9 +77,14 @@ interface QuotaSeed {
 }
 
 interface PricingTemplateSeed {
+  type: string;
   name: string;
   description?: string;
-  pricing: Record<string, unknown>;
+  billingType?: string;
+  tokenCost?: number;
+  specs?: Record<string, unknown>;
+  active?: boolean;
+  featured?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
