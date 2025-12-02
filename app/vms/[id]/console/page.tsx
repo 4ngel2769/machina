@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,9 +24,10 @@ const VNCConsole = dynamic(
 
 export default function VMConsolePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const vmName = params.id as string;
-  const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<{ wsPath: string; popupUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,25 +37,67 @@ export default function VMConsolePage() {
         setIsLoading(true);
         setError(null);
 
-        // First, get VNC info
-        const infoRes = await fetch(`/api/vms/${vmName}/vnc`);
-        if (!infoRes.ok) {
-          const data = await infoRes.json();
-          throw new Error(data.error || 'Failed to get VNC info');
+        const encodedVm = encodeURIComponent(vmName);
+        const preSharedToken = searchParams.get('session');
+
+        // Check if a proxy is already running (issue session only if we don't already have a token)
+        const statusRes = await fetch(`/api/vms/${encodedVm}/proxy?issueSession=${preSharedToken ? '0' : '1'}`);
+        const statusData = await statusRes.json();
+
+        let session = statusData.session;
+
+        if (!statusData.active) {
+          // Need to fetch display config to determine VNC port
+          const displayRes = await fetch(`/api/vms/${encodedVm}/display`);
+          if (!displayRes.ok) {
+            const data = await displayRes.json();
+            throw new Error(data.error || 'Failed to determine display configuration');
+          }
+
+          const displayConfig = await displayRes.json();
+          if (!displayConfig?.vnc?.port) {
+            throw new Error('VNC is not configured for this VM');
+          }
+
+          const startRes = await fetch(`/api/vms/${encodedVm}/proxy?issueSession=1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              vncPort: displayConfig.vnc.port,
+              listen: displayConfig.vnc.listen,
+            }),
+          });
+
+          if (!startRes.ok) {
+            const data = await startRes.json();
+            throw new Error(data.error || 'Failed to start VNC proxy');
+          }
+
+          const startData = await startRes.json();
+          session = startData.session;
+        } else if (!session && !preSharedToken) {
+          // Explicitly request a session if status didn't include one
+          const sessionRes = await fetch(`/api/vms/${encodedVm}/proxy/session`, { method: 'POST' });
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            session = sessionData.session;
+          }
         }
 
-        // Start websockify proxy
-        const proxyRes = await fetch(`/api/vms/${vmName}/vnc`, {
-          method: 'POST',
-        });
-
-        if (!proxyRes.ok) {
-          const data = await proxyRes.json();
-          throw new Error(data.error || 'Failed to start VNC proxy');
+        if (!session && preSharedToken) {
+          session = {
+            token: preSharedToken,
+            wsPath: `/api/vms/${encodedVm}/console/ws?token=${preSharedToken}`,
+            popupUrl: `/vms/${encodedVm}/console?popup=1&session=${preSharedToken}`,
+            expiresAt: '',
+          };
         }
 
-        const proxyData = await proxyRes.json();
-        setWsUrl(proxyData.wsUrl);
+        if (!session?.wsPath) {
+          throw new Error('Failed to provision a secure VNC session');
+        }
+
+        setSessionInfo({ wsPath: session.wsPath, popupUrl: session.popupUrl });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to initialize VNC';
         setError(message);
@@ -67,10 +110,7 @@ export default function VMConsolePage() {
     initializeVNC();
 
     // Cleanup: stop proxy when leaving page
-    return () => {
-      fetch(`/api/vms/${vmName}/vnc`, { method: 'DELETE' }).catch(console.error);
-    };
-  }, [vmName]);
+  }, [vmName, searchParams]);
 
   const handleDisconnect = () => {
     router.push(`/vms/${vmName}`);
@@ -88,7 +128,7 @@ export default function VMConsolePage() {
     );
   }
 
-  if (error || !wsUrl) {
+  if (error || !sessionInfo?.wsPath) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center space-y-4 max-w-md">
@@ -131,7 +171,7 @@ export default function VMConsolePage() {
       <div className="flex-1 overflow-hidden">
         <VNCConsole
           vmName={vmName}
-          wsUrl={wsUrl}
+          wsPath={sessionInfo.wsPath}
           onDisconnect={handleDisconnect}
           className="h-full"
         />

@@ -59,7 +59,16 @@ export default function VMDetailsPage() {
     vnc?: { port: number; listen: string; host?: string }; 
     spice?: { port: number; listen: string; host?: string } 
   } | null>(null);
-  const [proxyInfo, setProxyInfo] = useState<{ wsPort?: number; wsUrl?: string } | null>(null);
+  const [proxyInfo, setProxyInfo] = useState<{
+    wsPort?: number;
+    wsUrl?: string;
+    session?: {
+      token: string;
+      wsPath: string;
+      popupUrl: string;
+      expiresAt: string;
+    };
+  } | null>(null);
   const [isStartingProxy, setIsStartingProxy] = useState(false);
   const [hasInitializedProxy, setHasInitializedProxy] = useState(false);
   const isStartingProxyRef = useRef(false);
@@ -107,19 +116,34 @@ export default function VMDetailsPage() {
             setIsStartingProxy(true);
             
             // Check if proxy already exists
-            const proxyCheck = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`);
+            const proxyCheck = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy?issueSession=1`);
             const proxyData = await proxyCheck.json();
 
             if (proxyData.active) {
               console.log('[Proxy] Already running on port', proxyData.wsPort);
-              setProxyInfo(proxyData);
+              let sessionPayload = proxyData.session;
+              if (!sessionPayload) {
+                try {
+                  const sessionRes = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy/session`, {
+                    method: 'POST',
+                  });
+                  if (sessionRes.ok) {
+                    const sessionData = await sessionRes.json();
+                    sessionPayload = sessionData.session;
+                  }
+                } catch (sessionErr) {
+                  console.error('[Proxy] Failed to fetch session:', sessionErr);
+                }
+              }
+
+              setProxyInfo({ ...proxyData, session: sessionPayload });
               setHasInitializedProxy(true);
               setIsStartingProxy(false);
               isStartingProxyRef.current = false;
             } else {
               // Start new proxy
               console.log('[Proxy] Starting for VNC port', config.vnc.port);
-              const startResponse = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy`, {
+              const startResponse = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy?issueSession=1`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -128,12 +152,25 @@ export default function VMDetailsPage() {
                 })
               });
 
-              if (startResponse.ok) {
-                const proxyResult = await startResponse.json();
-                console.log('[Proxy] Started:', proxyResult);
-                setProxyInfo(proxyResult);
-                setHasInitializedProxy(true);
-              } else {
+                if (startResponse.ok) {
+                  const proxyResult = await startResponse.json();
+                  console.log('[Proxy] Started:', proxyResult);
+                  if (!proxyResult.session) {
+                    try {
+                      const sessionRes = await fetch(`/api/vms/${encodeURIComponent(vm.name)}/proxy/session`, {
+                        method: 'POST',
+                      });
+                      if (sessionRes.ok) {
+                        const sessionData = await sessionRes.json();
+                        proxyResult.session = sessionData.session;
+                      }
+                    } catch (sessionErr) {
+                      console.error('[Proxy] Failed to fetch session after start:', sessionErr);
+                    }
+                  }
+                  setProxyInfo(proxyResult);
+                  setHasInitializedProxy(true);
+                } else {
                 const error = await startResponse.json();
                 console.error('[Proxy] Failed to start:', error);
               }
@@ -429,13 +466,16 @@ export default function VMDetailsPage() {
                 <>
                   <div className="p-3 bg-green-500/10 border-b border-green-500/20">
                     <p className="text-sm text-green-700 dark:text-green-300">
-                      <strong>✓ Connected:</strong> Proxy running on <code>{proxyInfo.wsUrl}</code>
+                      <strong>✓ Connected:</strong> Proxy running via{' '}
+                      <code>{proxyInfo.session?.wsPath || proxyInfo.wsUrl}</code>
                     </p>
                   </div>
                   <div className="h-[600px]">
                     <VMConsole
                       vmName={vm.name}
                       vncUrl={proxyInfo.wsUrl}
+                      vncPath={proxyInfo.session?.wsPath}
+                      vncPopupUrl={proxyInfo.session?.popupUrl}
                       spiceHost={displayConfig.spice?.host}
                       spicePort={displayConfig.spice?.port}
                       className="h-full"
