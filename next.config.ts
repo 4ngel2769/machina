@@ -6,6 +6,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['@novnc/novnc', '@spice-project/spice-html5'],
   // Turbopack configuration (required for Next.js 16)
   turbopack: {
     // Turbopack is enabled by default in Next.js 16

@@ -373,7 +373,7 @@ export default function VMDetailsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+        <TabsList className="!grid w-full grid-cols-2 gap-2 rounded-lg bg-muted p-1 sm:grid-cols-4 mb-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="console" disabled={isStopped}>Console</TabsTrigger>
           <TabsTrigger value="hardware">Hardware</TabsTrigger>
