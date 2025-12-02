@@ -92,7 +92,7 @@ function generateMacAddress(userId: string, vmName: string): string {
 function findNextIp(network: IUserNetwork): string {
   const [subnetBase] = network.subnetCidr.split('/');
   const baseInt = ipToInt(subnetBase);
-  const used = new Set(network.allocations.map((alloc) => alloc.ipAddress));
+  const used = new Set(network.allocations.map((alloc: IUserNetworkAllocation) => alloc.ipAddress));
   const startInt = baseInt + 10;
   const endInt = baseInt + 254;
 
@@ -184,7 +184,7 @@ export async function assignStaticIP(
   username?: string
 ): Promise<{ networkName: string; ipAddress: string; macAddress: string }> {
   const network = await ensureUserNetwork(userId, username);
-  let allocation = network.allocations.find((entry) => entry.vmName === vmName);
+  let allocation = network.allocations.find((entry: IUserNetworkAllocation) => entry.vmName === vmName);
 
   if (!allocation) {
     allocation = {
@@ -210,10 +210,10 @@ export async function releaseStaticIP(userId: string, vmName: string): Promise<v
   const network = await UserNetwork.findOne({ userId });
   if (!network) return;
 
-  const allocation = network.allocations.find((entry) => entry.vmName === vmName);
+  const allocation = network.allocations.find((entry: IUserNetworkAllocation) => entry.vmName === vmName);
   if (!allocation) return;
 
-  network.allocations = network.allocations.filter((entry) => entry.vmName !== vmName);
+  network.allocations = network.allocations.filter((entry: IUserNetworkAllocation) => entry.vmName !== vmName);
   await network.save();
 
   const hostXml = `<host mac="${allocation.macAddress}" name="${allocation.vmName}" ip="${allocation.ipAddress}"/>`;
