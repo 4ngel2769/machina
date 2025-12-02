@@ -25,7 +25,7 @@ dotenv.config();
 const DATA_DIR = path.join(process.cwd(), 'data');
 
 // Helper function to read JSON file
-function readJSONFile(filename: string): any[] {
+function readJSONFile<T = unknown>(filename: string): T[] {
   const filePath = path.join(DATA_DIR, filename);
   if (!fs.existsSync(filePath)) {
     console.log(`  ⚠️  ${filename} not found, skipping...`);
@@ -34,7 +34,7 @@ function readJSONFile(filename: string): any[] {
   
   try {
     const data = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(data);
+    return JSON.parse(data) as T[];
   } catch (error) {
     console.error(`  ❌ Error reading ${filename}:`, (error as Error).message);
     return [];
@@ -257,10 +257,11 @@ async function migrateTokenRequests() {
       });
       migrated++;
       console.log(`  ✓ Migrated token request: ${request.username} (${request.amount} tokens)`);
-    } catch (error: any) {
+    } catch (error) {
       // Skip duplicates
-      if (error.code !== 11000) {
-        console.error(`  ❌ Failed to migrate token request:`, error.message);
+      const mongoError = error as { code?: number; message?: string };
+      if (mongoError.code !== 11000) {
+        console.error(`  ❌ Failed to migrate token request:`, mongoError.message || 'Unknown error');
       }
     }
   }
@@ -296,10 +297,11 @@ async function migrateUserContracts() {
       });
       migrated++;
       console.log(`  ✓ Migrated contract: ${contract.username} (${contract.tokensPerMonth} tokens/month)`);
-    } catch (error: any) {
+    } catch (error) {
       // Skip duplicates
-      if (error.code !== 11000) {
-        console.error(`  ❌ Failed to migrate contract:`, error.message);
+      const mongoError = error as { code?: number; message?: string };
+      if (mongoError.code !== 11000) {
+        console.error(`  ❌ Failed to migrate contract:`, mongoError.message || 'Unknown error');
       }
     }
   }

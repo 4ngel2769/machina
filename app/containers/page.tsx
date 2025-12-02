@@ -50,7 +50,6 @@ function ContainersPageContent() {
     (searchParams.get('status') as 'all' | 'running' | 'stopped') || 'all'
   );
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const [imageFilter, setImageFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>(
     (searchParams.get('sort') as SortOption) || 'name-asc'
   );
@@ -99,11 +98,6 @@ function ContainersPageContent() {
         if (!typeFilter.includes(containerType)) return false;
       }
 
-      // Filter by image
-      if (imageFilter) {
-        if (!container.image.toLowerCase().includes(imageFilter.toLowerCase())) return false;
-      }
-
       return true;
     });
 
@@ -134,17 +128,12 @@ function ContainersPageContent() {
           return 0;
       }
     });
-  }, [containers, searchQuery, filterTab, typeFilter, imageFilter, sortBy, stats]);
+  }, [containers, searchQuery, filterTab, typeFilter, sortBy, stats]);
 
   // Get unique container types and images for filters
   const containerTypes = useMemo(() => {
     const types = new Set(containers.map(c => c.type || 'normal'));
     return Array.from(types);
-  }, [containers]);
-
-  const containerImages = useMemo(() => {
-    const images = new Set(containers.map(c => c.image.split(':')[0]));
-    return Array.from(images).sort();
   }, [containers]);
 
   const runningCount = containers.filter((c) => c.status === 'running').length;

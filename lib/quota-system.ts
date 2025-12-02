@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { RESOURCE_PLANS, ResourcePlan, getPlanById } from './token-plans';
+import { getPlanById } from './token-plans';
 
 export interface UserQuota {
   userId: string;
