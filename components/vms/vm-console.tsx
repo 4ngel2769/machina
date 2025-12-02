@@ -126,7 +126,7 @@ export function VMConsole({
           {hasSpice && !allowSpiceFallback && (
             <p className="mt-2 text-xs text-muted-foreground">
               SPICE will become available if the VNC session cannot be established.
-                  wsUrl={vncUrl}
+            </p>
           )}
         </TabsContent>
 
