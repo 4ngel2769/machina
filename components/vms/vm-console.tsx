@@ -43,9 +43,12 @@ export function VMConsole({
     return vncUrl;
   }, [vncPath, vncUrl]);
 
-  // Use PUBLIC_HOST/NEXT_PUBLIC_PUBLIC_HOST or browser host when SPICE host is missing/loopback
-  const effectiveSpiceHost = useMemo(() => {
-    if (spiceHost && !['localhost', '127.0.0.1'].includes(spiceHost)) {
+  // Use PUBLIC_HOST/NEXT_PUBLIC_PUBLIC_HOST or browser host when SPICE host is loopback
+  const resolvedSpiceHost = useMemo(() => {
+    if (!spiceHost) {
+      return undefined;
+    }
+    if (!['localhost', '127.0.0.1'].includes(spiceHost)) {
       return spiceHost;
     }
     if (typeof window !== 'undefined') {
@@ -54,7 +57,7 @@ export function VMConsole({
     return process.env.NEXT_PUBLIC_PUBLIC_HOST || process.env.PUBLIC_HOST || 'localhost';
   }, [spiceHost]);
 
-  const hasSpice = Boolean(spicePort && effectiveSpiceHost);
+  const hasSpice = Boolean(spicePort && resolvedSpiceHost);
   const hasVnc = Boolean(resolvedWsUrl || vncPath);
   const hasBoth = hasVnc && hasSpice;
   const allowSpiceFallback = !hasVnc || vncFailed;
@@ -98,13 +101,15 @@ export function VMConsole({
             }}
           />
         ) : (
-          <SpiceConsoleWrapper
-            vmName={vmName}
-            host={effectiveSpiceHost}
-            port={spicePort}
-            password={spicePassword}
-            onDisconnect={onDisconnect}
-          />
+          resolvedSpiceHost ? (
+            <SpiceConsoleWrapper
+              vmName={vmName}
+              host={resolvedSpiceHost}
+              port={spicePort}
+              password={spicePassword}
+              onDisconnect={onDisconnect}
+            />
+          ) : null
         )}
       </div>
     );
@@ -142,15 +147,17 @@ export function VMConsole({
           )}
         </TabsContent>
 
-        <TabsContent value="spice" className="mt-0">
-          <SpiceConsoleWrapper
-            vmName={vmName}
-            host={effectiveSpiceHost}
-            port={spicePort}
-            password={spicePassword}
-            onDisconnect={onDisconnect}
-          />
-        </TabsContent>
+        {resolvedSpiceHost && (
+          <TabsContent value="spice" className="mt-0">
+            <SpiceConsoleWrapper
+              vmName={vmName}
+              host={resolvedSpiceHost}
+              port={spicePort}
+              password={spicePassword}
+              onDisconnect={onDisconnect}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
