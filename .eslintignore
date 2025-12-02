@@ -1,9 +1,0 @@
-# ESLint ignore file
-server.js
-lib/proxy-manager.js
-lib/proxy-manager.cjs
-lib/auth/user-storage-mongo-init.cjs
-lib/auth/user-storage-init.cjs
-*.config.js
-.next/
-node_modules/
