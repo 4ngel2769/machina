@@ -26,7 +26,7 @@ import type { RFBEvent } from '@novnc/novnc/lib/rfb.js';
 
 // Dynamically import RFB from noVNC (client-side only)
 const loadRFB = async () => {
-  const RFB = (await import('@novnc/novnc/lib/rfb.js')).default;
+  const { default: RFB } = await import('@/lib/novnc-cjs');
   return RFB;
 };
 
