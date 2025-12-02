@@ -36,6 +36,7 @@ interface VNCConsoleProps {
   wsPath?: string;
   popupUrl?: string;
   onDisconnect?: () => void;
+  onRequestPopupSession?: () => Promise<{ popupUrl?: string; wsPath?: string } | null>;
   onConnectionStateChange?: (state: ConnectionState) => void;
   className?: string;
 }
@@ -49,6 +50,7 @@ export function VNCConsole({
   wsPath,
   popupUrl,
   onDisconnect,
+  onRequestPopupSession,
   onConnectionStateChange,
   className,
 }: VNCConsoleProps) {
@@ -59,6 +61,7 @@ export function VNCConsole({
   const [scaleMode, setScaleMode] = useState<ScaleMode>('auto');
   const [showSettings, setShowSettings] = useState(false);
   const [noVNCLoaded, setNoVNCLoaded] = useState(false);
+  const [isOpeningPopup, setIsOpeningPopup] = useState(false);
 
   const resolvedWsUrl = useMemo(() => {
     if (wsUrl) {
@@ -316,25 +319,41 @@ export function VNCConsole({
     }
   };
 
-  const openInNewWindow = () => {
-    if (!popupUrl) {
-      toast.error('Console popup URL not available');
-      return;
-    }
-    
-    // Create a standalone VNC viewer window
-    const width = 1024;
-    const height = 768;
-    const left = (screen.width - width) / 2;
-    const top = (screen.height - height) / 2;
-    
-    const windowFeatures = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`;
-    const newWindow = window.open(popupUrl, `VNC_${vmName}`, windowFeatures);
-    
-    if (newWindow) {
-      toast.success('Opened in new window');
-    } else {
-      toast.error('Failed to open new window. Please allow popups.');
+  const openInNewWindow = async () => {
+    setIsOpeningPopup(true);
+    try {
+      let targetUrl = popupUrl;
+      if (onRequestPopupSession) {
+        try {
+          const fresh = await onRequestPopupSession();
+          if (fresh?.popupUrl) {
+            targetUrl = fresh.popupUrl;
+          }
+        } catch (err) {
+          console.error('[VNC] Failed to mint popup session:', err);
+        }
+      }
+
+      if (!targetUrl) {
+        toast.error('Console popup URL not available');
+        return;
+      }
+      
+      const width = 1024;
+      const height = 768;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+      
+      const windowFeatures = `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`;
+      const newWindow = window.open(targetUrl, `VNC_${vmName}`, windowFeatures);
+      
+      if (newWindow) {
+        toast.success('Opened in new window');
+      } else {
+        toast.error('Failed to open new window. Please allow popups.');
+      }
+    } finally {
+      setIsOpeningPopup(false);
     }
   };
 
@@ -371,7 +390,7 @@ export function VNCConsole({
             variant="outline"
             onClick={openInNewWindow}
             title="Open in New Window"
-            disabled={!popupUrl}
+            disabled={!popupUrl && !onRequestPopupSession || isOpeningPopup}
           >
             <ExternalLink className="h-4 w-4" />
           </Button>
