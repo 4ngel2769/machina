@@ -4,7 +4,6 @@ import { Container } from '@/types/container';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +38,11 @@ import { cn, formatBytes } from '@/lib/utils';
 import type { ContainerStats } from '@/types/stats';
 import { useRouter } from 'next/navigation';
 
+const PROTECTED_CONTAINER_NAMES = (process.env.NEXT_PUBLIC_PROTECTED_CONTAINER_NAMES ?? 'machina')
+  .split(',')
+  .map((name) => name.trim().toLowerCase())
+  .filter(Boolean);
+
 interface ContainerCardProps {
   container: Container;
   onTerminal?: (container: Container) => void;
@@ -53,6 +57,7 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
 
   const isRunning = container.status === 'running';
   const isAmnesic = container.type === 'amnesic';
+  const isProtectedContainer = PROTECTED_CONTAINER_NAMES.includes(container.name.toLowerCase());
 
   // Status badge color
   const getStatusColor = () => {
@@ -75,6 +80,14 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
     router.push(`/containers/${container.id}`);
   };
 
+  const preventProtectedMutation = () => {
+    if (!isProtectedContainer) {
+      return false;
+    }
+    toast.info('This container powers Machina and cannot be modified from this view.');
+    return true;
+  };
+
   const handleStart = async () => {
     try {
       await startContainer(container.id);
@@ -85,6 +98,7 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
   };
 
   const handleStop = async () => {
+    if (preventProtectedMutation()) return;
     try {
       await stopContainer(container.id);
       toast.success(`Container "${container.name}" stopped`);
@@ -94,6 +108,7 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
   };
 
   const handleRestart = async () => {
+    if (preventProtectedMutation()) return;
     try {
       await restartContainer(container.id);
       toast.success(`Container "${container.name}" restarted`);
@@ -103,6 +118,10 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
   };
 
   const handleDelete = async () => {
+    if (preventProtectedMutation()) {
+      setDeleteDialogOpen(false);
+      return;
+    }
     try {
       await deleteContainer(container.id);
       toast.success(`Container "${container.name}" deleted`);
@@ -115,9 +134,10 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
   return (
     <>
       <Card 
-        className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50 cursor-pointer"
+        className="group relative overflow-hidden border border-border/60 bg-card/90 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
         onClick={handleCardClick}
       >
+        <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br from-primary/5 via-transparent to-transparent transition-opacity" />
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -159,7 +179,8 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                 {isRunning && (
                   <DropdownMenuItem 
                     onClick={handleStop}
-                    disabled={loadingActions[`stop-${container.id}`]}
+                    disabled={isProtectedContainer || loadingActions[`stop-${container.id}`]}
+                    title={isProtectedContainer ? 'Machina core container actions are locked' : undefined}
                   >
                     <Square className="mr-2 h-4 w-4" />
                     {loadingActions[`stop-${container.id}`] ? 'Stopping...' : 'Stop'}
@@ -167,15 +188,18 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
                 )}
                 <DropdownMenuItem 
                   onClick={handleRestart}
-                  disabled={loadingActions[`restart-${container.id}`]}
+                  disabled={isProtectedContainer || loadingActions[`restart-${container.id}`]}
+                  title={isProtectedContainer ? 'Machina core container actions are locked' : undefined}
                 >
                   <RotateCw className="mr-2 h-4 w-4" />
                   {loadingActions[`restart-${container.id}`] ? 'Restarting...' : 'Restart'}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => setDeleteDialogOpen(true)}
+                  onClick={() => !isProtectedContainer && setDeleteDialogOpen(true)}
                   className="text-destructive focus:text-destructive"
+                  disabled={isProtectedContainer}
+                  title={isProtectedContainer ? 'Machina core container cannot be removed' : undefined}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
@@ -187,11 +211,16 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
 
         <CardContent className="space-y-3">
           {/* Status and Type Badges */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             <Badge className={getStatusColor()}>{container.status}</Badge>
             {isAmnesic && (
               <Badge variant="outline" className="border-yellow-600 text-yellow-600">
                 Amnesic
+              </Badge>
+            )}
+            {isProtectedContainer && (
+              <Badge variant="outline" className="border-primary/60 text-primary">
+                System
               </Badge>
             )}
           </div>
@@ -200,6 +229,14 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
           {container.uptime && (
             <div className="text-xs text-muted-foreground">{container.uptime}</div>
           )}
+
+          {/* Image / Identity */}
+          <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-[11px] text-muted-foreground flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs text-foreground/80">{container.image}</span>
+            <span className="px-2 py-0.5 rounded-full border border-dashed border-border/50">
+              ID: {container.id.slice(0, 12)}
+            </span>
+          </div>
 
           {/* Ports */}
           {container.ports.length > 0 && (
@@ -222,134 +259,122 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
 
           {/* Resource Usage - Enhanced with real-time stats */}
           {isRunning && (
-            <div className="space-y-3 pt-3 border-t">
-              {/* CPU Usage */}
-              {(liveStats?.cpu !== undefined || container.cpu !== undefined) && (
+          {/* Resource Usage - always show skeleton, animate when data is ready */}
+          {(() => {
+            const cpuValue = liveStats?.cpu ?? container.cpu ?? 0;
+            const hasCpuData = isRunning && (liveStats?.cpu !== undefined || container.cpu !== undefined);
+            const memoryPct = typeof liveStats?.memory === 'object'
+              ? liveStats.memory.percentage
+              : (typeof container.memory === 'number' ? container.memory : 0);
+            const hasMemoryData = isRunning && (liveStats?.memory !== undefined || typeof container.memory === 'number');
+
+            return (
+              <div className="space-y-3 rounded-xl border border-border/40 bg-muted/10 p-3">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">CPU</span>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {(liveStats?.cpu ?? container.cpu ?? 0).toFixed(1)}%
+                      <span className={cn('font-medium', !hasCpuData && 'text-muted-foreground/70')}>
+                        {hasCpuData ? `${cpuValue.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
                       </span>
-                      {(liveStats?.cpu ?? container.cpu ?? 0) >= 95 && (
+                      {hasCpuData && cpuValue >= 95 && (
                         <Badge variant="destructive" className="h-4 text-[10px] px-1">
                           Critical
                         </Badge>
                       )}
-                      {(liveStats?.cpu ?? container.cpu ?? 0) >= 80 && 
-                       (liveStats?.cpu ?? container.cpu ?? 0) < 95 && (
+                      {hasCpuData && cpuValue >= 80 && cpuValue < 95 && (
                         <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
                           High
                         </Badge>
                       )}
                     </div>
                   </div>
-                  <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
                     <div
                       className={cn(
-                        "h-full rounded-full transition-all duration-500",
-                        (liveStats?.cpu ?? container.cpu ?? 0) >= 95 && "bg-red-500",
-                        (liveStats?.cpu ?? container.cpu ?? 0) >= 80 &&
-                          (liveStats?.cpu ?? container.cpu ?? 0) < 95 && "bg-yellow-500",
-                        (liveStats?.cpu ?? container.cpu ?? 0) < 80 && "bg-blue-500"
+                        'h-full rounded-full transition-all duration-500',
+                        !hasCpuData && 'bg-muted-foreground/30',
+                        hasCpuData && cpuValue >= 95 && 'bg-red-500',
+                        hasCpuData && cpuValue >= 80 && cpuValue < 95 && 'bg-yellow-500',
+                        hasCpuData && cpuValue < 80 && 'bg-blue-500'
                       )}
-                      style={{ width: `${Math.min(liveStats?.cpu ?? container.cpu ?? 0, 100)}%` }}
+                      style={{ width: hasCpuData ? `${Math.min(cpuValue, 100)}%` : '0%' }}
                     />
                   </div>
                 </div>
-              )}
 
-              {/* Memory Usage */}
-              {(liveStats?.memory !== undefined || container.memory !== undefined) && (() => {
-                const memoryPct = typeof liveStats?.memory === 'object' 
-                  ? liveStats.memory.percentage 
-                  : (typeof container.memory === 'number' ? container.memory : 0);
-                
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Memory</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          {memoryPct.toFixed(1)}%
-                        </span>
-                        {memoryPct >= 95 && (
-                          <Badge variant="destructive" className="h-4 text-[10px] px-1">
-                            Critical
-                          </Badge>
-                        )}
-                        {memoryPct >= 80 && memoryPct < 95 && (
-                          <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                            High
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <Progress
-                      value={memoryPct}
-                      className={cn(
-                        "h-2 transition-all duration-500",
-                        memoryPct >= 95 && "bg-red-950/20",
-                        memoryPct >= 80 && memoryPct < 95 && "bg-yellow-950/20"
-                      )}
-                    />
-                    <div 
-                      className={cn(
-                        "h-2 rounded-full transition-all duration-500",
-                        memoryPct >= 95 && "bg-red-500",
-                        memoryPct >= 80 && memoryPct < 95 && "bg-yellow-500",
-                        memoryPct < 80 && "bg-blue-500"
-                      )}
-                      style={{ width: `${Math.min(memoryPct, 100)}%` }}
-                    />
-                  </div>
-                );
-              })()}
-
-              {/* Network I/O */}
-              {liveStats?.network !== undefined && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Network I/O</span>
-                    <span className="font-medium text-[10px]">
-                      ↓ {formatBytes(liveStats.network.rx)} / ↑ {formatBytes(liveStats.network.tx)}
-                    </span>
-                  </div>
-                  <div className="flex gap-1 h-1.5">
-                    <div className="flex-1 bg-green-500/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                    <span className="text-muted-foreground">Memory</span>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('font-medium', !hasMemoryData && 'text-muted-foreground/70')}>
+                        {hasMemoryData ? `${memoryPct.toFixed(1)}%` : isRunning ? 'Collecting…' : 'Offline'}
+                      </span>
+                      {hasMemoryData && memoryPct >= 95 && (
+                        <Badge variant="destructive" className="h-4 text-[10px] px-1">
+                          Critical
+                        </Badge>
+                      )}
+                      {hasMemoryData && memoryPct >= 80 && memoryPct < 95 && (
+                        <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                          High
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex-1 bg-blue-500/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
+                  </div>
+                  <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        !hasMemoryData && 'bg-muted-foreground/30',
+                        hasMemoryData && memoryPct >= 95 && 'bg-red-500',
+                        hasMemoryData && memoryPct >= 80 && memoryPct < 95 && 'bg-yellow-500',
+                        hasMemoryData && memoryPct < 80 && 'bg-blue-500'
+                      )}
+                      style={{ width: hasMemoryData ? `${Math.min(memoryPct, 100)}%` : '0%' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>Network</span>
+                      <span className="font-medium text-foreground/80">
+                        {isRunning && liveStats?.network 
+                          ? `↓ ${formatBytes(liveStats.network.rx)} / ↑ ${formatBytes(liveStats.network.tx)}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                      <div
+                        className={cn('h-full transition-all duration-500',
+                          liveStats?.network ? 'bg-green-500' : 'bg-muted-foreground/30')}
+                        style={{ width: liveStats?.network ? '100%' : '0%' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>Disk</span>
+                      <span className="font-medium text-foreground/80">
+                        {isRunning && liveStats?.blockIO 
+                          ? `R ${formatBytes(liveStats.blockIO.read)} / W ${formatBytes(liveStats.blockIO.write)}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                      <div
+                        className={cn('h-full transition-all duration-500',
+                          liveStats?.blockIO ? 'bg-purple-500' : 'bg-muted-foreground/30')}
+                        style={{ width: liveStats?.blockIO ? '100%' : '0%' }}
+                      />
                     </div>
                   </div>
                 </div>
-              )}
-
-              {/* Disk I/O */}
-              {liveStats?.blockIO !== undefined && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Disk I/O</span>
-                    <span className="font-medium text-[10px]">
-                      R {formatBytes(liveStats.blockIO.read)} / W {formatBytes(liveStats.blockIO.write)}
-                    </span>
-                  </div>
-                  <div className="flex gap-1 h-1.5">
-                    <div className="flex-1 bg-purple-500/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                    </div>
-                    <div className="flex-1 bg-orange-500/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Warning for amnesic containers */}
+              </div>
+            );
+          })()}
           {isAmnesic && (
             <div className="text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
               ⚠️ Will be deleted when stopped
@@ -359,19 +384,42 @@ export function ContainerCard({ container, onTerminal, onLogs, liveStats }: Cont
           {/* Quick Actions */}
           <div className="flex gap-2 pt-2">
             {!isRunning ? (
-              <Button size="sm" className="flex-1" onClick={handleStart}>
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStart();
+                }}
+              >
                 <Play className="mr-1 h-3 w-3" />
                 Start
               </Button>
             ) : (
               <Button size="sm" variant="outline" className="flex-1" onClick={handleStop}>
-                <Square className="mr-1 h-3 w-3" />
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStop();
+                }}
+                disabled={isProtectedContainer || loadingActions[`stop-${container.id}`]}
+              >
                 Stop
               </Button>
             )}
             {isRunning && onTerminal && (
-              <Button size="sm" variant="outline" onClick={() => onTerminal(container)}>
-                <Terminal className="h-3 w-3" />
+            {isRunning && onTerminal && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTerminal(container);
+                }}
+              >
               </Button>
             )}
           </div>
