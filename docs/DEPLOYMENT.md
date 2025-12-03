@@ -1,27 +1,84 @@
-# Deployment Guide
+<div align="center">
 
-## System Requirements
+# 🚀 Deployment Guide
 
-Machina expects the host to provide both virtualization and container tooling. Before deploying, make sure the target machine satisfies the following:
+<h3>Production Setup & Configuration for Machina</h3>
 
-- **Operating system:** Linux distribution with systemd (Ubuntu 22.04+ recommended). macOS works for development only.
-- **Node.js:** v20 or v22 LTS. Earlier versions are unsupported.
-- **Docker Engine:** Required for container orchestration. Ensure the current user can access `/var/run/docker.sock`.
-- **libvirt/KVM:** Needed for VM lifecycle operations. Install `libvirt-daemon`, `qemu-kvm`, and grant the Machina service user membership in the `libvirt` group.
-- **Python + pip:** Used by the built-in websockify binary invoked via `lib/proxy-manager.cjs` for VNC/SPICE tunneling.
-- **Optional MongoDB:** Enable if you plan to run in database-backed mode (`USE_MONGODB=true`).
+[![Status](https://img.shields.io/badge/Status-Production%20Ready-success?style=flat)]()
+[![Node.js](https://img.shields.io/badge/Node.js-20%20%7C%2022-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Required-2496ED?style=flat&logo=docker&logoColor=white)](https://docker.com/)
 
-Once the host meets these prerequisites, follow the steps below to bring Machina online.
+</div>
 
-## Initial Setup on Production Server
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Table of Contents</h1>
 
+<div align="center">
+
+[**System Requirements**](#system-requirements) • 
+[**Initial Setup**](#initial-setup-on-production-server) • 
+[**Configuration**](#3-configure-environment-variables) • 
+[**Default Credentials**](#default-login-credentials) • 
+[**Troubleshooting**](#troubleshooting) • 
+[**Backup**](#backup-recommendations) • 
+[**Security**](#secure-console--proxy-checklist) • 
+[**Post-Deployment**](#post-deployment-checklist)
+
+</div>
+
+<h1 align="center" style="color:#00ff00; font-family:monospace;">System Requirements</h1>
+<tr>
+<td width="50%" valign="top">
+
+### Core Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| **OS** | Linux with systemd (Ubuntu 22.04+)<br>*macOS for dev only* |
+| **Node.js** | v20 or v22 LTS |
+| **Docker** | Engine 24+ with socket access |
+| **libvirt/KVM** | `libvirt-daemon`, `qemu-kvm` |
+| **Python** | 3.x with `websockify` |
+
+</td>
+<td width="50%" valign="top">
+
+### Optional Components
+
+| Component | Purpose |
+|-----------|----------|
+| **MongoDB** | Enable with `USE_MONGODB=true` |
+| **Reverse Proxy** | TLS termination (Nginx/Caddy) |
+| **Process Manager** | PM2/systemd for service |
+
+<br>
+
+> [!TIP]
+> Ensure the Machina user is in `libvirt` and `docker` groups.
+
+</td>
+</tr>
+</table>
+
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Initial Setup on Production Server</h1>
+
+<p align="center">
 After deploying the application to your production server, follow these steps:
+</p>
 
-### 1. Install Dependencies
+<table>
+<tr>
+<td>
+
+### 1. Install Dependenciesies
 
 ```bash
 npm install
 ```
+
+</td>
+</tr>
+<tr>
+<td>
 
 ### 2. Initialize Data Directory
 
@@ -53,6 +110,11 @@ You should see output like:
 ✅ Initialization complete!
 ```
 
+</td>
+</tr>
+<tr>
+<td>
+
 ### 3. Configure Environment Variables
 
 Copy `.env.example` to `.env` and update the following minimum set:
@@ -68,89 +130,162 @@ DEFAULT_ADMIN_PASSWORD=changeme! # Change before init
 
 Adjust `USER_ISO_UPLOAD_DIR`, `USER_VNET_*`, and MongoDB settings to match your infrastructure. **Always** set `NEXTAUTH_SECRET` to a freshly generated value (`openssl rand -base64 32`).
 
-### 4. Build the Application
+</td>
+</tr>
+<tr>
+<td>
+
+### 4. Build the Applicationtion
 
 ```bash
 npm run build
 ```
 
-### 5. Start the Server
+</td>
+</tr>
+<tr>
+<td>
+
+### 5. Start the Serverver
 
 ```bash
 npm start
 ```
 
-The server will start on port 3000 by default.
+<p align="center">
+<em>The server will start on port 3000 by default.</em>
+</p>
 
-## Default Login Credentials
+</td>
+</tr>
+</table>
 
-- **Username:** `admin` (or value from `DEFAULT_ADMIN_USERNAME`)
-- **Password:** `admin123` (or value from `DEFAULT_ADMIN_PASSWORD`)
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Default Login Credentials</h1>
 
-⚠️ **IMPORTANT:** Change the default admin password immediately after first login!
+| Field | Value |
+|----------|----------|
+| **Username** | `admin` *(or `DEFAULT_ADMIN_USERNAME` value)* |
+| **Password** | `admin123` *(or `DEFAULT_ADMIN_PASSWORD` value)* |
 
-Go to: Profile → Settings → Change password
+</div>
 
-## Troubleshooting
+> [!WARNING]
+> **IMPORTANT:** Change the default admin password immediately after first login!
+> 
+> **Navigate to:** Profile → Settings → Change password
+
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Troubleshooting</h1>
+<tr>
+<td>
 
 ### Login fails with CredentialsSignin error
 
-This usually means the `data/` directory doesn't exist or is empty.
+**Cause:** The `data/` directory doesn't exist or is empty.
 
 **Solution:**
 ```bash
 npm run init-data
 ```
 
+</td>
+</tr>
+<tr>
+<td>
+
 ### "Username already exists" error during init
 
-The admin user was already created. You can either:
+**Cause:** The admin user was already created.
+
+**Solution:** Choose one:
 1. Delete `data/users.json` and run `npm run init-data` again
-2. Or use the existing admin credentials
+2. Use the existing admin credentials
+
+</td>
+</tr>
+<tr>
+<td>
 
 ### Data directory not persisting after restart
 
-Make sure the `data/` directory is:
-1. Not in `.gitignore` (it shouldn't be)
-2. Has proper write permissions: `chmod 755 data/`
-3. Is owned by the user running the Node.js process
+**Check these items:**
+- ✅ Not in `.gitignore` (it shouldn't be)
+- ✅ Proper write permissions: `chmod 755 data/`
+- ✅ Owned by the Node.js process user
 
-## File Locations
+</td>
+</tr>
+</table>
 
-All persistent data is stored in the `data/` directory:
+<h1 align="center" style="color:#00ff00; font-family:monospace;">File Locations</h1>r">
 
-- `data/users.json` - User accounts and authentication
-- `data/containers.json` - Container instances
-- `data/vms.json` - Virtual machine instances
-- `data/quotas.json` - User token balances and quotas
-- `data/pricing-templates.json` - VM/Container pricing templates
-- `data/token-requests.json` - Token request submissions
-- `data/user-contracts.json` - Monthly subscription contracts
+**All persistent data is stored in the `data/` directory:**
 
-## Backup Recommendations
+| File | Purpose |
+|---------:|:------------|
+| `data/users.json` | User accounts and authentication |
+| `data/containers.json` | Container instances |
+| `data/vms.json` | Virtual machine instances |
+| `data/quotas.json` | User token balances and quotas |
+| `data/pricing-templates.json` | VM/Container pricing templates |
+| `data/token-requests.json` | Token request submissions |
+| `data/user-contracts.json` | Monthly subscription contracts |
 
-Regularly backup the entire `data/` directory:
+</div>
 
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Backup Recommendations</h1>
+<tr>
+<td width="50%">
+
+### Create a backup
 ```bash
-# Create a backup
 tar -czf machina-backup-$(date +%Y%m%d).tar.gz data/
+```
 
-# Restore from backup
+</td>
+<td width="50%">
+
+### Restore from backup
+```bash
 tar -xzf machina-backup-YYYYMMDD.tar.gz
 ```
 
-## Secure Console & Proxy Checklist
+</td>
+</tr>
+</table>
 
-1. **Verify prerequisites:** Ensure `websockify` is installed (`pip install websockify`) and reachable in `$PATH`.
-2. **Lock down proxy listeners:** Leave `WEBSOCKET_LISTEN_HOST` at `127.0.0.1` so only the Next.js server can reach raw VNC ports.
-3. **Set a realistic TTL:** Tune `VNC_SESSION_TTL_SECONDS` to meet your risk posture (default 3600 seconds). Shorter TTLs reduce replay risk.
-4. **Expose the correct public host:** `PUBLIC_HOST` must match the URL that end users load in their browsers; this value is embedded in popup URLs.
-5. **Smoke test the console flow:** Start a VM, open its Console tab, and confirm that a secure popup session token is minted in the audit log.
+> [!TIP]
+> **Best Practice:** Schedule daily backups via cron and store in a secure off-site location.
 
-## Post-Deployment Checklist
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Secure Console & Proxy Checklist</h1>
+<tr>
+<td>
+
+- ✅ **Verify prerequisites:** Ensure `websockify` is installed (`pip install websockify`) and reachable in `$PATH`.
+- ✅ **Lock down proxy listeners:** Leave `WEBSOCKET_LISTEN_HOST` at `127.0.0.1` so only the Next.js server can reach raw VNC ports.
+- ✅ **Set a realistic TTL:** Tune `VNC_SESSION_TTL_SECONDS` to meet your risk posture (default 3600 seconds). Shorter TTLs reduce replay risk.
+- ✅ **Expose the correct public host:** `PUBLIC_HOST` must match the URL that end users load in their browsers; this value is embedded in popup URLs.
+- ✅ **Smoke test the console flow:** Start a VM, open its Console tab, and confirm that a secure popup session token is minted in the audit log.
+
+</td>
+</tr>
+</table>
+
+<h1 align="center" style="color:#00ff00; font-family:monospace;">Post-Deployment Checklist</h1>
+<tr>
+<td>
 
 - ✅ Run `npm run lint` to ensure no local configuration drift introduces lint regressions before shipping changes.
-- ✅ Change the default admin password immediately after first login.
+- ✅ **Change the default admin password** immediately after first login.
 - ✅ Configure a reverse proxy (Nginx/Caddy/Traefik) that terminates TLS and forwards WebSocket traffic to `SERVER_HOST:SERVER_PORT`.
 - ✅ Enable regular backups of both the `data/` directory and persistent MongoDB volumes (if enabled).
 - ✅ Review `logs/audit/audit.jsonl` weekly to verify console session issuance aligns with expectations.
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+<sub> For more details, see [DOCUMENTATION.md](DOCUMENTATION.md) and [README.md](../README.md)</sub>
+
+</div>
