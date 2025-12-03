@@ -14,41 +14,28 @@
 Machina is a unified operations plane for teams that manage both libvirt-based virtual machines and Docker containers. It blends RBAC-secured APIs, token-based quotas, and modern UX patterns (command palette, dashboards, inline help) into a single Next.js application.
 </p>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Table of Contents</h1>
+## Table of Contents
 
-<div align="center">
-	<ul style="display:flex; gap:8px;">
-		<a href="#what-machina-delivers">What Machina Delivers</a>
-		<a href="#who-uses-machina">Who Uses Machina</a>
-		<a href="#platform-requirements">Platform Requirements</a>
-		<a href="#quick-start">Quick Start</a>
-		<a href="#documentation">Documentation</a>
-		<a href="#license">License</a>
-	</ul>
-</div>
+- [What Machina Delivers](#what-machina-delivers)
+- [Who Uses Machina](#who-uses-machina)
+- [Platform Requirements](#platform-requirements)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [License](#license)
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">What Machina Delivers</h1>
-<tr>
-<td width="50%" valign="top">
+<h1>What Machina Delivers</h1>
 
-#### **Unified Orchestration**: Create, monitor, and audit VMs and containers from one console.
+**Unified Orchestration**: Create, monitor, and audit VMs and containers from one console.
 
-#### **Secure Console Access**: Built-in VNC/SPICE proxy manager with expiring session tokens and Cloudflare-friendly WebSocket popups.
+**Secure Console Access**: Built-in VNC/SPICE proxy manager with expiring session tokens and Cloudflare-friendly WebSocket popups.
 
-</td>
-<td width="50%" valign="top">
+**Operational Guardrails**: Multi-tenant quotas, token plans, rate limiting, audit/event logs, and automated backups.
 
-#### **Operational Guardrails**: Multi-tenant quotas, token plans, rate limiting, audit/event logs, and automated backups.
+**Productivity Tooling**: Command palette, contextual help, activity feeds, and real-time health widgets for operators.
 
-#### **Productivity Tooling**: Command palette, contextual help, activity feeds, and real-time health widgets for operators.
+<h1>Who Uses Machina</h1>
 
-</td>
-</tr>
-</table>
-
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Who Uses Machina</h1>
-
-| 👨‍💻 User Type | 🎯 Use Case |
+| User Type | Use Case |
 |------------|-------------|
 | **Internal Platform Teams** | Expose self-service virtualization to developers |
 | **Managed Service Providers** | Offer dedicated VPS + container bundles |
@@ -56,40 +43,26 @@ Machina is a unified operations plane for teams that manage both libvirt-based v
 
 </div>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Platform Requirements</h1>
-<tr>
-<td align="center" width="33%">
+### Platform Requirements
 
 **Required**
 
-• Node.js 20 or 22<br>
-• Docker Engine<br>
-• libvirt + QEMU/KVM<br>
-• Python 3 + websockify
-
-</td>
-<td align="center" width="33%">
+- Node.js 20 or 22<br>
+- Docker Engine<br>
+- libvirt + QEMU/KVM<br>
+- Python 3 + websockify
 
 **Optional**
 
-MongoDB 6+<br>
-*(when `USE_MONGODB=true`)*
-
-</td>
-<td align="center" width="33%">
+MongoDB 6+ *(when `USE_MONGODB=true`)*
 
 **Platform**
 
 Linux (Ubuntu 22.04+)<br>
 macOS (dev only)
 
-</td>
-</tr>
-</table>
 
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Quick Start</h1>
-<tr>
-<td>
+# Quick Start
 
 ### 1. Clone & Install
 ```bash
@@ -97,11 +70,6 @@ git clone https://github.com/4ngel2769/machina.git
 cd machina
 npm install
 ```
-
-</td>
-</tr>
-<tr>
-<td>
 
 ### 2. Seed Configuration
 ```bash
@@ -113,11 +81,6 @@ npm run init-data
 > [!TIP]
 > Need to reach Machina over plain HTTP (e.g., `http://192.168.x.x` on a LAN)? Set `AUTH_ALLOW_INSECURE_COOKIES=true` in `.env` so NextAuth issues non-secure cookies for that environment.
 
-</td>
-</tr>
-<tr>
-<td>
-
 ### 3. Run Machina
 ```bash
 # Development
@@ -128,19 +91,10 @@ npm run build
 npm start
 ```
 
-</td>
-</tr>
-<tr>
-<td>
-
 ### 4. Log In
 Navigate to `http://localhost:3000` (or your `PUBLIC_HOST`) with the seeded admin user, then **change the password immediately**.
 
-</td>
-</tr>
-</table>
-
-<h1 align="center" style="color:#00ff00; font-family:monospace;">Documentation</h1>er">
+# Documentation
 
 |Document|Purpose|
 |-------------:|:------------|
@@ -149,14 +103,10 @@ Navigate to `http://localhost:3000` (or your `PUBLIC_HOST`) with the seeded admi
 | [`REMOTE_ACCESS.md`](REMOTE_ACCESS.md) | Remote access configuration and tunneling |
 | [`VNC_SETUP.md`](VNC_SETUP.md) | Console proxy setup and tuning |
 
-</div>
-
-<h1 align="center" style="color:#00ff00; font-family:monospace;">License</h1>="center">
+# License
 
 **Machina is available under the MIT License.**
 
 See [`LICENSE`](LICENSE) for details.
 
-<sub>Made with 💚 by 4ngel2769</sub>
-
-</div>
+<div align="center">Made with 💚 by 4ngel2769</div>
