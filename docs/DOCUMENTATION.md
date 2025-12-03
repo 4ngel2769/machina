@@ -18,6 +18,7 @@
 - [**Platform Requirements**](#2-platform-requirements)
 - [**System Preparation**](#3-system-preparation)
 - [**Repository Setup**](#4-repository--dependencies)
+- [**Containerized Deployment**](#containerized-deployment-workflow)
 - [**Environment Config**](#5-environment-configuration)
 - [**First Run**](#6-first-run--verification)
 - [**Console Workflow**](#7-secure-console-workflow-deep-dive)
@@ -96,6 +97,42 @@ npm run init-data
 
 > [!TIP]
 > When running in MongoDB mode, execute `npm run migrate:mongodb` (or the `scripts/migrate-to-mongodb.*` scripts) after setting `USE_MONGODB=true`.
+
+# Containerized Deployment Workflow
+
+Instead of running Node.js directly on the host, you can build the included Docker image and use Compose to wire Machina into the host's virtualization stack.
+
+1. **Prep the host:** Ensure libvirt (`/var/run/libvirt/libvirt-sock`), Docker (`/var/run/docker.sock`), and `websockify` are already installed and running on the host OS.
+2. **Configure environment:** Copy `.env.example` → `.env`, then set `LIBVIRT_DEFAULT_URI=qemu+unix:///system?socket=/var/run/libvirt/libvirt-sock` so `virsh` inside the container talks to the mounted socket.
+3. **Capture socket GIDs (Linux):**
+
+   ```bash
+   export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+   export LIBVIRT_GID=$(stat -c %g /var/run/libvirt/libvirt-sock)
+   ```
+
+   Feed these values into Compose via environment variables if you intend to drop root.
+
+4. **Build & run:**
+
+   ```bash
+   docker compose -f docker-compose.example.yml up -d --build
+   ```
+
+   The compose definition mounts `./data` and `./logs`, so run `npm run init-data` either on the host or via `docker exec machina npm run init-data` after the container starts.
+
+5. **Validate integration:**
+
+   ```bash
+   docker exec -it machina virsh -c "$LIBVIRT_DEFAULT_URI" list
+   docker exec -it machina docker version
+   ```
+
+Troubleshooting tips:
+
+- Permission denied on sockets → confirm the process runs as root or that `group_add` includes the socket's GID.
+- `virsh` cannot connect → ensure the host exported the libvirt socket into the container and the URI matches the mounted path.
+- Container lacks `websockify` → it is preinstalled in the image; if you maintain a derivative image, keep `pip install websockify`.
 
 # 5. Environment Configuration
 

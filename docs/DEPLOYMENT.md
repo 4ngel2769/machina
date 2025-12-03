@@ -11,6 +11,7 @@
 # Table of Contents
 
 - [**System Requirements**](#system-requirements)
+- [**Containerized Deployment**](#containerized-deployment-docker--compose)
 - [**Initial Setup**](#initial-setup-on-production-server)
 - [**Configuration**](#3-configure-environment-variables)
 - [**Default Credentials**](#default-login-credentials)
@@ -41,6 +42,44 @@
 
 > [!TIP]
 > Ensure the Machina user is in `libvirt` and `docker` groups.
+
+# Containerized Deployment (Docker & Compose)
+
+Machina now ships with a production-ready `Dockerfile` and `docker-compose.example.yml`. Containerizing the web tier lets you keep libvirt, QEMU/KVM, and Docker running natively on the host while exposing their sockets to the Machina container.
+
+### Prerequisites
+
+- Host must already run `libvirtd`, `qemu-kvm`, and Docker Engine.
+- Bind mount the host sockets: `/var/run/libvirt/libvirt-sock` and `/var/run/docker.sock`.
+- When the sockets are root-owned, run the container as root (default) or inject the matching group IDs.
+
+### Steps
+
+1. Copy `.env.example` → `.env` and set at minimum:
+    - `NEXTAUTH_SECRET`
+    - `PUBLIC_HOST`
+    - `LIBVIRT_DEFAULT_URI=qemu+unix:///system?socket=/var/run/libvirt/libvirt-sock`
+2. Capture the socket group IDs so non-root runs can access them:
+
+    ```bash
+    export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+    export LIBVIRT_GID=$(stat -c %g /var/run/libvirt/libvirt-sock)
+    ```
+
+3. Build and run the container with the supplied compose file (adjust paths/ports as needed):
+
+    ```bash
+    docker compose -f docker-compose.example.yml up -d --build
+    ```
+
+The compose service mounts `./data` and `./logs` so initialization (`npm run init-data`) persists, and it exposes port `3000` by default. Verify connectivity from inside the container when it first boots:
+
+```bash
+docker exec -it machina virsh -c "$LIBVIRT_DEFAULT_URI" list --all
+docker exec -it machina docker ps
+```
+
+If either command fails, confirm the sockets are mounted, group IDs match, and `LIBVIRT_DEFAULT_URI` points to the mounted socket.
 
 # Initial Setup on Production Server
 

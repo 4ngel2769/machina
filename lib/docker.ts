@@ -91,12 +91,37 @@ function validateEnvVars(env: Record<string, string>): void {
 
 export function getDockerClient(): Dockerode {
   if (!dockerClient) {
-    dockerClient = new Dockerode({
-      // Default socket path - this will need to be configured based on OS
-      socketPath: process.platform === 'win32' 
-        ? '//./pipe/docker_engine' 
-        : '/var/run/docker.sock'
-    });
+    const defaultSocket = process.platform === 'win32'
+      ? '//./pipe/docker_engine'
+      : '/var/run/docker.sock';
+
+    const socketPath = process.env.DOCKER_SOCKET_PATH || defaultSocket;
+    const dockerHost = process.env.DOCKER_HOST;
+    const dockerPort = process.env.DOCKER_PORT;
+
+    if (dockerHost) {
+      try {
+        const parsedHost = new URL(dockerHost);
+        const rawProtocol = parsedHost.protocol.replace(':', '');
+
+        if (!['http', 'https', 'tcp'].includes(rawProtocol)) {
+          throw new Error(`Unsupported DOCKER_HOST protocol: ${rawProtocol}`);
+        }
+
+        const protocol = rawProtocol === 'https' ? 'https' : 'http';
+
+        dockerClient = new Dockerode({
+          protocol: protocol as 'http' | 'https',
+          host: parsedHost.hostname,
+          port: Number(parsedHost.port || dockerPort || (protocol === 'https' ? 2376 : 2375)),
+        });
+      } catch (error) {
+        console.warn('Invalid DOCKER_HOST provided, falling back to socket path', error);
+        dockerClient = new Dockerode({ socketPath });
+      }
+    } else {
+      dockerClient = new Dockerode({ socketPath });
+    }
   }
   return dockerClient;
 }

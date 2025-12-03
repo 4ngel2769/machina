@@ -91,6 +91,24 @@ npm start
 ### 4. Log In
 Navigate to `http://localhost:3000` (or your `PUBLIC_HOST`) with the seeded admin user, then **change the password immediately**.
 
+## Run with Docker
+
+1. Copy `.env.example` → `.env` and set `NEXTAUTH_SECRET`, `PUBLIC_HOST`, and `LIBVIRT_DEFAULT_URI=qemu+unix:///system?socket=/var/run/libvirt/libvirt-sock` so the container talks to the host libvirt socket.
+2. On the host, capture the group IDs for the Docker and libvirt sockets (Linux):
+
+	```bash
+	export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+	export LIBVIRT_GID=$(stat -c %g /var/run/libvirt/libvirt-sock)
+	```
+
+3. Build and launch the stack with the provided compose file:
+
+	```bash
+	docker compose -f docker-compose.example.yml up -d --build
+	```
+
+The compose file mounts `./data` and `./logs` for persistence and binds the host Docker and libvirt sockets into the container so Machina can orchestrate both environments. Adjust the `ports`, `group_add`, and volume paths if you run libvirt somewhere else or want to expose Machina through a reverse proxy.
+
 # Documentation
 
 |Document|Purpose|
