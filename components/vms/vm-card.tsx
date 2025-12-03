@@ -40,6 +40,85 @@ import { toast } from 'sonner';
 import { cn, formatBytes } from '@/lib/utils';
 import type { VMStats } from '@/types/stats';
 
+const STATS_READY_STATES: Set<VirtualMachine['status']> = new Set(['running', 'paused', 'suspended']);
+
+function UsageStatBar({
+  label,
+  value,
+  isActive,
+  placeholder,
+}: {
+  label: string;
+  value: number;
+  isActive: boolean;
+  placeholder: string;
+}) {
+  const critical = value >= 95;
+  const high = value >= 80 && value < 95;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-2">
+          <span className={cn('font-medium', !isActive && 'text-muted-foreground/70')}>
+            {isActive ? `${value.toFixed(1)}%` : placeholder}
+          </span>
+          {isActive && critical && (
+            <Badge variant="destructive" className="h-4 text-[10px] px-1">
+              Critical
+            </Badge>
+          )}
+          {isActive && high && (
+            <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+              High
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div className="relative h-2 rounded-full overflow-hidden bg-muted/30">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all duration-500',
+            !isActive && 'bg-muted-foreground/30',
+            isActive && critical && 'bg-red-500',
+            isActive && high && 'bg-yellow-500',
+            isActive && !critical && !high && 'bg-blue-500'
+          )}
+          style={{ width: isActive ? `${Math.min(value, 100)}%` : '0%' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function InlineMetric({
+  label,
+  value,
+  isActive,
+}: {
+  label: string;
+  value: string;
+  isActive: boolean;
+}) {
+  return (
+    <div className="space-y-1 text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between">
+        <span>{label}</span>
+        <span className={cn('font-medium text-foreground/80', !isActive && 'text-muted-foreground/70')}>
+          {value}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+        <div
+          className={cn('h-full transition-all duration-500', isActive ? 'bg-gradient-to-r from-primary to-blue-500' : 'bg-muted-foreground/30')}
+          style={{ width: isActive ? '100%' : '0%' }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface VMCardProps {
   vm: VirtualMachine;
   liveStats?: VMStats; // Real-time stats from live feed
@@ -50,6 +129,25 @@ export function VMCard({ vm, liveStats }: VMCardProps) {
   const { startVM, stopVM, forceStopVM, pauseVM, resumeVM, deleteVM } = useVMs();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const statsReady = STATS_READY_STATES.has(vm.status);
+
+  const cpuFromLive = typeof liveStats?.cpu?.usage === 'number' ? liveStats.cpu.usage : undefined;
+  const cpuValue = statsReady ? (cpuFromLive ?? vm.cpu_usage ?? 0) : 0;
+  const cpuActive = statsReady && (typeof cpuFromLive === 'number' || typeof vm.cpu_usage === 'number');
+
+  const memoryFromLive = typeof liveStats?.memory?.percentage === 'number' ? liveStats.memory.percentage : undefined;
+  const memoryValue = statsReady ? (memoryFromLive ?? vm.memory_usage ?? 0) : 0;
+  const memoryActive = statsReady && (typeof memoryFromLive === 'number' || typeof vm.memory_usage === 'number');
+
+  const diskActive = statsReady && !!liveStats?.disk;
+  const diskLabel = diskActive
+    ? `R ${formatBytes(liveStats!.disk.read)} / W ${formatBytes(liveStats!.disk.write)}`
+    : statsReady ? 'Collecting…' : 'Offline';
+
+  const networkActive = statsReady && !!liveStats?.network;
+  const networkLabel = networkActive
+    ? `↓ ${formatBytes(liveStats!.network.rx)} / ↑ ${formatBytes(liveStats!.network.tx)}`
+    : statsReady ? 'Collecting…' : 'Offline';
 
   // Get status badge variant
   const getStatusBadge = (status: VirtualMachine['status']) => {
@@ -222,117 +320,25 @@ export function VMCard({ vm, liveStats }: VMCardProps) {
             </div>
           </div>
 
-          {/* Resource Usage - Enhanced with real-time stats */}
-          {(vm.status === 'running' || vm.status === 'paused' || vm.status === 'suspended') && (() => {
-            const cpuPct = typeof liveStats?.cpu === 'object' 
-              ? liveStats.cpu.usage
-              : (vm.cpu_usage ?? 0);
-            const memoryPct = typeof liveStats?.memory === 'object'
-              ? liveStats.memory.percentage
-              : (vm.memory_usage ?? 0);
-            
-            return (
-              <div className="space-y-3 pt-3 border-t">
-                {/* CPU Usage */}
-                {(liveStats?.cpu !== undefined || vm.cpu_usage !== undefined) && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">CPU</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{cpuPct.toFixed(1)}%</span>
-                        {cpuPct >= 95 && (
-                          <Badge variant="destructive" className="h-4 text-[10px] px-1">Critical</Badge>
-                        )}
-                        {cpuPct >= 80 && cpuPct < 95 && (
-                          <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">High</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          cpuPct >= 95 && "bg-red-500",
-                          cpuPct >= 80 && cpuPct < 95 && "bg-yellow-500",
-                          cpuPct < 80 && "bg-blue-500"
-                        )}
-                        style={{ width: `${Math.min(cpuPct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Memory Usage */}
-                {(liveStats?.memory !== undefined || vm.memory_usage !== undefined) && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Memory</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{memoryPct.toFixed(1)}%</span>
-                        {memoryPct >= 95 && (
-                          <Badge variant="destructive" className="h-4 text-[10px] px-1">Critical</Badge>
-                        )}
-                        {memoryPct >= 80 && memoryPct < 95 && (
-                          <Badge variant="outline" className="h-4 text-[10px] px-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20">High</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          memoryPct >= 95 && "bg-red-500",
-                          memoryPct >= 80 && memoryPct < 95 && "bg-yellow-500",
-                          memoryPct < 80 && "bg-blue-500"
-                        )}
-                        style={{ width: `${Math.min(memoryPct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Disk I/O */}
-                {liveStats?.disk !== undefined && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Disk I/O</span>
-                      <span className="font-medium text-[10px]">
-                        R {formatBytes(liveStats.disk.read)} / W {formatBytes(liveStats.disk.write)}
-                      </span>
-                    </div>
-                    <div className="flex gap-1 h-1.5">
-                      <div className="flex-1 bg-purple-500/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                      </div>
-                      <div className="flex-1 bg-orange-500/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-orange-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Network I/O */}
-                {liveStats?.network !== undefined && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Network I/O</span>
-                      <span className="font-medium text-[10px]">
-                        ↓ {formatBytes(liveStats.network.rx)} / ↑ {formatBytes(liveStats.network.tx)}
-                      </span>
-                    </div>
-                    <div className="flex gap-1 h-1.5">
-                      <div className="flex-1 bg-green-500/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                      </div>
-                      <div className="flex-1 bg-blue-500/20 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: '100%' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Resource Usage - always rendered with graceful placeholders */}
+          <div className="space-y-3 pt-3 border-t">
+            <UsageStatBar
+              label="CPU"
+              value={cpuValue}
+              isActive={cpuActive}
+              placeholder={statsReady ? 'Collecting…' : 'Offline'}
+            />
+            <UsageStatBar
+              label="Memory"
+              value={memoryValue}
+              isActive={memoryActive}
+              placeholder={statsReady ? 'Collecting…' : 'Offline'}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <InlineMetric label="Disk I/O" value={diskLabel} isActive={diskActive} />
+              <InlineMetric label="Network I/O" value={networkLabel} isActive={networkActive} />
+            </div>
+          </div>
 
           {/* Uptime (if available) */}
           {vm.uptime && (
