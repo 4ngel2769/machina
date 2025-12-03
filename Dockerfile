@@ -36,7 +36,7 @@ RUN apt-get update \
 
 # Install Oh My Zsh and set zsh as default shell
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
-    && chsh -s $(which zsh) root
+    && chsh -s "$(which zsh)" root
 
 # Copy built application
 COPY --from=builder /app .
