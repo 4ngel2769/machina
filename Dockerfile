@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+FROM node:20-bookworm AS builder
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy source and build Next.js app
+COPY . .
+RUN npm run build && npm prune --omit=dev
+
+FROM node:20-bookworm-slim AS runner
+USER root
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Install system requirements for virsh + websockify
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libvirt-clients \
+        qemu-utils \
+        python3 \
+        python3-pip \
+        websockify \
+        git \
+        curl \
+        wget \
+        iputils-ping \
+        net-tools \
+        zsh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Oh My Zsh and set zsh as default shell
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
+    && chsh -s "$(which zsh)" root
+
+# Copy built application
+COPY --from=builder /app .
+
+# Ensure runtime directories exist for bind mounts
+RUN mkdir -p data logs tmp
+
+EXPOSE 3000
+CMD ["node", "server.js"]
