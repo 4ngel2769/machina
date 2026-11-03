@@ -62,7 +62,7 @@ export async function runSeed(): Promise<void> {
     if (!exists || process.env.ADMIN_FORCE_RESET === '1') {
       db.prepare(`insert or replace into users (id,name,role,password_hash,balance_cents,created_at)
         values (?,?,'admin',?,?,?)`).run(
-        newId('usr_'), adminName, hashPassword(adminPass), config.limits.defaultBalanceCents, Date.now());
+        newId('usr_'), adminName, hashPassword(adminPass), config.limits.adminBalanceCents, Date.now());
     }
   }
 
