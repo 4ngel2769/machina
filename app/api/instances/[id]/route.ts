@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';
 import { getDb, rawDb } from '@/lib/db';
-import { instances } from '@/lib/db/schema';
+import { instances, plans } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { enqueue } from '@/lib/core/jobs';
 import { now } from '@/lib/core/util';
@@ -87,6 +87,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     vncPass: undefined, // drizzle key is camelCase; the leaked VNC password is NOT a feature
     rootPassword: inst.rootPassEnc ? decrypt(inst.rootPassEnc) : null, // owner/admin session only
     bw: bandState(inst.id, inst.bandwidthGb ?? 0),
+    // The plan's display name and specs, because a custom plan's id is a hash
+    // ("custom-7e7c3449") and that is all a reader would otherwise see.
+    planName: (await getDb().select({ name: plans.name, vcpu: plans.vcpu, ramMb: plans.ramMb, diskGb: plans.diskGb })
+      .from(plans).where(eq(plans.id, inst.planId)))[0] ?? null,
     step,
     problem: inst.status === 'error' || lastFailed ? (lastFailed?.error || 'provisioning failed') : null,
     healCount: inst.healCount ?? 0,

@@ -15,6 +15,9 @@ type Inst = {
   id: string; name: string; status: string; imageId: string; planId: string;
   ip: string; createdAt: number; activeJob: { type: string; status: string } | null;
   autoSuspended: number; rateHourlyCents: number;
+  // Resolved server-side from the instance's plan, so a custom box (whose plan
+  // is deliberately absent from the catalog) still shows its real specs.
+  planName: string; vcpu: number; ramMb: number; diskGb: number; custom: number;
 };
 type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number };
 type Img = { id: string; name: string; status: string };
@@ -243,8 +246,12 @@ export default function InstancesPage() {
                 <Link href={`/instances/${i.id}`} style={{ fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{i.name}</Link>
                 <StatusCue status={i.status} jobType={live ? i.activeJob!.type : undefined} />
               </div>
-              <div className="muted mono" style={{ fontSize: 11, marginBottom: 8 }}>{i.ip} · {p?.name}</div>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>{p?.vcpu} vCPU · {p?.ramMb} MB RAM · {p?.diskGb} GB</div>
+              <div className="muted mono" style={{ fontSize: 11, marginBottom: 8 }}>
+                {i.ip} · {i.planName ?? p?.name}{i.custom ? ' · custom' : ''}
+              </div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                {i.vcpu ?? p?.vcpu} vCPU · {i.ramMb ?? p?.ramMb} MB RAM · {i.diskGb ?? p?.diskGb} GB
+              </div>
               <div style={{ height: 46, marginBottom: 4 }}>
                 {data.length > 1 ? (
                   <ResponsiveContainer width="100%" height="100%">

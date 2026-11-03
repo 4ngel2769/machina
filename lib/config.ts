@@ -59,6 +59,15 @@ export const config = {
       maxDiskGb: 0,
       maxRunning: 0,
     },
+    /** Custom (non-preset) VM pricing, in cents per hour per unit. Defaults are
+     *  fitted to the seeded ladder: Small (2 vCPU / 2 GB / 20 GB) comes out at
+     *  61c against its 60c preset, Micro 31c against 30c. The auto figure is a
+     *  starting point an admin can override per box, not a price list. */
+    customRate: {
+      perVcpuHourCents: 5,
+      perGbRamHourCents: 25,
+      perGbDiskHourCents: 0.05,
+    },
     // Snapshots are the classic rented-VM footgun: cheap to request, and the
     // qcow2 grows with every one of them. Bounded per instance AND against
     // free space on the pool, or one tenant fills the host.

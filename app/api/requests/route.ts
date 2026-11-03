@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
   const [plan] = await getDb().select().from(plans).where(eq(plans.id, body.planId ?? ''));
-  if (!plan || !plan.active) return err('plan invalid', 400);
+  if (!plan || !plan.active || plan.custom) return err('plan invalid', 400);
 
   // OS choice. A picker exists now, so the image is explicit rather than left
   // to a fallback at approval time — but the rule that a user without

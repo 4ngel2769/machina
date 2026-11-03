@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { QuotaEditor } from '@/app/ui/quota';
 import { UserAdmin } from '@/app/ui/users';
+import { CustomBox } from '@/app/ui/custombox';
 import { ThinkingOrb } from 'thinking-orbs';
 import { BorderBeam } from 'border-beam';
 import { useToast } from '@/app/ui/toast';
@@ -12,7 +13,7 @@ type User = {
   imagePickable: number; assignedImageId: string | null;
   instanceCount: number; keyCount: number;
 };
-type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number };
+type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number; custom: number };
 type Img = { id: string; name: string; status: string; failure: string | null; sha256: string; sizeBytes: number; updatedAt: number };
 type Aud = { id: string; ts: number; actorName: string | null; action: string; target: string | null; detail: string | null };
 type InstReq = { id: string; userId: string; name: string; planId: string; imageId: string | null; status: string; note: string | null; createdAt: number; reviewNote: string | null };
@@ -22,6 +23,7 @@ export default function AdminPage() {
   const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [planUsage, setPlanUsage] = useState<Record<string, number>>({});
   const [imgs, setImgs] = useState<Img[]>([]);
   const [aud, setAud] = useState<Aud[]>([]);
   const [reqs, setReqs] = useState<InstReq[]>([]);
@@ -50,6 +52,7 @@ export default function AdminPage() {
     if (r.ok) {
       const j = await r.json();
       setUsers(j.users); setPlans(j.plans); setImgs(j.images); setAud(j.audit);
+      setPlanUsage(j.planUsage ?? {});
       setAuditTotal(j.auditTotal ?? j.audit.length);
     }
     const rq = await fetch('/api/requests', { cache: 'no-store' });
@@ -148,7 +151,7 @@ export default function AdminPage() {
           <thead><tr><th>name</th><th>vcpu</th><th>ram</th><th>disk</th><th>$/h</th><th>cap/h</th><th>bw GB/mo</th><th /></tr></thead>
           <tbody>
             {plans.map((p) => (
-              <PlanRow key={p.id} plan={p} post={post} />
+              <PlanRow key={p.id} plan={p} post={post} usedBy={planUsage[p.id] ?? 0} />
             ))}
           </tbody>
         </table>
@@ -182,6 +185,16 @@ export default function AdminPage() {
         <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
           When "user can pick OS" is off and an OS is assigned, the user cannot choose — the assigned OS is used automatically.
         </div>
+      </div>
+
+      <div className="card">
+        <h3>custom box (no preset)</h3>
+        <div className="sub" style={{ marginTop: -6, marginBottom: 14 }}>
+          Pick the cores, memory, disk and transfer allowance yourself. The spec becomes a
+          custom plan row attached to this one box, so it bills and counts toward quota like
+          any other.
+        </div>
+        <CustomBox users={users} images={imgs} onCreated={() => void load()} />
       </div>
 
       <div className="card">
@@ -304,22 +317,36 @@ export default function AdminPage() {
   );
 }
 
-function PlanRow({ plan: p, post }: { plan: Plan; post: (b: object, label?: string) => Promise<void> }) {
+function PlanRow({ plan: p, post, usedBy }: { plan: Plan; post: (b: object, label?: string) => Promise<void>; usedBy: number }) {
   const [bw, setBw] = useState(String(p.bandwidthGb ?? 0));
   useEffect(() => { setBw(String(p.bandwidthGb ?? 0)); }, [p.bandwidthGb]);
   return (
     <tr>
-      <td>{p.name}</td><td>{p.vcpu}</td><td>{p.ramMb / 1024}GB</td><td>{p.diskGb}GB</td>
+      <td>
+        {p.name}
+        {p.custom ? <span className="badge" title="one-off spec — not offered in the catalog">custom</span> : null}
+      </td>
+      <td>{p.vcpu}</td><td>{p.ramMb / 1024}GB</td><td>{p.diskGb}GB</td>
       <td className="mono">{(p.hourlyRateCents / 100).toFixed(2)}</td>
       <td className="mono">{Math.round(p.monthlyCapMin / 60)}h</td>
       <td>
         <input className="mono" style={{ width: 70 }} value={bw} onChange={(e) => setBw(e.target.value)} />
       </td>
       <td>
-        <button onClick={() => {
-          const v = parseFloat(bw);
-          if (Number.isFinite(v) && v >= 0) void post({ op: 'setPlan', planId: p.id, bandwidthGb: v }, `plan ${p.name} quota`);
-        }}>save</button>
+        <div className="snapacts">
+          <button onClick={() => {
+            const v = parseFloat(bw);
+            if (Number.isFinite(v) && v >= 0) void post({ op: 'setPlan', planId: p.id, bandwidthGb: v }, `plan ${p.name} quota`);
+          }}>save</button>
+          {p.custom && (
+            <button
+              disabled={usedBy > 0}
+              title={usedBy > 0 ? `${usedBy} instance(s) use it` : 'delete this custom plan'}
+              onClick={() => { if (confirm(`delete plan ${p.name}?`)) void post({ op: 'deletePlan', planId: p.id }, 'delete plan'); }}
+              style={{ color: 'var(--danger, #f87171)' }}
+            >drop</button>
+          )}
+        </div>
       </td>
     </tr>
   );

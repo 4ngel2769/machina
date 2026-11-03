@@ -2,7 +2,7 @@ import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';
 import { getDb } from '@/lib/db';
 import { plans, images, users } from '@/lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 
 /** Session-visible catalog: active plans + images with sync status. */
 export async function GET() {
@@ -13,7 +13,8 @@ export async function GET() {
   return json({
     // ordered smallest -> largest: ram then vcpu, so the plan list always
     // reads as a size ladder regardless of insertion order
-    plans: await db.select().from(plans).where(eq(plans.active, 1))
+    // Custom plans size one existing box; they are not tiers anyone may pick.
+    plans: await db.select().from(plans).where(and(eq(plans.active, 1), eq(plans.custom, 0)))
       .orderBy(asc(plans.ramMb), asc(plans.vcpu), asc(plans.diskGb)),
     images: await db.select({ id: images.id, name: images.name, status: images.status }).from(images),
     imagePickable: u?.imagePickable ?? 1,

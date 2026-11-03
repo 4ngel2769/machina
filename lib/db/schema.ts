@@ -23,6 +23,11 @@ export const plans = sqliteTable('plans', {
   monthlyCapMin: integer('monthly_cap_min').default(720).notNull(),
   // Monthly transfer allowance in GB (rx+tx combined). 0 = unlimited.
   bandwidthGb: real('bandwidth_gb').default(100).notNull(),
+  // 0 = a catalog tier anyone may request. 1 = a one-off spec an admin built
+  // for a specific box (or to resize one). Custom plans stay in the table
+  // because instances and quotas resolve their size through their plan, but
+  // they are never offered in the catalog or the request form.
+  custom: integer('custom').default(0).notNull(),
   active: integer('active').default(1).notNull(),
 });
 
