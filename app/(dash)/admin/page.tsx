@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { QuotaEditor } from '@/app/ui/quota';
+import { UserAdmin } from '@/app/ui/users';
 import { ThinkingOrb } from 'thinking-orbs';
 import { BorderBeam } from 'border-beam';
 import { useToast } from '@/app/ui/toast';
 
-type User = { id: string; name: string; role: string; balanceCents: number; createdAt: number; imagePickable: number; assignedImageId: string | null };
+type User = {
+  id: string; name: string; role: string; balanceCents: number; createdAt: number;
+  imagePickable: number; assignedImageId: string | null;
+  instanceCount: number; keyCount: number;
+};
 type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number };
 type Img = { id: string; name: string; status: string; failure: string | null; sha256: string; sizeBytes: number; updatedAt: number };
 type Aud = { id: string; ts: number; actorName: string | null; action: string; target: string | null; detail: string | null };
@@ -23,10 +28,6 @@ export default function AdminPage() {
   const [delReqs, setDelReqs] = useState<DelReq[]>([]);
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditTotal, setAuditTotal] = useState(0);
-  const [newName, setNewName] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [topupUser, setTopupUser] = useState('');
-  const [topupAmt, setTopupAmt] = useState('25');
   const [imgPickUser, setImgPickUser] = useState('');
   const [imgPickable, setImgPickable] = useState(true);
   const [imgAssigned, setImgAssigned] = useState('');
@@ -50,7 +51,6 @@ export default function AdminPage() {
       const j = await r.json();
       setUsers(j.users); setPlans(j.plans); setImgs(j.images); setAud(j.audit);
       setAuditTotal(j.auditTotal ?? j.audit.length);
-      setTopupUser((u) => u || (j.users[0]?.id ?? ''));
     }
     const rq = await fetch('/api/requests', { cache: 'no-store' });
     if (rq.ok) setReqs(await rq.json());
@@ -58,7 +58,7 @@ export default function AdminPage() {
     if (dq.ok) setDelReqs(await dq.json());
     const qq = await fetch('/api/quotas', { cache: 'no-store' });
     if (qq.ok) setQuotas(await qq.json());
-  }, []);
+  }, [auditOffset]);
   useEffect(() => { void load(); }, [load]);
 
   const post = async (body: object, label = 'op') => {
@@ -75,7 +75,7 @@ export default function AdminPage() {
   return (
     <>
       <h1>admin</h1>
-      <div className="sub">users, credits, images, plans, audit trail</div>
+      <div className="sub">accounts, credits, images, plans, audit trail</div>
 
       <div className="card">
         <h3>quotas</h3>
@@ -102,35 +102,13 @@ export default function AdminPage() {
       </div>
 
       <div className="card">
-        <h3>credits</h3>
-        <div className="row">
-          <select value={topupUser} onChange={(e) => setTopupUser(e.target.value)} style={{ maxWidth: 190 }}>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name} (${(u.balanceCents / 100).toFixed(2)})</option>)}
-          </select>
-          <input style={{ width: 110 }} className="mono" value={topupAmt} onChange={(e) => setTopupAmt(e.target.value)} />
-          <button className="primary" onClick={() => post({ op: 'topup', userId: topupUser, deltaCents: Math.round(parseFloat(topupAmt) * 100) }, 'top up')}>top up $</button>
+        <h3>users</h3>
+        <div className="sub" style={{ marginTop: -6, marginBottom: 14 }}>
+          Registration is closed — accounts exist only because an admin made one. Create, fund,
+          re-role, re-password, suspend and delete here. Allocation (what they may provision) is
+          set in the quotas panel above.
         </div>
-        <table style={{ marginTop: 14 }}>
-          <thead><tr><th>name</th><th>role</th><th>balance</th><th>OS mode</th><th>since</th></tr></thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.name}</td>
-                <td>{u.role}</td>
-                <td className="mono">${(u.balanceCents / 100).toFixed(2)}</td>
-                <td className="muted" style={{ fontSize: 12 }}>
-                  {u.role === 'admin' ? '—' : (u.imagePickable ? 'pickable' : `assigned: ${u.assignedImageId ?? 'none'}`)}
-                </td>
-                <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="row" style={{ marginTop: 14 }}>
-          <input style={{ width: 160 }} placeholder="username" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <input style={{ width: 160 }} placeholder="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
-          <button onClick={() => post({ op: 'createUser', name: newName, password: newPass }, 'create user')}>create user</button>
-        </div>
+        <UserAdmin users={users} allocations={quotas?.rows ?? []} onChanged={() => void load()} />
       </div>
 
       <BorderBeam size="line" colorVariant="ice" active={imgs.some((i) => i.status === 'downloading')} strength={0.9} theme="dark">

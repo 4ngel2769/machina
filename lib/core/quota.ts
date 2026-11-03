@@ -1,6 +1,7 @@
 import os from 'os';
 import { rawDb } from '@/lib/db';
 import { config } from '@/lib/config';
+import { now } from '@/lib/core/util';
 
 /**
  * Per-user quotas and host capacity.
@@ -235,6 +236,11 @@ export function checkQuota(
   // deliberate act, not an accident.
   if (!opts.isAdmin) {
     if (q.maxVms !== null && u.vms >= q.maxVms) {
+      // A zero allocation is an account an admin minted but has not granted
+      // anything to yet. "0 of 0" is a confusing way to say "not allocated".
+      if (q.maxVms === 0 && q.maxVcpus === 0 && q.maxMemoryMb === 0 && q.maxDiskGb === 0) {
+        return { allowed: false, reason: 'this account has no allocation yet — ask an admin to grant one' };
+      }
       return { allowed: false, reason: `instance limit reached: you already have or have asked for ${u.vms} of ${q.maxVms}. Delete one or cancel a request, or ask an admin to raise your quota.` };
     }
     if (q.maxVcpus !== null && u.vcpus + plan.vcpu > q.maxVcpus) {
@@ -289,8 +295,30 @@ export function quotaWithUsage(userId: string): { quota: Quota; usage: Usage } {
   return { quota: getQuota(userId), usage: getUsage(userId) };
 }
 
+
 /** Percentage used, or null when unlimited. Used for the usage bars. */
 export function pct(used: number, max: number | null): number | null {
   if (max === null || max <= 0) return null;
   return Math.min(100, Math.round((used / max) * 100));
+}
+
+/**
+ * Give a brand-new account its opening quota: zero of everything.
+ *
+ * getQuota() treats a MISSING row as unlimited, which is the right default for
+ * accounts that already exist (nobody gets retro-locked by a deploy) but the
+ * wrong default for an account an admin just minted — that one should hold
+ * nothing until someone decides what it may hold. So the row is written
+ * explicitly at creation time, and it is insert-only: re-running it must never
+ * overwrite bounds an admin has since set.
+ */
+export function grantDefaultQuota(userId: string): void {
+  const q = config.limits.defaultQuota;
+  rawDb()
+    .prepare(
+      `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
+       values (?,?,?,?,?,?,0,?,?)
+       on conflict(user_id) do nothing`,
+    )
+    .run(userId, q.maxVms, q.maxVcpus, q.maxMemoryMb, q.maxDiskGb, q.maxRunning, 'no allocation yet', now());
 }

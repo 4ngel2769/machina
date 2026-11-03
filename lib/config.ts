@@ -41,7 +41,24 @@ export const config = {
     maxRunningTotal: 20,
     shutdownGraceSec: 45,
     fixedHourlyRateCents: 3000, // fallback cost per INSTANCE.running-hour (30c)
-    defaultBalanceCents: 5000,
+    /** Opening credit for a NEWLY CREATED account. Zero on purpose: an account
+     *  existing is not the same as an account being funded, and every cent
+     *  handed out is one an admin did not decide to hand out. */
+    defaultBalanceCents: 0,
+    /** The bootstrap admin is metered like anyone else, so it needs a float or
+     *  the reconciler auto-suspends its own VMs the moment it starts one. */
+    adminBalanceCents: 5000,
+    /** Opening quota for a new account. Zero of everything: the account is
+     *  provisioned but may not create until an admin says what it may have.
+     *  (No quota ROW still means unlimited — that stays true for existing
+     *  accounts that predate this default.) */
+    defaultQuota: {
+      maxVms: 0,
+      maxVcpus: 0,
+      maxMemoryMb: 0,
+      maxDiskGb: 0,
+      maxRunning: 0,
+    },
     // Snapshots are the classic rented-VM footgun: cheap to request, and the
     // qcow2 grows with every one of them. Bounded per instance AND against
     // free space on the pool, or one tenant fills the host.
