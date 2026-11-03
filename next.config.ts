@@ -1,71 +1,33 @@
-import type { NextConfig } from "next";
-import bundleAnalyzer from '@next/bundle-analyzer';
-
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
-});
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@novnc/novnc', '@spice-project/spice-html5'],
-  // Turbopack configuration (required for Next.js 16)
-  turbopack: {
-    // Turbopack is enabled by default in Next.js 16
-    // Most webpack customizations aren't needed with Turbopack's optimizations
-  },
-  
-  // External packages for server components
-  serverExternalPackages: ['ssh2', 'dockerode', 'node-libvirt'],
-  
-  // Experimental features
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts'],
+    serverActions: { bodySizeLimit: '8mb' },
   },
-  
-  // Production optimizations
-  reactStrictMode: true,
-  
-  // Image optimization
-  images: {
-    formats: ['image/avif', 'image/webp'],
-    remotePatterns: [],
+  // Server code runs under tsx server.ts; the next build only needs the client+SSR bundles.
+  outputFileTracingIncludes: {
+    '/**': ['./lib/core/**'],
   },
-  
-  // Remove webpack config for production builds (use Turbopack)
-  // Only use webpack in development for specific customizations
-  ...(!process.env.TURBOPACK && {
-    webpack: (config, { dev, isServer }) => {
-      if (dev && !isServer) {
-        // Reduce watchOptions polling to prevent constant recompiles
-        config.watchOptions = {
-          ...config.watchOptions,
-          poll: undefined, // Disable polling
-          ignored: /node_modules/,
-        };
-      }
-      return config;
-    },
-  }),
-  
-  // Allow dev server access from local network
-  allowedDevOrigins: [
-    'http://192.168.1.200:3000',
-    'ws://192.168.1.200:3000',
-    'http://192.168.1.200',
-    'ws://192.168.1.200'
-  ],
-  
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
-          { key: 'Access-Control-Allow-Headers', value: 'X-Requested-With, Content-Type, Authorization' },
+          // never allow the control plane to be framed or sniffed
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(),' },
+          {
+            // terminal/VNC speak ws(s) to self; inline styles because the UI
+            // uses style= attributes; unsafe-inline for Next hydration scripts
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+          },
         ],
       },
     ];
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+export default nextConfig;
