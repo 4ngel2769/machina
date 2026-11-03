@@ -271,6 +271,18 @@ export const migrations: { version: string; sql: string }[] = [
       create index if not exists metrics_ts_idx on metrics(ts);
     `,
   },
+  {
+    version: '20261103_0009',
+    sql: `
+      -- Custom specs. A plan row is the unit of size in this schema (instances
+      -- carry plan_id, quotas sum plan vcpu/ram/disk, the domain XML and the
+      -- qcow2 overlay are sized from the plan snapshot), so a non-preset VM is
+      -- a plan row that exists for one box. custom=1 keeps those out of the
+      -- catalog and the user request form without inventing a second sizing
+      -- path that would drift from this one.
+      alter table plans add column custom integer not null default 0;
+    `,
+  },
 ];
 
 export function initDb(): void {

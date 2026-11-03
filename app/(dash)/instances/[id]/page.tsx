@@ -13,6 +13,7 @@ import { Ring, Orb, BarLoader } from '@/app/ui/loaders';
 type Inst = {
   id: string; name: string; status: string; ip: string; mac: string;
   imageId: string; planId: string; rootPassword?: string;
+  planName?: { name: string; vcpu: number; ramMb: number; diskGb: number } | null;
   autoSuspended: number; rateHourlyCents: number; createdAt: number;
   bw?: { month: string; rxBytes: number; txBytes: number; quotaGb: number; throttled: boolean };
   step?: string;
@@ -77,7 +78,7 @@ export default function InstanceDetail() {
     <>
       <h1>{inst.name}</h1>
       <div className="sub">
-        <span className="mono">{inst.id}</span> · {inst.planId} · {inst.imageId}
+        <span className="mono">{inst.id}</span> · {inst.planName?.name ?? inst.planId} · {inst.imageId}
       </div>
 
       <div className="card">

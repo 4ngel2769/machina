@@ -16,15 +16,30 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const db = getDb();
+  // Specs come off the joined plan, not off the catalog: a custom plan is
+  // deliberately absent from the catalog, so reading sizes from there left
+  // custom boxes rendering "undefined vCPU · undefined MB RAM".
+  const cols = {
+    id: instances.id, domainName: instances.domainName, userId: instances.userId,
+    planId: instances.planId, imageId: instances.imageId, name: instances.name,
+    rateHourlyCents: instances.rateHourlyCents, monthlyCapMin: instances.monthlyCapMin,
+    bandwidthGb: instances.bandwidthGb, status: instances.status, mac: instances.mac,
+    ip: instances.ip, vncSocket: instances.vncSocket, autoSuspended: instances.autoSuspended,
+    healCount: instances.healCount, destroyAt: instances.destroyAt,
+    lastSettleAt: instances.lastSettleAt, createdAt: instances.createdAt,
+    updatedAt: instances.updatedAt, notes: instances.notes,
+    planName: plans.name, vcpu: plans.vcpu, ramMb: plans.ramMb, diskGb: plans.diskGb,
+    custom: plans.custom,
+  };
   const rows = user.role === 'admin'
-    ? await db.select().from(instances).orderBy(desc(instances.createdAt))
-    : await db.select().from(instances).where(eq(instances.userId, user.id)).orderBy(desc(instances.createdAt));
+    ? await db.select(cols).from(instances).innerJoin(plans, eq(plans.id, instances.planId))
+      .orderBy(desc(instances.createdAt))
+    : await db.select(cols).from(instances).innerJoin(plans, eq(plans.id, instances.planId))
+      .where(eq(instances.userId, user.id)).orderBy(desc(instances.createdAt));
   const jobs = rawDb().prepare(`select instance_id, status, type from jobs
      where status in ('queued','running')`).all() as { instance_id: string; status: string; type: string }[];
   return json(rows.map((r) => ({
     ...r,
-    rootPassEnc: undefined,
-    vncPass: undefined,
     activeJob: jobs.find((j) => j.instance_id === r.id) ?? null,
   })));
 }
