@@ -12,6 +12,7 @@ import { startWorker, stopWorker } from '@/lib/core/worker';
 import { startMetering, stopMetering } from '@/lib/core/metering';
 import { startNetmeter, stopNetmeter } from '@/lib/core/netmeter';
 import { startReconciler, stopReconciler } from '@/lib/core/reconciler';
+import { startHostSampler, stopHostSampler } from '@/lib/host/sampler';
 import { verifyToken, type WsChannel } from '@/lib/core/tokens';
 import { relayTerm } from '@/lib/core/terminal';
 import { relayVnc } from '@/lib/core/console-ws';
@@ -66,10 +67,11 @@ async function main(): Promise<void> {
   startMetering();
   startNetmeter();
   startReconciler();
+  startHostSampler();
 
   const shutdown = () => {
     console.log('[machina] shutting down');
-    stopWorker(); stopMetering(); stopNetmeter(); stopReconciler();
+    stopWorker(); stopMetering(); stopNetmeter(); stopReconciler(); stopHostSampler();
     wss.close();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 5000).unref();

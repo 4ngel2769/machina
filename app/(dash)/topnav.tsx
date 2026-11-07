@@ -17,7 +17,7 @@ export function TopNav({ name, role }: { name: string; role: string }) {
     { href: '/keys', label: 'ssh keys' },
     { href: '/billing', label: 'billing' },
     { href: '/specs', label: 'specs' },
-    ...(role === 'admin' ? [{ href: '/admin', label: 'admin' }] : []),
+    ...(role === 'admin' ? [{ href: '/host', label: 'host' }, { href: '/admin', label: 'admin' }] : []),
   ];
   return (
     <>
@@ -41,6 +41,7 @@ export function TopNav({ name, role }: { name: string; role: string }) {
             <Link href="/account" role="menuitem">account</Link>
             <Link href="/billing" role="menuitem">billing</Link>
             <Link href="/specs" role="menuitem">specs</Link>
+            {role === 'admin' && <Link href="/host" role="menuitem">host</Link>}
             {role === 'admin' && <Link href="/admin" role="menuitem">admin</Link>}
             <div className="sep" />
             <Link href="/terms" role="menuitem">terms</Link>
