@@ -31,7 +31,10 @@ export async function GET(req: NextRequest) {
     listVms().catch((x) => ({ error: (x as Error).message }) as never),
     listNetworks().catch((x) => ({ error: (x as Error).message }) as never),
   ]);
-  const ifaces = Array.isArray(nets)
+  // Interfaces carry a 60-point traffic series each; ~90 of them is a couple of
+  // hundred KB per poll, and only the interfaces tab draws it.
+  const wantIfaces = Boolean(req.nextUrl.searchParams.get('ifaces'));
+  const ifaces = wantIfaces && Array.isArray(nets)
     ? await listIfaces(bridges(nets)).catch(() => [])
     : [];
 

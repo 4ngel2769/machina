@@ -40,7 +40,7 @@ export function HostPanel() {
   const [owner, setOwner] = useState<string>('visible');
   const [busy, setBusy] = useState('');
 
-  const inv = usePoll<Inv>('/api/host', tab === 'interfaces' ? 5000 : 10_000);
+  const inv = usePoll<Inv>(tab === 'interfaces' ? '/api/host?ifaces=1' : '/api/host', tab === 'interfaces' ? 5000 : 15_000);
   const log = usePoll<{ rows: { id: string; ts: number; actor_name: string; action: string; target: string; detail: string }[] }>(
     '/api/host?log=1', 20_000, tab === 'log',
   );
