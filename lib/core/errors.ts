@@ -33,7 +33,16 @@ export function friendlyError(raw: unknown): string {
   for (const [re, nice] of RULES) {
     if (re.test(msg)) return nice;
   }
-  const first = msg.split('\n')[0]
+  const lines = msg.split('\n').map((s) => s.trim()).filter(Boolean);
+  let first = lines[0] ?? msg;
+  // execFile puts the INVOCATION on line 1 and the actual error on line 2. The
+  // old fallback took line 1, so a failed `virsh shutdown` surfaced to the user
+  // as the literal command string — telling them nothing and printing a host
+  // path. Prefer the second line whenever the first is only a command.
+  if (lines.length > 1 && /^(Command failed:|virsh\b|qemu-img\b|genisoimage\b|ssh\b|curl\b)/i.test(first)) {
+    first = lines[1];
+  }
+  first = first
     .replace(/^Command failed:\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim();

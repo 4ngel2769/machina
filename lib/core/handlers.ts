@@ -292,7 +292,10 @@ async function start(job: JobCtx, log: (m: string) => void): Promise<void> {
   await startDomain(row.domain_name);
   await ensureThrottleState(row.id, row.domain_name).catch(() => {});
   log('running');
-  rd.prepare(`update instances set status='running', auto_suspended=0, updated_at=? where id=?`)
+  // heal_count is a provisioning self-heal counter, not a lifecycle one. Leaving
+  // it set meant a box that started cleanly still advertised "auto-recovery
+  // attempt 1 of 3" on its page long after it was fine.
+  rd.prepare(`update instances set status='running', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
     .run(now(), row.id);
 }
 
@@ -323,7 +326,7 @@ async function stop(job: JobCtx, log: (m: string) => void): Promise<void> {
     }
   }
   log('stopped');
-  rd.prepare(`update instances set status='stopped', auto_suspended=0, updated_at=? where id=?`)
+  rd.prepare(`update instances set status='stopped', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
     .run(now(), row.id);
 }
 
