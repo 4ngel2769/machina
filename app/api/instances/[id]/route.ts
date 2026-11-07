@@ -80,7 +80,13 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     ? rawDb().prepare(`select log from jobs where id=?`).get(active.id) as { log: string } | undefined
     : undefined;
   const step = active ? friendlyStep(activeRow?.log ?? '') : '';
-  const lastFailed = jobs.find((j) => j.status === 'failed');
+  // A failure is only a CURRENT problem if nothing has succeeded since. jobs is
+  // newest-first, so take the newest job that has actually finished: an old
+  // failed stop followed by a clean start is history, not an error. The old
+  // `jobs.find(status==='failed')` pinned that banner (and its "try again"
+  // button, which then refused with "nothing to retry") to the page forever.
+  const lastFinished = jobs.find((j) => j.status === 'done' || j.status === 'failed');
+  const lastFailed = lastFinished?.status === 'failed' ? lastFinished : undefined;
   return json({
     ...inst,
     rootPassEnc: undefined,
