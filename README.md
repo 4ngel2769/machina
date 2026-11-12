@@ -59,7 +59,11 @@ disk is a `qemu-img create -b <abs base> -F qcow2` overlay in the
 files). Domain XML references the disk by absolute path; VNC lands on a
 per-instance unix socket under `storage/vnc/<id>.vnc`. Network `machina0` is
 NAT with our own 192.168.184.x range; cloud-init hands guests a static IP plus
-root password (AES-GCM encrypted at rest) and your account's SSH keys.
+root password (AES-GCM encrypted at rest) and your account's SSH keys. The seed
+ISO rides on a virtio disk (`vdb`), not a cdrom: cloud-init's systemd generator
+probes for the `cidata` label before the SATA stack has produced `/dev/sda`, and
+a seed it cannot see means the guest boots unconfigured and provisioning times
+out on SSH. `docs/DEPLOYMENT.md` has the evidence trail.
 
 A create job: seed ISO -> disk overlay -> DHCP host entry -> define -> start ->
 wait TCP/22 -> status running. Failure cleans disk + domain and sets

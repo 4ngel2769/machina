@@ -149,10 +149,25 @@ root password and VNC password is unreadable.
 ## Troubleshooting
 
 **`provisioning timeout: ssh never came up`** — the domain booted but sshd did
-not. Read the guest console first: `<storage>/serial/<instanceId>.log`. The
-cloud images ship with no `/etc/ssh/ssh_host_*` keys, and `ssh.service` refuses
-to start without them (`ExecStartPre=/usr/sbin/sshd -t` → *no hostkeys
-available*); the seed runs `ssh-keygen -A` for exactly this reason.
+not. Read the guest console first: `<storage>/serial/<instanceId>.log`. Two
+things cause this, and they look identical from the outside.
+
+*No datasource.* If the console shows a login prompt with the **image's**
+hostname (`localhost`) instead of the instance name, cloud-init never ran.
+Debian's cloud-init is gated on a systemd **generator** that runs
+`ds-identify`, which decides "is there a datasource" by probing block devices
+*very* early — and then never pulls `cloud-init.target` in if it says no. A seed
+on a **SATA cdrom** loses that race: the AHCI/`sr_mod` stack has not produced
+`/dev/sda` yet, `blkid` sees nothing labelled `cidata`, and cloud-init is
+disabled for the life of the guest. There is no log to read because the service
+never started. The seed therefore attaches as a **virtio-blk disk on `vdb`**
+(see `domainXml`), which the kernel claims itself before generators run. Confirm
+inside the guest with `grep DataSource /var/log/cloud-init.log` — it should say
+`DataSourceNoCloud [seed=/dev/vdb]`.
+
+*No host keys.* The cloud images ship with no `/etc/ssh/ssh_host_*` keys, and
+`ssh.service` refuses to start without them (`ExecStartPre=/usr/sbin/sshd -t` →
+*no hostkeys available*); the seed runs `ssh-keygen -A` for exactly this reason.
 
 **`there is an existing dhcp host entry`** — a retried provisioning reused the
 MAC and the previous attempt left its reservation. `ensureIpLease` now treats an
