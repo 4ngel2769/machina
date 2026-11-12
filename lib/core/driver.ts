@@ -229,7 +229,6 @@ export function domainXml(opts: {
   <os>
     <type arch='x86_64' machine='q35'>hvm</type>
     <boot dev='hd'/>
-    <boot dev='cdrom'/>
   </os>
   <features>
     <acpi/>
@@ -246,10 +245,19 @@ export function domainXml(opts: {
       <source file='${diskVolPath}'/>
       <target dev='vda' bus='virtio'/>
     </disk>
-    <disk type='file' device='cdrom'>
+    <!-- cloud-init seed. A SATA cdrom is NOT reliable here: the cloud-init
+         systemd generator (ds-identify) probes block devices to decide whether
+         a datasource exists, and at generator time the AHCI/sr_mod stack has
+         not necessarily produced /dev/sda yet. When the probe misses, the
+         generator decides "no datasource" and never pulls cloud-init.target
+         in, so the guest boots with the image's default hostname, no network
+         config and no root password - and provisioning times out on SSH with
+         nothing on the console to show for it. virtio-blk is claimed by the
+         kernel itself and is visible before the generators run. -->
+    <disk type='file' device='disk'>
       <driver name='qemu' type='raw'/>
       <source file='${seedIsoPath}'/>
-      <target dev='sda' bus='sata'/>
+      <target dev='vdb' bus='virtio'/>
       <readonly/>
     </disk>
     <interface type='network'>
