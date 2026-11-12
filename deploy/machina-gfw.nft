@@ -1,0 +1,40 @@
+#!/usr/sbin/nft -f
+# machina guest-isolation firewall (virbr-machina0).
+#
+# Guests are untrusted by definition: a rented box must not be able to reach the
+# control plane (:3999), the host's Docker networks, the tailnet (100.64.0.0/10)
+# or the LAN, while still having a working public internet.
+#
+#   IN:  DHCP + DNS to the gateway only; every other guest-initiated packet to
+#        the host is dropped.
+#   FWD: established/related passes, DHCP/DNS to the gateway passes, NEW traffic
+#        to any private range drops, everything else (the internet) passes.
+#   Host -> guest (SSH terminal, VNC relay) is outbound from the host and is not
+#   touched by either hook, which is what keeps the console usable.
+#
+# Raw nft table so it coexists with the iptables-nft tables docker and libvirt
+# install. Re-applying in place is safe: the unit destroys the table first.
+#
+# Both the bridge name and the subnet come from lib/config.ts; change them in
+# all three places if the network is renumbered.
+
+table inet machina_gfw {
+    chain gfw_in {
+        type filter hook input priority filter; policy accept;
+        iifname "virbr-machina0" ct state established,related accept
+        iifname "virbr-machina0" udp dport 67 accept          # DHCP
+        iifname "virbr-machina0" udp dport 53 accept          # DNS
+        iifname "virbr-machina0" tcp dport 53 accept
+        iifname "virbr-machina0" drop                          # no guest-initiated host contact
+    }
+
+    chain gfw_fwd {
+        type filter hook forward priority filter; policy accept;
+        iifname "virbr-machina0" ct state established,related accept
+        iifname "virbr-machina0" ip daddr 192.168.184.1 udp dport { 53, 67 } accept
+        iifname "virbr-machina0" ip daddr 192.168.184.1 tcp dport 53 accept
+        iifname "virbr-machina0" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16 } drop
+        iifname "virbr-machina0" oifname != "virbr-machina0" accept   # public internet
+        iifname "virbr-machina0" drop
+    }
+}

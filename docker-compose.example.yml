@@ -1,0 +1,35 @@
+# Containerised machina. See Dockerfile for what this costs you.
+#
+# Host networking is deliberate rather than convenient: the control plane has to
+# reach guests on 192.168.184.0/24 (SSH terminal, VNC relay) and hand out
+# addresses on a libvirt bridge that lives in the host namespace. A bridge
+# network would put a second NAT between the panel and the VMs.
+services:
+  machina:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: machina:local
+    container_name: machina
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: ${SERVER_PORT:-3999}
+      MACHINA_STORAGE_DIR: /var/lib/machina/storage
+      MACHINA_DB_PATH: /var/lib/machina/machina.db
+      VIRSH_URI: qemu:///system
+    volumes:
+      # state
+      - ./data:/var/lib/machina
+      - ${MACHINA_STORAGE_DIR:-/mnt/machina}:/var/lib/machina/storage
+      # host services this panel drives
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # gid of the libvirt group on the host: getent group libvirt | cut -d: -f3
+      - "${LIBVIRT_GID:?set LIBVIRT_GID}"
+      # gid of the docker group on the host: getent group docker | cut -d: -f3
+      - "${DOCKER_GID:?set DOCKER_GID}"
