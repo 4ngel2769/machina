@@ -48,13 +48,17 @@ write_files:
       PermitRootLogin yes
       PasswordAuthentication yes
 runcmd:
-  # systemd distros (debian/ubuntu/arch/rocky): enable + restart sshd.
-  # Alpine is OpenRC, has no systemctl and no sshd_config.d Include, so it needs
-  # the runlevel service and the directives appended to the main sshd_config —
-  # without this Alpine boots fine and never answers SSH (provisioning timeout).
-  - [sh, -c, "command -v systemctl >/dev/null && systemctl enable --now ssh 2>/dev/null || systemctl restart ssh 2>/dev/null || true"]
-  - [sh, -c, "command -v rc-service >/dev/null && (rc-update add sshd default 2>/dev/null; rc-service sshd restart 2>/dev/null; rc-service sshd start 2>/dev/null) || true"]
+  # The cloud images ship WITHOUT /etc/ssh/ssh_host_* keys, and ssh.service is
+  # gated on 'ExecStartPre=/usr/sbin/sshd -t', which aborts with "no hostkeys
+  # available". sshd never comes up, the guest still boots to a login prompt,
+  # and provisioning times out on SSH. 'ssh-keygen -A' only creates the keys
+  # that are missing, so it is safe on every boot.
+  - [sh, -c, "command -v ssh-keygen >/dev/null && ssh-keygen -A >/dev/null 2>&1 || true"]
+  # Alpine is OpenRC and has no sshd_config.d Include, so the directives have to
+  # be appended to the main config before the service starts.
   - [sh, -c, "grep -q 'machina-managed' /etc/ssh/sshd_config 2>/dev/null || printf '\\n# machina-managed\\nPermitRootLogin yes\\nPasswordAuthentication yes\\n' >> /etc/ssh/sshd_config 2>/dev/null || true"]
+  - [sh, -c, "command -v systemctl >/dev/null && (systemctl enable ssh 2>/dev/null; systemctl restart ssh 2>/dev/null || systemctl start ssh 2>/dev/null) || true"]
+  - [sh, -c, "command -v rc-service >/dev/null && (rc-update add sshd default 2>/dev/null; rc-service sshd restart 2>/dev/null; rc-service sshd start 2>/dev/null) || true"]
   # Portability net step. cloud-init's network-config v2 is netplan syntax, which
   # Debian/Ubuntu apply but Alpine/OpenRC and some minimal images ignore — the
   # guest then boots with no address and provisioning times out on SSH. Applying
