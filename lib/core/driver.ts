@@ -139,6 +139,15 @@ export async function ensureSetupSafe(): Promise<void> {
 
 export async function ensureIpLease(mac: string, ip: string): Promise<void> {
   try {
+    // A retried provisioning reuses the same MAC, and a previous attempt leaves
+    // its reservation behind. net-update then refuses with "there is an
+    // existing dhcp host entry ... that matches" and the whole create logs a
+    // scary error even though the lease is exactly what we wanted.
+    const xml = await virsh(['net-dumpxml', config.network, '--inactive']);
+    const existing = new RegExp(`<host mac='${mac}'[^>]*ip='([^']+)'`);
+    const m = xml.match(existing);
+    if (m && m[1] === ip) return;
+    if (m) await removeIpLease(mac);
     await virsh(['net-update', config.network, 'add', 'ip-dhcp-host', `<host mac='${mac}' ip='${ip}'/>`, '--config']);
   } catch (e) {
     // Not fatal: cloud-init sets a static IP anyway. DHCP entry is belt+braces.
@@ -147,10 +156,16 @@ export async function ensureIpLease(mac: string, ip: string): Promise<void> {
 }
 
 export async function removeIpLease(mac: string): Promise<void> {
-  try {
-    await virsh(['net-update', config.network, 'delete', 'ip-dhcp-host', `<host mac='${mac}'/>`, '--config', '--live']);
-  } catch {
-    /* ignore */
+  // Live and persistent config are separate stores and either may hold the
+  // entry, so each verb is attempted on its own: passing --config --live makes
+  // virsh abort on the first store that does not have it, silently leaving the
+  // other one behind.
+  for (const scope of ['--live', '--config'] as const) {
+    try {
+      await virsh(['net-update', config.network, 'delete', 'ip-dhcp-host', `<host mac='${mac}'/>`, scope]);
+    } catch {
+      /* not present in this scope */
+    }
   }
 }
 
