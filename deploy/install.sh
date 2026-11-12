@@ -17,7 +17,9 @@ echo "==> storage:     ${STORAGE_DIR}"
 # --- dirs owned by the service user -------------------------------------------
 sudo mkdir -p "$DATA_DIR" "$STORAGE_DIR"
 sudo chown "$USER":"$USER" "$DATA_DIR" "$STORAGE_DIR"
-for d in images vms seeds vnc tmp ssh; do mkdir -p "$STORAGE_DIR/$d"; done
+# serial/ is not optional despite looking like it: the domain XML writes each
+# guest's console to it, so a missing dir is a failed define, not a lost log.
+for d in images vms seeds vnc tmp ssh serial; do mkdir -p "$STORAGE_DIR/$d"; done
 chmod 1777 "$STORAGE_DIR/vnc"
 chmod 700 "$DATA_DIR"
 
@@ -27,10 +29,32 @@ if ! command -v virsh >/dev/null 2>&1; then
   exit 1
 fi
 command -v tsx >/dev/null 2>&1 || true
+command -v nft >/dev/null 2>&1 || echo "NOTE: nftables missing; guest isolation firewall will be skipped (sudo apt install nftables)"
 
 # --- libvirt membership --------------------------------------------------------
 groups | grep -qw kvm || echo "NOTE: add to kvm group: sudo usermod -aG kvm $USER (re-login needed)"
 groups | grep -qw libvirt || echo "NOTE: add to libvirt group: sudo usermod -aG libvirt $USER (re-login needed)"
+
+# --- guest isolation firewall ---------------------------------------------------
+# A rented VM is untrusted. Without this table a guest can reach the control
+# plane on :3999, the host's docker bridges and the tailnet; with it, only
+# DHCP/DNS on the gateway and the public internet are reachable. Lives in the
+# repo because it is part of the product's security model, not a local tweak.
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if command -v nft >/dev/null 2>&1 && [[ -f "$SCRIPT_DIR/machina-gfw.nft" ]]; then
+  sudo mkdir -p /etc/nftables.d
+  sudo install -m 0644 "$SCRIPT_DIR/machina-gfw.nft" /etc/nftables.d/machina-gfw.nft
+  sudo install -m 0644 "$SCRIPT_DIR/machina-gfw.service" /etc/systemd/system/machina-gfw.service
+  # The table only makes sense once the bridge exists; virsh define/start of
+  # machina0 happens on first boot of the app, so this may no-op now and is
+  # re-applied on the next boot of the unit.
+  sudo systemctl daemon-reload
+  sudo systemctl enable machina-gfw.service
+  sudo systemctl restart machina-gfw.service || true
+  echo "==> guest isolation firewall installed (machina-gfw.service)"
+else
+  echo "NOTE: skipped guest isolation firewall (no nft or no deploy/machina-gfw.nft)"
+fi
 
 # --- secrets -------------------------------------------------------------------
 if [[ ! -f "$DATA_DIR/machina.key" ]]; then
