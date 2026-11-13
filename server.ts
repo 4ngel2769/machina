@@ -94,7 +94,9 @@ async function handleUpgrade(
   if (!m) { socket.destroy(); return; }
   const [, instId, pathChan] = m;
   const chan: WsChannel = pathChan === 'terminal' ? 'term' : 'vnc';
-  const token = (parse(req.url || '', true).query.token as string) || '';
+  const q = parse(req.url || '', true).query;
+  const token = (q.token as string) || '';
+  const persist = q.persist === '1';
   const payload = verifyToken(token);
   if (!payload || payload.inst !== instId || payload.typ !== chan) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -124,7 +126,14 @@ async function handleUpgrade(
 
   wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
     if (chan === 'term') {
-      void relayTerm(ws, { instanceId: instId, ip: inst.ip, rootPassword: decrypt(inst.root_pass_enc) });
+      void relayTerm(ws, {
+        instanceId: instId,
+        ip: inst.ip,
+        rootPassword: decrypt(inst.root_pass_enc),
+        persist,
+        cols: Number(q.cols) || undefined,
+        rows: Number(q.rows) || undefined,
+      });
     } else {
       relayVnc(ws, inst.vnc_socket || `${config.storageDir}/vnc/${instId}.vnc`);
     }

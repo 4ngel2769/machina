@@ -8,7 +8,28 @@ import { attachKeepalive } from './ws-keepalive';
  *   in:  {"t":"i","d":"<base64 stdin>"} | {"t":"r","c":<cols>,"r":<rows>} | {"t":"c"}
  *   out: binary frames = stdout; text frames = {t:"ready"|"e"}.
  */
-export interface TermBind { instanceId: string; ip: string; rootPassword: string; }
+export interface TermBind {
+  instanceId: string;
+  ip: string;
+  rootPassword: string;
+  /** Attach-or-create a tmux/screen session in the guest so the shell (and
+   *  whatever is running in it) survives disconnects and page reloads. */
+  persist?: boolean;
+  /** Client's current grid size, used to spawn tmux at the right dimensions
+   *  instead of its 80x24 default. */
+  cols?: number;
+  rows?: number;
+}
+
+/** tmux attach-or-create, or screen equivalent, with a plain-shell fallback
+ *  when the guest has neither multiplexer. */
+function persistentCommand(cols: number, rows: number): string {
+  const c = Math.min(Math.max(Math.floor(cols) || 80, 1), 500);
+  const r = Math.min(Math.max(Math.floor(rows) || 24, 1), 200);
+  return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s machina -x ${c} -y ${r}; ` +
+    `elif command -v screen >/dev/null 2>&1; then exec screen -x machina || exec screen -S machina; ` +
+    `else echo 'no tmux or screen on this guest — plain shell'; exec bash -l; fi`;
+}
 
 export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
   const { Client } = await import('ssh2');
@@ -68,8 +89,11 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
 
   conn.on('ready', () => {
     if (closed) return;
-    conn!.shell({ term: 'xterm-256color' }, (err, s) => {
-      if (err || closed) return fail(`shell: ${err?.message ?? 'closed'}`);
+    // Persistent mode runs the multiplexer attach-or-create via exec()+pty.
+    // Plain mode keeps the interactive shell() call. exec channels get the
+    // same window-change handling; tmux also owns its client size itself.
+    const open = (err: Error | undefined, s?: import('ssh2').ClientChannel) => {
+      if (err || closed || !s) return fail(`shell: ${err?.message ?? 'closed'}`);
       stream = s;
       ws.send(JSON.stringify({ t: 'ready' }));
       if (pendingSize) {
@@ -80,7 +104,15 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
         if (ws.readyState === 1 && !closed) ws.send(d);
       });
       s.on('close', () => close('stream end'));
-    });
+    };
+    if (bind.persist) {
+      const cmd = persistentCommand(bind.cols ?? 80, bind.rows ?? 24);
+      conn!.exec(cmd, {
+        pty: { term: 'xterm-256color', cols: bind.cols ?? 80, rows: bind.rows ?? 24 },
+      }, open);
+    } else {
+      conn!.shell({ term: 'xterm-256color' }, open);
+    }
   });
   conn.on('error', (e) => fail(`ssh: ${e.message}`));
   conn.on('close', () => close('ssh end'));
