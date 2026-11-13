@@ -43,6 +43,18 @@ const config = [
       'max-depth': ['error', 3],
     },
   },
+  {
+    // On from B3, once app/ui and the dash pages were split to fit them.
+    // app/api routes are still over budget — they come on in B4.
+    files: ['app/**/*.tsx', 'app/**/*.ts'],
+    ignores: ['app/api/**'],
+    rules: {
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
+      complexity: ['error', 10],
+      'max-depth': ['error', 3],
+    },
+  },
 ];
 
 export default config;
