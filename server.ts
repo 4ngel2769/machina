@@ -4,6 +4,7 @@
  *   then worker + metering + reconciler loops. WS upgrade routes:
  *     /api/instances/<id>/terminal  (token) -> ssh2 relay
  *     /api/instances/<id>/console   (token) -> vnc unix socket relay
+ *     /api/containers/<ref>/(exec|logs) (admin token) -> docker exec/logs -f
  */
 
 import { createServer } from 'http';
@@ -24,6 +25,8 @@ import { startHostSampler, stopHostSampler } from '@/lib/host/sampler';
 import { verifyToken, type WsChannel } from '@/lib/core/tokens';
 import { relayTerm } from '@/lib/core/terminal';
 import { relayVnc } from '@/lib/core/console-ws';
+import { relayContainerExec, relayContainerLogs } from '@/lib/core/docker-ws';
+import { validRef } from '@/lib/host/docker';
 import { decrypt } from '@/lib/core/crypto';
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -84,6 +87,7 @@ async function main(): Promise<void> {
 // ------------------------------------------------------------- WS upgrade
 
 const WS_PATH = /^\/api\/instances\/(vm_[0-9a-f]+)\/(terminal|console)$/;
+const CONT_WS_PATH = /^\/api\/containers\/([A-Za-z0-9][A-Za-z0-9_.-]{0,254})\/(exec|logs)$/;
 
 async function handleUpgrade(
   req: IncomingMessage,
@@ -91,6 +95,14 @@ async function handleUpgrade(
   head: Buffer,
   pathname: string,
 ): Promise<void> {
+  // Container streams are admin-only and checked before the instance path so
+  // a container id can never be mistaken for a vm_ id (the regexes are
+  // disjoint anyway, but order keeps the intent obvious).
+  const contMatch = CONT_WS_PATH.exec(pathname);
+  if (contMatch) {
+    await handleContainerUpgrade(req, socket, head, contMatch[1], contMatch[2]);
+    return;
+  }
   const wsMatch = WS_PATH.exec(pathname);
   if (!wsMatch) { socket.destroy(); return; }
   const [, instId, pathChan] = wsMatch;
@@ -137,6 +149,56 @@ async function handleUpgrade(
       });
     } else {
       relayVnc(ws, instanceRow.vnc_socket || `${config.storageDir}/vnc/${instId}.vnc`);
+    }
+  });
+}
+
+/** Container exec/logs upgrade: HMAC token says admin + channel; the docker
+ *  CLI does the rest. Container state is checked live — a stopped container
+ *  cannot exec, and logs still work. */
+async function handleContainerUpgrade(
+  req: IncomingMessage,
+  socket: import('net').Socket,
+  head: Buffer,
+  ref: string,
+  pathChan: string,
+): Promise<void> {
+  const chan = pathChan === 'exec' ? 'exec' : 'logs';
+  const query = parse(req.url || '', true).query;
+  const token = (query.token as string) || '';
+  const payload = verifyToken(token);
+  if (!payload || payload.typ !== chan || !payload.adm) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  if (!validRef(ref)) {
+    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  // exec needs a running container; logs works on any state.
+  if (chan === 'exec') {
+    try {
+      const { inspectContainer } = await import('@/lib/host/docker-admin');
+      const detail = await inspectContainer(ref);
+      if (detail.state !== 'running') {
+        socket.write('HTTP/1.1 409 Conflict\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+    } catch {
+      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+  }
+  wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+    if (chan === 'exec') {
+      const command = typeof query.cmd === 'string' ? query.cmd.slice(0, 400) : '';
+      relayContainerExec(ws, ref, command, Number(query.cols) || 80, Number(query.rows) || 24);
+    } else {
+      relayContainerLogs(ws, ref, Number(query.tail) || 500);
     }
   });
 }
