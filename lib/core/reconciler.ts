@@ -45,24 +45,38 @@ export async function reconcilePass(): Promise<{ fixed: number; suspended: numbe
   const doms = new Map((await listDomains().catch(() => [] as never[])).map((d) => [d.name, d.state]));
   const db = getDb();
 
-  // 1. status sync (skip instances with in-flight jobs — race protection)
+  results.fixed += await syncStatuses(doms);
+  results.suspended += await suspendBrokeUsers();
+  results.orphans += await cleanOrphans();
+  // bandwidth quotas (throttle/clear live limits)
+  await checkQuotas().catch((e) => console.log('[reconciler] quotas failed:', (e as Error).message));
+  return results;
+}
+
+/** 1. status sync (skip instances with in-flight jobs — race protection). */
+async function syncStatuses(doms: Map<string, string>): Promise<number> {
+  const db = getDb();
+  let fixed = 0;
   for (const inst of await db.select().from(instances)) {
     if (inst.status === 'provisioning' || inst.status === 'suspended') continue;
     if (await inFlightForInstance(inst.id).catch(() => true)) continue;
     const live = doms.get(inst.domainName);
-    if (live === undefined) {
-      continue; // transitional; explicit destroy path deletes the row
-    }
+    if (live === undefined) continue; // transitional; explicit destroy path deletes the row
     const mapped = mapDomState(live);
     if (mapped !== inst.status) {
       await db.update(instances).set({ status: mapped, updatedAt: now() }).where(
         (await import('drizzle-orm')).eq(instances.id, inst.id),
       );
-      results.fixed += 1;
+      fixed += 1;
     }
   }
+  return fixed;
+}
 
-  // 2. auto-suspend at balance <= 0
+/** 2. auto-suspend at balance <= 0. */
+async function suspendBrokeUsers(): Promise<number> {
+  const db = getDb();
+  let suspended = 0;
   for (const inst of await db.select().from(instances)) {
     if (inst.status !== 'running' || inst.autoSuspended) continue;
     const user = (await db.select().from(users)).find((u) => u.id === inst.userId);
@@ -73,16 +87,19 @@ export async function reconcilePass(): Promise<{ fixed: number; suspended: numbe
       await db.update(instances).set({ autoSuspended: 1, status: 'suspended', updatedAt: now() }).where(
         (await import('drizzle-orm')).eq(instances.id, inst.id));
       console.log(`[reconciler] auto-suspend ${inst.id} (user ${inst.userId} broke)`);
-      results.suspended += 1;
+      suspended += 1;
     }
   }
+  return suspended;
+}
 
-  // 3. orphan cleanup
-  results.orphans += await cleanOrphans();
-
-  // 4. bandwidth quotas (throttle/clear live limits)
-  await checkQuotas().catch((e) => console.log('[reconciler] quotas failed:', (e as Error).message));
-  return results;
+/** Directory listing, or empty when the folder does not exist yet. */
+async function listOrEmpty(dir: string): Promise<string[]> {
+  try {
+    return await fsp.readdir(dir);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -100,25 +117,21 @@ async function cleanOrphans(): Promise<number> {
   // Seed dirs + VNC sockets
   for (const dir of ['seeds', 'vnc'] as const) {
     const full = path.join(sp.root, dir);
-    try {
-      for (const ent of await fsp.readdir(full)) {
-        const id = ent.replace(/\.(vnc|iso)$/, '');
-        if (!id.startsWith('vm_') || known.has(id)) continue;
-        await fsp.rm(path.join(full, ent), { force: true, recursive: true });
-        n += 1;
-      }
-    } catch { /* folder may not exist yet */ }
+    for (const ent of await listOrEmpty(full)) {
+      const id = ent.replace(/\.(vnc|iso)$/, '');
+      if (!id.startsWith('vm_') || known.has(id)) continue;
+      await fsp.rm(path.join(full, ent), { force: true, recursive: true });
+      n += 1;
+    }
   }
 
   // Guest disks: anything not owned by a live instance row is an orphan.
-  try {
-    const knownDisk = new Set([...known].map((id) => `${diskVolFromId(id)}.qcow2`));
-    for (const f of await fsp.readdir(sp.vms)) {
-      if (!f.endsWith('.qcow2') || knownDisk.has(f)) continue;
-      await fsp.rm(path.join(sp.vms, f), { force: true });
-      n += 1;
-    }
-  } catch { /* ignore */ }
+  const knownDisk = new Set([...known].map((id) => `${diskVolFromId(id)}.qcow2`));
+  for (const f of await listOrEmpty(sp.vms)) {
+    if (!f.endsWith('.qcow2') || knownDisk.has(f)) continue;
+    await fsp.rm(path.join(sp.vms, f), { force: true });
+    n += 1;
+  }
 
   return n;
 }

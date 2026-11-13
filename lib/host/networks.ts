@@ -47,43 +47,73 @@ function prefixFromNetmask(mask: string): number | null {
   return bits;
 }
 
-function parseNet(name: string, xml: string, meta: { active: boolean; autostart: boolean; persistent: boolean }): Net {
-  const fwd = xml.match(/<forward\b([^>]*)/)?.[1] ?? '';
-  const forward = /mode='([^']*)'/.exec(fwd)?.[1] ?? (fwd ? 'nat' : 'isolated');
-  const bridge = xml.match(/<bridge\b[^>]*name='([^']*)'/)?.[1] ?? null;
-  const domain = xml.match(/<domain\b[^>]*name='([^']*)'/)?.[1] ?? null;
+/** Static DHCP reservations inside one <ip> block. */
+function parseHosts(body: string): NetHost[] {
+  const hosts: NetHost[] = [];
+  const hre = /<host\b([^>]*)\/?>/g;
+  let h: RegExpExecArray | null;
+  while ((h = hre.exec(body))) {
+    const a = h[1];
+    const mac = /mac='([^']*)'/.exec(a)?.[1];
+    const ip = /ip='([^']*)'/.exec(a)?.[1];
+    if (mac && ip) hosts.push({ mac, ip, name: /name='([^']*)'/.exec(a)?.[1] });
+  }
+  return hosts;
+}
 
+/** Prefix from prefix='' or netmask=''; both may be absent (libvirt omits the
+ *  default), which is why the caller's fallback exists. */
+function parsePrefix(attrs: string, family: 'ipv4' | 'ipv6'): number {
+  const explicit = /prefix='(\d+)'/.exec(attrs)?.[1];
+  const netmask = /netmask='([^']*)'/.exec(attrs)?.[1] ?? '';
+  const prefix = Number(explicit ?? (prefixFromNetmask(netmask) ?? ''));
+  if (Number.isFinite(prefix)) return prefix;
+  return family === 'ipv6' ? 64 : 24;
+}
+
+/** One <ip> element, or null when it carries no address. */
+function parseIp(attrs: string, body: string): NetIp | null {
+  const address = /address='([^']*)'/.exec(attrs)?.[1];
+  if (!address) return null;
+  const family = /family='ipv6'/.test(attrs) ? 'ipv6' : 'ipv4';
+  const range = body.match(/<range\b[^>]*start='([^']*)'[^>]*end='([^']*)'/);
+  return {
+    family,
+    address,
+    prefix: parsePrefix(attrs, family),
+    dhcp: range ? { start: range[1], end: range[2] } : null,
+    hosts: parseHosts(body),
+  };
+}
+
+/** <forward mode='x'>; a bare <forward> means NAT. */
+function forwardOf(xml: string): string {
+  const fwd = xml.match(/<forward\b([^>]*)/)?.[1] ?? '';
+  return /mode='([^']*)'/.exec(fwd)?.[1] ?? (fwd ? 'nat' : 'isolated');
+}
+
+/** name='' attribute of the first matching element. */
+function namedElement(xml: string, tag: string): string | null {
+  return xml.match(new RegExp(`<${tag}\\b[^>]*name='([^']*)'`))?.[1] ?? null;
+}
+
+function parseNet(name: string, xml: string, meta: { active: boolean; autostart: boolean; persistent: boolean }): Net {
   const ips: NetIp[] = [];
   // Both <ip ...>...</ip> and self-closed <ip .../> must be handled; a network
   // with an address and no DHCP is normal (route/bridge mode without dnsmasq).
   const re = /<ip\b([^>]*?)(\/>|>([\s\S]*?)<\/ip>)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml))) {
-    const attrs = m[1];
-    const body = m[3] ?? '';
-    const address = /address='([^']*)'/.exec(attrs)?.[1];
-    if (!address) continue;
-    const family = /family='ipv6'/.test(attrs) ? 'ipv6' : 'ipv4';
-    const prefix = Number(/prefix='(\d+)'/.exec(attrs)?.[1] ?? (prefixFromNetmask(/netmask='([^']*)'/.exec(attrs)?.[1] ?? '') ?? ''));
-    const range = body.match(/<range\b[^>]*start='([^']*)'[^>]*end='([^']*)'/);
-    const hosts: NetHost[] = [];
-    const hre = /<host\b([^>]*)\/?>/g;
-    let h: RegExpExecArray | null;
-    while ((h = hre.exec(body))) {
-      const a = h[1];
-      const mac = /mac='([^']*)'/.exec(a)?.[1];
-      const ip = /ip='([^']*)'/.exec(a)?.[1];
-      if (mac && ip) hosts.push({ mac, ip, name: /name='([^']*)'/.exec(a)?.[1] });
-    }
-    ips.push({
-      family,
-      address,
-      prefix: Number.isFinite(prefix) ? prefix : family === 'ipv6' ? 64 : 24,
-      dhcp: range ? { start: range[1], end: range[2] } : null,
-      hosts,
-    });
+    const ip = parseIp(m[1], m[3] ?? '');
+    if (ip) ips.push(ip);
   }
-  return { name, ...meta, forward, bridge, domain, ips };
+  return {
+    name, ...meta,
+    forward: forwardOf(xml),
+    bridge: namedElement(xml, 'bridge'),
+    domain: namedElement(xml, 'domain'),
+    ips,
+  };
 }
 
 export async function listNetworks(): Promise<Net[]> {
@@ -201,6 +231,52 @@ export async function setDhcpHost(
   }
 }
 
+/** Explicit DHCP setting wins; undefined means "keep what the network has". */
+function dhcpOf(p: Partial<NetIp>, current: NetIp | undefined): NetIp['dhcp'] {
+  if (p.dhcp !== undefined) return p.dhcp;
+  return current?.dhcp ?? null;
+}
+
+/** One family's <ip> block, merged over whatever the network already has. */
+function mergeIp(net: Net, family: 'ipv4' | 'ipv6', p: Partial<NetIp>): NetIp {
+  const current = net.ips.find((i) => i.family === family);
+  const prefixFallback = family === 'ipv6' ? 64 : 24;
+  return {
+    family,
+    address: p.address ?? current?.address ?? '',
+    prefix: p.prefix ?? current?.prefix ?? prefixFallback,
+    dhcp: dhcpOf(p, current),
+    hosts: current?.hosts ?? [],
+  };
+}
+
+/** Rewrite (or append) the one family's block, keeping everything we do not model. */
+function applyIpPatch(
+  next: string, meta: { name: string; xml: string }, family: 'ipv4' | 'ipv6', p: Partial<NetIp>,
+): string {
+  const block = new RegExp(`<ip\\b[^>]*${family === 'ipv6' ? "family='ipv6'" : "(?<!family='ipv6')"}[^>]*?(\\/>|>[\\s\\S]*?<\\/ip>)`);
+  const merged = mergeIp(parseNet(meta.name, meta.xml, { active: false, autostart: false, persistent: true }), family, p);
+  if (!merged.address) return next;
+  if (block.test(next)) return next.replace(block, ipBlock(merged).trim());
+  return next.replace('</network>', `${ipBlock(merged)}\n</network>`);
+}
+
+function applyDomain(next: string, domain: string | null): string {
+  if (/<domain\b[^>]*\/>/.test(next)) {
+    return next.replace(/<domain\b[^>]*\/>/, domain ? `<domain name='${domain}' localOnly='yes'/>` : '');
+  }
+  if (!domain) return next;
+  return next.replace('</network>', `  <domain name='${domain}' localOnly='yes'/>\n</network>`);
+}
+
+/** keep the previous XML: a bad net-define can leave a network unstartable */
+async function backupAndDefine(name: string, xml: string, next: string): Promise<void> {
+  const dir = path.join(storagePaths().root, 'xml-backups');
+  await fs.mkdir(dir, { recursive: true }).catch(() => {});
+  await fs.writeFile(path.join(dir, `net-${name}-${Date.now()}.xml`), xml, 'utf8').catch(() => {});
+  await defineXml(next);
+}
+
 /**
  * Update the address/prefix/DHCP range of one family, or autostart. Editing the
  * XML in place keeps anything we do not model (dns entries, custom options)
@@ -220,37 +296,12 @@ export async function updateNetwork(name: string, patch: {
 
   for (const family of ['ipv4', 'ipv6'] as const) {
     const p = patch[family];
-    if (p === undefined) continue;
-    const famAttr = family === 'ipv6' ? ` family='ipv6'` : '';
-    const block = new RegExp(`<ip\\b[^>]*${family === 'ipv6' ? "family='ipv6'" : "(?<!family='ipv6')"}[^>]*?(\\/>|>[\\s\\S]*?<\\/ip>)`);
     if (!p) continue;
-    const current = parseNet(name, xml, { active: false, autostart: false, persistent: true }).ips.find((i) => i.family === family);
-    const merged: NetIp = {
-      family,
-      address: p.address ?? current?.address ?? '',
-      prefix: p.prefix ?? current?.prefix ?? (family === 'ipv6' ? 64 : 24),
-      dhcp: p.dhcp === undefined ? (current?.dhcp ?? null) : p.dhcp,
-      hosts: current?.hosts ?? [],
-    };
-    if (!merged.address) continue;
-    if (block.test(next)) next = next.replace(block, ipBlock(merged).trim());
-    else next = next.replace('</network>', `${ipBlock(merged)}\n</network>`);
-    void famAttr;
+    next = applyIpPatch(next, { name, xml }, family, p);
   }
 
-  if (patch.domain !== undefined) {
-    next = /<domain\b[^>]*\/>/.test(next)
-      ? next.replace(/<domain\b[^>]*\/>/, patch.domain ? `<domain name='${patch.domain}' localOnly='yes'/>` : '')
-      : patch.domain ? next.replace('</network>', `  <domain name='${patch.domain}' localOnly='yes'/>\n</network>`) : next;
-  }
-
-  if (next !== xml) {
-    // keep the previous XML: a bad net-define can leave a network unstartable
-    const dir = path.join(storagePaths().root, 'xml-backups');
-    await fs.mkdir(dir, { recursive: true }).catch(() => {});
-    await fs.writeFile(path.join(dir, `net-${name}-${Date.now()}.xml`), xml, 'utf8').catch(() => {});
-    await defineXml(next);
-  }
+  if (patch.domain !== undefined) next = applyDomain(next, patch.domain);
+  if (next !== xml) await backupAndDefine(name, xml, next);
 }
 
 /** Whether this connection is the one machina itself uses for guests. */

@@ -118,6 +118,37 @@ export async function syncImage(imageId: string): Promise<void> {
   }
 }
 
+/** Published checksum, when the image declares one. Missing sums are not fatal. */
+async function expectedSha(
+  row: { sha256Url: string | null; version: string | null },
+  part: string,
+): Promise<string> {
+  if (!row.sha256Url) return '';
+  const tmpSums = `${part}.sums`;
+  await fetchFile(row.sha256Url, tmpSums).catch(() => {});
+  if (!fs.existsSync(tmpSums)) return '';
+  const want = shaFor(fs.readFileSync(tmpSums, 'utf8'), row.version ?? '') || '';
+  await fsp.rm(tmpSums, { force: true });
+  return want;
+}
+
+/** Fetch to .part, verify, then move into place. */
+async function downloadVerified(
+  row: { url: string },
+  part: string,
+  final: string,
+  wantSha: string,
+): Promise<void> {
+  await fetchFile(row.url, part);
+  const got = await sha256File(part);
+  if (wantSha && wantSha !== got) {
+    throw new Error(`sha256 mismatch: got ${got.slice(0, 12)} want ${wantSha.slice(0, 12)}`);
+  }
+  fs.renameSync(part, final);
+  // libvirt-qemu needs to read it directly from the pool dir.
+  await fsp.chmod(final, 0o644).catch(() => {});
+}
+
 async function doSync(imageId: string): Promise<void> {
   const { getDb } = await import('@/lib/db');
   const { images } = await import('@/lib/db/schema');
@@ -131,24 +162,9 @@ async function doSync(imageId: string): Promise<void> {
   const final = imagePathFor(imageId);
 
   try {
-    let wantSha = '';
-    if (row.sha256Url) {
-      const tmpSums = part + '.sums';
-      await fetchFile(row.sha256Url, tmpSums).catch(() => {});
-      if (fs.existsSync(tmpSums)) {
-        wantSha = shaFor(fs.readFileSync(tmpSums, 'utf8'), row.version ?? '') || '';
-        await fsp.rm(tmpSums, { force: true });
-      }
-    }
+    const wantSha = await expectedSha(row, part);
     await db.update(images).set({ status: 'downloading', updatedAt: now() }).where(eq(images.id, imageId));
-    await fetchFile(row.url, part);
-    const got = await sha256File(part);
-    if (wantSha && wantSha !== got) {
-      throw new Error(`sha256 mismatch: got ${got.slice(0, 12)} want ${wantSha.slice(0, 12)}`);
-    }
-    fs.renameSync(part, final);
-    // libvirt-qemu needs to read it directly from the pool dir.
-    await fsp.chmod(final, 0o644).catch(() => {});
+    await downloadVerified(row, part, final, wantSha);
   } catch (e) {
     await fsp.rm(part, { force: true }).catch(() => {});
     await db.update(images).set({

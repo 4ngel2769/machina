@@ -27,25 +27,37 @@ const RULES: [RegExp, string][] = [
   [/snapshot names must be/i, 'use a simple name: lowercase letters, digits and dashes'],
 ];
 
-export function friendlyError(raw: unknown): string {
-  const msg = String((raw as Error)?.message ?? raw ?? '').trim();
-  if (!msg) return 'unknown error';
+function matchRule(msg: string): string | null {
   for (const [re, nice] of RULES) {
     if (re.test(msg)) return nice;
   }
+  return null;
+}
+
+/** execFile puts the INVOCATION on line 1 and the actual error on line 2. */
+function isInvocationLine(line: string): boolean {
+  return /^(Command failed:|virsh\b|qemu-img\b|genisoimage\b|ssh\b|curl\b)/i.test(line);
+}
+
+/**
+ * The most informative line of the raw output. The old fallback took line 1,
+ * so a failed `virsh shutdown` surfaced to the user as the literal command
+ * string — telling them nothing and printing a host path. Prefer the second
+ * line whenever the first is only a command.
+ */
+function firstReadableLine(msg: string): string {
   const lines = msg.split('\n').map((s) => s.trim()).filter(Boolean);
   let first = lines[0] ?? msg;
-  // execFile puts the INVOCATION on line 1 and the actual error on line 2. The
-  // old fallback took line 1, so a failed `virsh shutdown` surfaced to the user
-  // as the literal command string — telling them nothing and printing a host
-  // path. Prefer the second line whenever the first is only a command.
-  if (lines.length > 1 && /^(Command failed:|virsh\b|qemu-img\b|genisoimage\b|ssh\b|curl\b)/i.test(first)) {
-    first = lines[1];
-  }
-  first = first
-    .replace(/^Command failed:\s*/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  if (lines.length > 1 && isInvocationLine(first)) first = lines[1];
+  return first.replace(/^Command failed:\s*/i, '').replace(/\s+/g, ' ').trim();
+}
+
+export function friendlyError(raw: unknown): string {
+  const msg = String((raw as Error)?.message ?? raw ?? '').trim();
+  if (!msg) return 'unknown error';
+  const known = matchRule(msg);
+  if (known) return known;
+  const first = firstReadableLine(msg);
   if (first.length > 160) return `${first.slice(0, 157)}…`;
   return first;
 }

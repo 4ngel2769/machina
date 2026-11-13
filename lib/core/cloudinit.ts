@@ -20,11 +20,8 @@ export interface SeedOpts {
   dns: string[];
 }
 
-/** Files written into the per-instance seed dir, then packed with genisoimage. */
-export function userData(o: SeedOpts): string {
-  const keys = o.sshPublicKeys.length
-    ? `ssh_authorized_keys:\n${o.sshPublicKeys.map((k) => `  - ${k}`).join('\n')}`
-    : '';
+/** Identity, credentials and the sshd drop-in: the static half of user-data. */
+function userDataHead(o: SeedOpts): string {
   return `${CLOUD_INIT_HEADER}
 hostname: ${o.hostname}
 manage_etc_hosts: true
@@ -50,7 +47,16 @@ write_files:
     content: |
       PermitRootLogin yes
       PasswordAuthentication yes
-runcmd:
+`;
+}
+
+/**
+ * First-boot commands. Each one exists because a real image booted without it:
+ * host keys, the sshd drop-in for OpenRC, the service enable, and the iproute2
+ * address fallback for images that ignore cloud-init's netplan syntax.
+ */
+function runcmdBlock(o: SeedOpts): string {
+  return `runcmd:
   # The cloud images ship WITHOUT /etc/ssh/ssh_host_* keys, and ssh.service is
   # gated on 'ExecStartPre=/usr/sbin/sshd -t', which aborts with "no hostkeys
   # available". sshd never comes up, the guest still boots to a login prompt,
@@ -66,8 +72,17 @@ runcmd:
   # Debian/Ubuntu apply but Alpine/OpenRC and some minimal images ignore — the
   # guest then boots with no address and provisioning times out on SSH. Applying
   # the address directly with iproute2 works on every image and cannot hurt.
-  - [sh, -c, "IFACE=$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -1); [ -z \\"$IFACE\\" ] && exit 0; ip link set \\"$IFACE\\" up; ip addr add ${o.ip}/${maskBits(o.netmask)} dev \\"$IFACE\\" 2>/dev/null || true; ip route replace default via ${o.gateway} dev \\"$IFACE\\" 2>/dev/null || true; printf 'nameserver ${o.dns[0]}\\n' > /etc/resolv.conf 2>/dev/null || true"]
-${keys}`;
+  - [sh, -c, "IFACE=$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -1); [ -z \\"$IFACE\\" ] && exit 0; ip link set \\"$IFACE\\" up; ip addr add ${o.ip}/${maskBits(o.netmask)} dev \\"$IFACE\\" 2>/dev/null || true; ip route replace default via ${o.gateway} dev \\"$IFACE\\" 2>/dev/null || true; printf 'nameserver ${o.dns[0]}\\n' > /etc/resolv.conf 2>/dev/null || true"]`;
+}
+
+function authorizedKeys(keys: string[]): string {
+  if (!keys.length) return '';
+  return `ssh_authorized_keys:\n${keys.map((k) => `  - ${k}`).join('\n')}`;
+}
+
+/** Files written into the per-instance seed dir, then packed with genisoimage. */
+export function userData(o: SeedOpts): string {
+  return `${userDataHead(o)}${runcmdBlock(o)}\n${authorizedKeys(o.sshPublicKeys)}`;
 }
 
 export function metaData(o: { instanceId: string; hostname: string }): string {

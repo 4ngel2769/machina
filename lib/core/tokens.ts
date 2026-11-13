@@ -32,21 +32,35 @@ export function mintToken(inst: string, typ: WsChannel, ttlSec = 120, uid = '', 
   return `${body}.${sig}`;
 }
 
+function signatureMatches(sig: string, want: string): boolean {
+  const a = Buffer.from(sig);
+  const b = Buffer.from(want);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function decodePayload(body: string): WsTokenPayload | null {
+  try {
+    return JSON.parse(Buffer.from(body, 'base64url').toString()) as WsTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+/** Every field the relays depend on must be present, and the token unexpired. */
+function isUsable(p: WsTokenPayload | null): p is WsTokenPayload {
+  if (!p) return false;
+  if (!p.inst || !p.typ || !p.uid) return false;
+  if (typeof p.exp !== 'number') return false;
+  return p.exp >= Date.now();
+}
+
 export function verifyToken(token: string | undefined | null): WsTokenPayload | null {
   if (!token || !token.includes('.')) return null;
   const [body, sig] = token.split('.');
   const want = crypto.createHmac('sha256', hmacKey()).update(body).digest('base64url');
-  const a = Buffer.from(sig);
-  const b = Buffer.from(want);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as WsTokenPayload;
-    if (!payload.inst || !payload.typ || !payload.uid || typeof payload.exp !== 'number') return null;
-    if (payload.exp < Date.now()) return null;
-    return payload;
-  } catch {
-    return null;
-  }
+  if (!signatureMatches(sig, want)) return null;
+  const payload = decodePayload(body);
+  return isUsable(payload) ? payload : null;
 }
 
 export const WS_URL = (base: string, inst: string, typ: WsChannel) => `${base}/api/instances/${inst}/${typ === 'term' ? 'terminal' : 'console'}`;
