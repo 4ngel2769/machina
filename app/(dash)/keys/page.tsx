@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 import { useToast } from '@/app/ui/toast';
+import { Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { copyText } from '@/app/ui/clipboard';
 import { relTime } from '@/app/ui/time';
 
@@ -22,7 +23,9 @@ function keyAlgo(keyLine: string): string | null {
 
 export default function KeysPage() {
   const toast = useToast();
-  const [keys, setKeys] = useState<Key[]>([]);
+  const [keys, setKeys] = useState<Key[] | null>(null);
+  const ready = useMinVisible(400);
+  const loading = !ready || keys === null;
   const [label, setLabel] = useState('');
   const [pubKey, setPubKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,6 +33,7 @@ export default function KeysPage() {
   const load = useCallback(async () => {
     const keysResponse = await fetch('/api/keys', { cache: 'no-store' });
     if (keysResponse.ok) setKeys(await keysResponse.json());
+    else setKeys([]);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -89,31 +93,45 @@ export default function KeysPage() {
         </form>
       </div>
 
-      <div className="card">
-        <h3>keys</h3>
-        <table>
-          <thead><tr><th>label</th><th>algo</th><th>key</th><th>added</th><th /></tr></thead>
-          <tbody>
-            {keys.map((sshKey) => (
-              <tr key={sshKey.id}>
-                <td>{sshKey.label}</td>
-                <td>{keyAlgo(sshKey.pubKey)
-                  ? <span className="badge" style={{ color: 'var(--accent)' }}>{keyAlgo(sshKey.pubKey)}</span>
-                  : <span className="copy">—</span>}</td>
-                <td className="mono" style={{ fontSize: 12 }}>{sshKey.pubKey.slice(0, 42)}…</td>
-                <td title={new Date(sshKey.createdAt).toLocaleString()}>{relTime(sshKey.createdAt)}</td>
-                <td>
-                  <div className="soundboard">
-                    <button onClick={() => void copyText(sshKey.pubKey, toast.ok, 'key copied')}>copy</button>
-                    <button className="danger" onClick={() => del(sshKey.id)}>remove</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {keys.length === 0 && <tr><td colSpan={5} className="empty">no keys — add one above, it lands in the next instance you create</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <KeysTable keys={keys} loading={loading} onDelete={(id) => void del(id)} />
     </>
+  );
+}
+
+function KeysTable({ keys, loading, onDelete }: {
+  keys: Key[] | null; loading: boolean; onDelete: (id: string) => void;
+}) {
+  const toast = useToast();
+  return (
+    <div className="card">
+      <h3>keys</h3>
+      <table>
+        <thead><tr><th>label</th><th>algo</th><th>key</th><th>added</th><th /></tr></thead>
+        <tbody>
+          {loading && Array.from({ length: 3 }).map((_, n) => (
+            <tr key={n}>{Array.from({ length: 5 }).map((__, cell) => (
+              <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 4 ? '40%' : '70%'} h={10} /></td>
+            ))}</tr>
+          ))}
+          {!loading && (keys ?? []).map((sshKey) => (
+            <tr key={sshKey.id}>
+              <td>{sshKey.label}</td>
+              <td>{keyAlgo(sshKey.pubKey)
+                ? <span className="badge" style={{ color: 'var(--accent)' }}>{keyAlgo(sshKey.pubKey)}</span>
+                : <span className="copy">—</span>}</td>
+              <td className="mono" style={{ fontSize: 12 }}>{sshKey.pubKey.slice(0, 42)}…</td>
+              <td title={new Date(sshKey.createdAt).toLocaleString()}>{relTime(sshKey.createdAt)}</td>
+              <td>
+                <div className="soundboard">
+                  <button onClick={() => void copyText(sshKey.pubKey, toast.ok, 'key copied')}>copy</button>
+                  <button className="danger" onClick={() => onDelete(sshKey.id)}>remove</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+          {!loading && (keys ?? []).length === 0 && <tr><td colSpan={5} className="empty">no keys — add one above, it lands in the next instance you create</td></tr>}
+        </tbody>
+      </table>
+    </div>
   );
 }

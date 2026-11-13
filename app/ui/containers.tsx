@@ -10,7 +10,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Empty } from '@/app/ui/loaders';
+import { Empty, Skeleton } from '@/app/ui/loaders';
 import { usePoll } from '@/app/ui/host/shared';
 import { useContainerActions } from './containers/actions';
 import { CreateForm } from './containers/form';
@@ -35,11 +35,12 @@ function matches(container: Payload['containers'][number], filter: Filter, needl
 }
 
 /** Toolbar: filter chips, free-text filter, create + images toggles. */
-function Toolbar({ filter, setFilter, q, setQ, createOpen, toggleCreate, broken, showImages, setShowImages }: {
+function Toolbar({ filter, setFilter, q, setQ, createOpen, toggleCreate, broken, showImages, setShowImages, admin }: {
   filter: Filter; setFilter: (value: Filter) => void;
   q: string; setQ: (value: string) => void;
   createOpen: boolean; toggleCreate: () => void; broken: number;
   showImages: boolean; setShowImages: (value: boolean) => void;
+  admin: boolean;
 }) {
   const label = (value: Filter) => (value === 'unhealthy' && broken ? ` (${broken})` : '');
   return (
@@ -58,7 +59,7 @@ function Toolbar({ filter, setFilter, q, setQ, createOpen, toggleCreate, broken,
         aria-label="filter containers"
       />
       <button onClick={toggleCreate}>{createOpen ? 'cancel' : 'create container'}</button>
-      <button onClick={() => setShowImages(!showImages)}>{showImages ? 'hide images' : 'images'}</button>
+      {admin && <button onClick={() => setShowImages(!showImages)}>{showImages ? 'hide images' : 'images'}</button>}
     </div>
   );
 }
@@ -76,7 +77,14 @@ function ListBody({ list, allCount, shownCount, groups, actions, showImages }: {
     <>
       {list.error && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{list.error}</span><button onClick={list.reload} style={{ fontSize: 12 }}>retry</button></div>}
       {list.payload?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.payload.error}</div>}
-      {!list.payload && <Empty icon="activity" text="reading docker…" />}
+      {!list.payload && (
+        <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+          <Skeleton h={34} />
+          <Skeleton h={34} />
+          <Skeleton h={34} />
+          <Skeleton h={34} />
+        </div>
+      )}
       {empty && (
         <Empty icon={allCount === 0 ? 'package' : 'search'} text={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'} />
       )}
@@ -86,12 +94,18 @@ function ListBody({ list, allCount, shownCount, groups, actions, showImages }: {
   );
 }
 
-export function ContainersPanel() {
-  const list = usePoll<Payload>('/api/containers', 10_000);
+export function ContainersPanel({ apiBase = '/api/containers', tenant = false, admin = false }: {
+  apiBase?: string;
+  /** Tenant view: create goes to the private network, no ports field, no images tab. */
+  tenant?: boolean;
+  /** Admin view: network picker + ports; hidden entirely for tenants. */
+  admin?: boolean;
+}) {
+  const list = usePoll<Payload>(apiBase, 10_000);
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [showImages, setShowImages] = useState(false);
-  const actions = useContainerActions(list.reload);
+  const actions = useContainerActions(list.reload, apiBase);
 
   const all = list.payload?.containers ?? [];
   const shown = useMemo(() => {
@@ -112,12 +126,12 @@ export function ContainersPanel() {
       <Toolbar
         filter={filter} setFilter={setFilter} q={q} setQ={setQ}
         createOpen={actions.createOpen} toggleCreate={toggleCreate} broken={broken}
-        showImages={showImages} setShowImages={setShowImages}
+        showImages={showImages} setShowImages={setShowImages} admin={admin}
       />
 
-      {actions.createOpen && <CreateForm form={actions.form} setForm={actions.setForm} busy={actions.busy} create={actions.create} />}
+      {actions.createOpen && <CreateForm form={actions.form} setForm={actions.setForm} busy={actions.busy} create={actions.create} tenant={tenant} />}
 
-      <ListBody list={list} allCount={all.length} shownCount={shown.length} groups={groups} actions={actions} showImages={showImages} />
+      <ListBody list={list} allCount={all.length} shownCount={shown.length} groups={groups} actions={actions} showImages={admin && showImages} />
     </>
   );
 }

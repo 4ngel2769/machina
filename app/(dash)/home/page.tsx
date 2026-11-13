@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusCue } from '@/app/ui/status';
-import { Skeleton, Empty } from '@/app/ui/loaders';
+import { Skeleton, Empty, useMinVisible } from '@/app/ui/loaders';
 import { ArrowRightIcon } from '@/app/ui/icons';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { ignore } from '@/lib/core/ignore';
@@ -22,6 +22,8 @@ export default function HomePage() {
   const [pendingReqs, setPendingReqs] = useState(0);
   const [loading, setLoading] = useState(true);
   const [spark, setSpark] = useState<Record<string, Sample[]>>({});
+  const ready = useMinVisible(400);
+  const pending = loading || !ready;
 
   const load = useCallback(async () => {
     const instancesResponse = await fetch('/api/instances', { cache: 'no-store' });
@@ -76,15 +78,15 @@ export default function HomePage() {
           <h3 style={{ margin: 0 }}>your VMs</h3>
           <Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>open grid <ArrowRightIcon size={12} /></Link>
         </div>
-        {insts.length === 0 && !loading && (
+        {insts.length === 0 && !pending && (
           <Empty
             icon="server"
             text="no VMs yet — request one from the instances page"
             action={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
           />
         )}
-        {loading && insts.length === 0 && <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}
-        {insts.map((instance) => {
+        {pending && insts.length === 0 && <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}
+        {!pending && insts.map((instance) => {
           const plan = planById(instance.planId);
           const samples = spark[instance.id] ?? [];
           const chartData = samples.map((sample) => ({ v: sample.running ? sample.weight * 100 : 0 }));

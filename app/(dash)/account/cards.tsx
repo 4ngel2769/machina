@@ -3,6 +3,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Skeleton } from '@/app/ui/loaders';
 import type { AccountState } from './use';
 
 export function ProfileCard({ account }: { account: AccountState }) {
@@ -11,8 +12,12 @@ export function ProfileCard({ account }: { account: AccountState }) {
       <h3>profile</h3>
       <div className="row" style={{ alignItems: 'center' }}>
         <div>
-          <div style={{ fontWeight: 500 }}>{account.name}</div>
-          <div className="muted" style={{ fontSize: 12 }}>{account.role} · balance ${(account.balance ?? 0) / 100}</div>
+          {!account.loaded
+            ? <><Skeleton w={120} h={15} style={{ marginBottom: 6 }} /><Skeleton w={160} h={11} /></>
+            : <>
+                <div style={{ fontWeight: 500 }}>{account.name}</div>
+                <div className="muted" style={{ fontSize: 12 }}>{account.role} · balance ${(account.balance ?? 0) / 100}</div>
+              </>}
         </div>
       </div>
       <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -49,7 +54,8 @@ export function RequestsCard({ account }: { account: AccountState }) {
   return (
     <div className="card">
       <h3>my instance requests</h3>
-      {account.reqs.length === 0 && <div className="muted">none</div>}
+      {!account.loaded && <Skeleton h={60} />}
+      {account.loaded && account.reqs.length === 0 && <div className="muted">none</div>}
       {account.reqs.map((request) => (
         <div key={request.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', fontSize: 13 }}>
           <span className="mono">{request.name}</span> · {request.planId} · <span className="muted">{request.status}</span>

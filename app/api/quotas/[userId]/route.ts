@@ -41,6 +41,8 @@ function bound(raw: unknown, name: string): number | null | undefined {
 type Bounds = {
   vms?: number | null; vcpus?: number | null; mem?: number | null;
   disk?: number | null; running?: number | null;
+  isoCount?: number | null; isoTotalGb?: number | null;
+  containers?: number | null; containerMemMb?: number | null; containerCpus?: number | null;
 };
 
 function parseBounds(body: Record<string, unknown>): Bounds | ReturnType<typeof err> {
@@ -51,10 +53,27 @@ function parseBounds(body: Record<string, unknown>): Bounds | ReturnType<typeof 
       mem: bound(body.maxMemoryMb, 'maxMemoryMb'),
       disk: bound(body.maxDiskGb, 'maxDiskGb'),
       running: bound(body.maxRunning, 'maxRunning'),
+      isoCount: bound(body.maxIsoCount, 'maxIsoCount'),
+      isoTotalGb: bound(body.maxIsoTotalGb, 'maxIsoTotalGb'),
+      containers: bound(body.maxContainers, 'maxContainers'),
+      containerMemMb: bound(body.maxContainerMemMb, 'maxContainerMemMb'),
+      // cpus allow fractional values, so they get their own parser.
+      containerCpus: boundCpus(body.maxContainerCpus),
     };
   } catch (parseError) {
     return err((parseError as Error).message, 400);
   }
+}
+
+/** vCPU bounds are fractional: null = unlimited, 0 = none, else a positive number. */
+function boundCpus(raw: unknown): number | null | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  if (raw === null || raw === 'unlimited') return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 64) {
+    throw new Error('maxContainerCpus must be a number 0-64, or null for unlimited');
+  }
+  return parsed;
 }
 
 function suspendedFlag(raw: unknown) {
@@ -78,6 +97,11 @@ function mergeQuota(bounds: Bounds, suspended: number | undefined, note: string 
     max_memory_mb: pick(bounds.mem, 'max_memory_mb'),
     max_disk_gb: pick(bounds.disk, 'max_disk_gb'),
     max_running: pick(bounds.running, 'max_running'),
+    max_iso_count: pick(bounds.isoCount, 'max_iso_count'),
+    max_iso_total_gb: pick(bounds.isoTotalGb, 'max_iso_total_gb'),
+    max_containers: pick(bounds.containers, 'max_containers'),
+    max_container_mem_mb: pick(bounds.containerMemMb, 'max_container_mem_mb'),
+    max_container_cpus: pick(bounds.containerCpus, 'max_container_cpus'),
     suspended: suspended !== undefined ? suspended : Number(existing?.suspended ?? 0),
     note: note !== undefined ? note : (existing?.note as string | null) ?? null,
   };
@@ -85,15 +109,22 @@ function mergeQuota(bounds: Bounds, suspended: number | undefined, note: string 
 
 function writeQuota(userId: string, merged: ReturnType<typeof mergeQuota>) {
   rawDb().prepare(
-    `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
-     values (?,?,?,?,?,?,?,?,?)
+    `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running,
+                         max_iso_count, max_iso_total_gb, max_containers, max_container_mem_mb, max_container_cpus,
+                         suspended, note, updated_at)
+     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      on conflict(user_id) do update set
        max_vms=excluded.max_vms, max_vcpus=excluded.max_vcpus,
        max_memory_mb=excluded.max_memory_mb, max_disk_gb=excluded.max_disk_gb,
-       max_running=excluded.max_running, suspended=excluded.suspended,
+       max_running=excluded.max_running,
+       max_iso_count=excluded.max_iso_count, max_iso_total_gb=excluded.max_iso_total_gb,
+       max_containers=excluded.max_containers,
+       max_container_mem_mb=excluded.max_container_mem_mb, max_container_cpus=excluded.max_container_cpus,
+       suspended=excluded.suspended,
        note=excluded.note, updated_at=excluded.updated_at`,
   ).run(userId, merged.max_vms, merged.max_vcpus, merged.max_memory_mb, merged.max_disk_gb,
-    merged.max_running, merged.suspended, merged.note, now());
+    merged.max_running, merged.max_iso_count, merged.max_iso_total_gb, merged.max_containers,
+    merged.max_container_mem_mb, merged.max_container_cpus, merged.suspended, merged.note, now());
 }
 
 /**

@@ -1,0 +1,41 @@
+#!/usr/sbin/nft -f
+# machina tenant-network isolation (virbr-mu* bridges).
+#
+# Each user gets a private libvirt NAT network on a virbr-mu<idx> bridge.
+# Same-user VMs share a bridge and talk at L2; anything routed BETWEEN two
+# bridges is a different tenant (or the legacy shared machina0 net) and is
+# dropped. Guests also get the same host-contact rules as machina0: DHCP and
+# DNS to their own gateway only, nothing else host-initiated.
+#
+#   IN:  established/related + DHCP + DNS pass; every other guest-initiated
+#        packet to the host drops.
+#   FWD: any packet entering on one virbr-* bridge and leaving on another
+#        drops (same-bridge traffic never reaches FORWARD — it is switched
+#        at L2), private-range destinations drop, the internet passes.
+#
+# Raw nft table, coexists with iptables-nft tables from docker and libvirt.
+# virbr-mu* matches every per-user bridge; virbr-machina0 is handled by
+# machina_gfw and is covered here only for the cross-bridge drop.
+
+table inet machina_vnets {
+    chain vnet_in {
+        type filter hook input priority filter; policy accept;
+        iifname "virbr-mu*" ct state established,related accept
+        iifname "virbr-mu*" udp dport 67 accept          # DHCP
+        iifname "virbr-mu*" udp dport 53 accept          # DNS
+        iifname "virbr-mu*" tcp dport 53 accept
+        iifname "virbr-mu*" drop                          # no guest-initiated host contact
+    }
+
+    chain vnet_fwd {
+        type filter hook forward priority filter; policy accept;
+        # cross-bridge forwarding = inter-tenant or tenant->machina0 traffic
+        iifname "virbr-*" oifname "virbr-*" counter drop
+        iifname "virbr-mu*" ct state established,related accept
+        # a user net's own subnet is L2; anything private it routes to is
+        # either another tenant net or infrastructure — all refused
+        iifname "virbr-mu*" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16 } drop
+        iifname "virbr-mu*" oifname != "virbr-*" accept   # public internet via NAT
+        iifname "virbr-mu*" drop
+    }
+}

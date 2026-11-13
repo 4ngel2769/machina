@@ -13,8 +13,13 @@ export type DelReq = { id: string; userId: string; status: string; requestedAt: 
 export type Quotas = {
   rows: {
     userId: string; name: string; role: string;
-    quota: { maxVms: number | null; maxVcpus: number | null; maxMemoryMb: number | null; maxDiskGb: number | null; maxRunning: number | null; suspended: boolean; note: string | null };
-    usage: { vms: number; running: number; vcpus: number; memoryMb: number; diskGb: number };
+    quota: {
+      maxVms: number | null; maxVcpus: number | null; maxMemoryMb: number | null; maxDiskGb: number | null; maxRunning: number | null;
+      maxIsoCount: number | null; maxIsoTotalGb: number | null;
+      maxContainers: number | null; maxContainerMemMb: number | null; maxContainerCpus: number | null;
+      suspended: boolean; note: string | null;
+    };
+    usage: { vms: number; running: number; vcpus: number; memoryMb: number; diskGb: number; isos: number; isoGb: number; containers: number; containerMemMb: number; containerCpus: number };
     balanceCents: number;
   }[];
   host: { committed: { vms: number; running: number; vcpus: number; memoryMb: number; diskGb: number }; capacity: { memoryMb: number; vcpus: number; ramOvercommit: number } };

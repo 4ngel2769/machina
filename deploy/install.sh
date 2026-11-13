@@ -56,6 +56,21 @@ else
   echo "NOTE: skipped guest isolation firewall (no nft or no deploy/machina-gfw.nft)"
 fi
 
+# Per-user tenant networks (virbr-mu*): same host-contact rules as machina0,
+# plus a hard drop on any packet forwarded between two libvirt bridges — that
+# is the only path a guest has to another tenant's VM.
+if command -v nft >/dev/null 2>&1 && [[ -f "$SCRIPT_DIR/machina-vnets.nft" ]]; then
+  sudo mkdir -p /etc/nftables.d
+  sudo install -m 0644 "$SCRIPT_DIR/machina-vnets.nft" /etc/nftables.d/machina-vnets.nft
+  sudo install -m 0644 "$SCRIPT_DIR/machina-vnets.service" /etc/systemd/system/machina-vnets.service
+  sudo systemctl daemon-reload
+  sudo systemctl enable machina-vnets.service
+  sudo systemctl restart machina-vnets.service || true
+  echo "==> tenant network isolation installed (machina-vnets.service)"
+else
+  echo "NOTE: skipped tenant network isolation (no nft or no deploy/machina-vnets.nft)"
+fi
+
 # --- secrets -------------------------------------------------------------------
 if [[ ! -f "$DATA_DIR/machina.key" ]]; then
   openssl rand -hex 32 > "$DATA_DIR/machina.key"

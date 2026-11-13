@@ -67,6 +67,8 @@ export interface DomainXmlOptions {
   vncPass: string;
   spice?: boolean;
   serialPath: string;
+  /** libvirt network the NIC attaches to; defaults to the shared machina0. */
+  network?: string;
 }
 
 /** Identity, resources, machine type and power policy: no devices. */
@@ -126,7 +128,7 @@ function domainTransportXml(opts: DomainXmlOptions): string {
   const { mac, serialPath } = opts;
   return `    <interface type='network'>
       <mac address='${mac}'/>
-      <source network='${config.network}'/>
+      <source network='${opts.network ?? config.network}'/>
       <model type='virtio'/>
     </interface>
     <serial type='file'>

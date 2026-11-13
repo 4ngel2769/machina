@@ -29,6 +29,11 @@ export async function GET(_req: NextRequest) {
       vcpus: pct(usage.vcpus + pending.vcpus, quota.maxVcpus),
       memoryMb: pct(usage.memoryMb + pending.memoryMb, quota.maxMemoryMb),
       diskGb: pct(usage.diskGb + pending.diskGb, quota.maxDiskGb),
+      isos: pct(usage.isos, quota.maxIsoCount),
+      isoGb: pct(usage.isoGb, quota.maxIsoTotalGb),
+      containers: pct(usage.containers, quota.maxContainers),
+      containerMemMb: pct(usage.containerMemMb, quota.maxContainerMemMb),
+      containerCpus: pct(usage.containerCpus, quota.maxContainerCpus),
     },
   });
 }

@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Empty } from '@/app/ui/loaders';
+import { Empty, Skeleton } from '@/app/ui/loaders';
 import type { InstRow, LogPayload } from './types';
 
 type Account = { id: string; name: string; role: string; balance_cents: number };
@@ -43,7 +43,7 @@ export function LogCard({ log }: { log: LogPayload | null }) {
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h3>host actions</h3>
-      {!log && <Empty icon="activity" text="loading…" />}
+      {!log && <div style={{ display: 'grid', gap: 8, marginTop: 10 }}><Skeleton h={14} /><Skeleton h={14} /><Skeleton h={14} /></div>}
       <table>
         <thead><tr><th>when</th><th>admin</th><th>action</th><th>target</th><th>detail</th></tr></thead>
         <tbody>

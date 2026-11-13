@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
+import { useMinVisible } from '@/app/ui/loaders';
 import { ignore } from '@/lib/core/ignore';
 
 export type Ledger = {
@@ -15,6 +16,7 @@ type Running = { id: string; name: string; rateHourlyCents: number };
 export function useBilling(): {
   balance: number | null;
   ledger: Ledger[];
+  loaded: boolean;
   cap: { running: number; max: number } | null;
   running: Running[];
   currentPw: string; setCurrentPw: (v: string) => void;
@@ -30,6 +32,9 @@ export function useBilling(): {
   const [newPw, setNewPw] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
   const [running, setRunning] = useState<Running[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const ready = useMinVisible(400);
+  const settled = loaded && ready;
 
   const load = useCallback(async () => {
     const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
@@ -39,6 +44,7 @@ export function useBilling(): {
       setLedger(billing.ledger);
       setCap(billing.capacity);
     }
+    setLoaded(true);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -62,7 +68,7 @@ export function useBilling(): {
     setPwBusy(false);
   }
 
-  return { balance, ledger, cap, running, currentPw, setCurrentPw, newPw, setNewPw, pwBusy, changePw };
+  return { balance, ledger, cap, running, loaded: settled, currentPw, setCurrentPw, newPw, setNewPw, pwBusy, changePw };
 }
 
 export type BillingState = ReturnType<typeof useBilling>;

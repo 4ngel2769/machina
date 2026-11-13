@@ -26,6 +26,13 @@ export type Quota = {
   maxMemoryMb: number | null;
   maxDiskGb: number | null;
   maxRunning: number | null;
+  /** ISO tier: uploads held and their combined GB. NULL = global caps only. */
+  maxIsoCount: number | null;
+  maxIsoTotalGb: number | null;
+  /** Tenant containers: count, summed memory (MB) and summed vCPUs. */
+  maxContainers: number | null;
+  maxContainerMemMb: number | null;
+  maxContainerCpus: number | null;
   suspended: boolean;
   note: string | null;
 };
@@ -36,20 +43,27 @@ export type Usage = {
   vcpus: number;
   memoryMb: number;
   diskGb: number;
+  isos: number;
+  isoGb: number;
+  containers: number;
+  containerMemMb: number;
+  containerCpus: number;
 };
 
 /** No quota row means "no limit set", not "denied". */
 export function getQuota(userId: string): Quota {
   const quotaRow = rawDb()
     .prepare(
-      `select max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note
+      `select max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running,
+              max_iso_count, max_iso_total_gb, max_containers,
+              max_container_mem_mb, max_container_cpus, suspended, note
        from quotas where user_id = ?`,
     )
     .get(userId) as
-    | { max_vms: number | null; max_vcpus: number | null; max_memory_mb: number | null; max_disk_gb: number | null; max_running: number | null; suspended: number; note: string | null }
+    | { max_vms: number | null; max_vcpus: number | null; max_memory_mb: number | null; max_disk_gb: number | null; max_running: number | null; max_iso_count: number | null; max_iso_total_gb: number | null; max_containers: number | null; max_container_mem_mb: number | null; max_container_cpus: number | null; suspended: number; note: string | null }
     | undefined;
   if (!quotaRow) {
-    return { maxVms: null, maxVcpus: null, maxMemoryMb: null, maxDiskGb: null, maxRunning: null, suspended: false, note: null };
+    return { maxVms: null, maxVcpus: null, maxMemoryMb: null, maxDiskGb: null, maxRunning: null, maxIsoCount: null, maxIsoTotalGb: null, maxContainers: null, maxContainerMemMb: null, maxContainerCpus: null, suspended: false, note: null };
   }
   return {
     maxVms: quotaRow.max_vms,
@@ -57,6 +71,11 @@ export function getQuota(userId: string): Quota {
     maxMemoryMb: quotaRow.max_memory_mb,
     maxDiskGb: quotaRow.max_disk_gb,
     maxRunning: quotaRow.max_running,
+    maxIsoCount: quotaRow.max_iso_count,
+    maxIsoTotalGb: quotaRow.max_iso_total_gb,
+    maxContainers: quotaRow.max_containers,
+    maxContainerMemMb: quotaRow.max_container_mem_mb,
+    maxContainerCpus: quotaRow.max_container_cpus,
     suspended: !!quotaRow.suspended,
     note: quotaRow.note,
   };
@@ -71,8 +90,23 @@ export function getQuota(userId: string): Quota {
  * instances table stores plan_id only — there is no vcpu/ram_mb/disk_gb column
  * on it, which cost a round of "no such column: vcpu".
  */
-export function getUsage(userId: string): Usage {
-  const usageRow = rawDb()
+function isoUsage(userId: string): { n: number; bytes: number } {
+  return rawDb()
+    .prepare(`select count(*) as n, coalesce(sum(size_bytes),0) as bytes from iso_uploads where owner_id=?`)
+    .get(userId) as { n: number; bytes: number };
+}
+
+function containerUsage(userId: string): { n: number; memMb: number; cpus: number } {
+  return rawDb()
+    .prepare(
+      `select count(*) as n, coalesce(sum(memory_mb),0) as memMb, coalesce(sum(cpus),0) as cpus
+       from user_containers where user_id=?`,
+    )
+    .get(userId) as { n: number; memMb: number; cpus: number };
+}
+
+function vmUsage(userId: string): { vms: number; running: number | null; vcpus: number; memoryMb: number; diskGb: number } {
+  return rawDb()
     .prepare(
       `select
          count(*) as vms,
@@ -84,13 +118,21 @@ export function getUsage(userId: string): Usage {
        where i.user_id = ?`,
     )
     .get(userId) as { vms: number; running: number | null; vcpus: number; memoryMb: number; diskGb: number };
+}
+
+function combineUsage(vm: ReturnType<typeof vmUsage>, iso: { n: number; bytes: number }, ct: { n: number; memMb: number; cpus: number }): Usage {
+  const v = { ...vm };
+  const i = { ...iso };
+  const c = { ...ct };
   return {
-    vms: usageRow.vms ?? 0,
-    running: usageRow.running ?? 0,
-    vcpus: usageRow.vcpus ?? 0,
-    memoryMb: usageRow.memoryMb ?? 0,
-    diskGb: usageRow.diskGb ?? 0,
+    vms: v.vms, running: v.running ?? 0, vcpus: v.vcpus, memoryMb: v.memoryMb, diskGb: v.diskGb,
+    isos: i.n, isoGb: Math.round((i.bytes / 1024 ** 3) * 10) / 10,
+    containers: c.n, containerMemMb: Math.round(c.memMb), containerCpus: Math.round(c.cpus * 100) / 100,
   };
+}
+
+export function getUsage(userId: string): Usage {
+  return combineUsage(vmUsage(userId), isoUsage(userId), containerUsage(userId));
 }
 
 /** Everything the host has committed across ALL users. */
@@ -112,6 +154,11 @@ export function getHostCommitted(): Usage {
     vcpus: usageRow.vcpus ?? 0,
     memoryMb: usageRow.memoryMb ?? 0,
     diskGb: usageRow.diskGb ?? 0,
+    isos: 0,
+    isoGb: 0,
+    containers: 0,
+    containerMemMb: 0,
+    containerCpus: 0,
   };
 }
 
@@ -183,7 +230,7 @@ export function getPendingUsage(userId: string, excludeRequestId?: string): Usag
     )
     .get(userId, excludeRequestId ?? null, excludeRequestId ?? null) as
     { vms: number; vcpus: number; memoryMb: number; diskGb: number };
-  return { vms: usageRow.vms ?? 0, running: 0, vcpus: usageRow.vcpus ?? 0, memoryMb: usageRow.memoryMb ?? 0, diskGb: usageRow.diskGb ?? 0 };
+  return { vms: usageRow.vms ?? 0, running: 0, vcpus: usageRow.vcpus ?? 0, memoryMb: usageRow.memoryMb ?? 0, diskGb: usageRow.diskGb ?? 0, isos: 0, isoGb: 0, containers: 0, containerMemMb: 0, containerCpus: 0 };
 }
 
 /**
@@ -201,6 +248,11 @@ export function getCommittedForNew(userId: string, excludeRequestId?: string): U
     vcpus: held.vcpus + pending.vcpus,
     memoryMb: held.memoryMb + pending.memoryMb,
     diskGb: held.diskGb + pending.diskGb,
+    isos: held.isos,
+    isoGb: held.isoGb,
+    containers: held.containers,
+    containerMemMb: held.containerMemMb,
+    containerCpus: held.containerCpus,
   };
 }
 
@@ -255,6 +307,8 @@ function checkUserLimits(quotaRow: QuotaRow, usage: Committed, plan: { vcpu: num
     ?? checkDisk(quotaRow, usage, plan)
     ?? checkRunning(quotaRow, usage);
 }
+
+export { checkIsoUpload, checkContainerQuota } from '@/lib/core/resourcequota';
 
 /**
  * Can this user create one more VM of `plan`?
@@ -336,8 +390,10 @@ export function grantDefaultQuota(userId: string): void {
   const defaultQuota = config.limits.defaultQuota;
   rawDb()
     .prepare(
-      `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
-       values (?,?,?,?,?,?,0,?,?)
+      `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running,
+                           max_iso_count, max_iso_total_gb, max_containers, max_container_mem_mb, max_container_cpus,
+                           suspended, note, updated_at)
+       values (?,?,?,?,?,?,0,0,0,0,0,0,?,?)
        on conflict(user_id) do nothing`,
     )
     .run(userId, defaultQuota.maxVms, defaultQuota.maxVcpus, defaultQuota.maxMemoryMb, defaultQuota.maxDiskGb, defaultQuota.maxRunning, 'no allocation yet', now());

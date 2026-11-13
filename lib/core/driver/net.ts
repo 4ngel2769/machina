@@ -31,16 +31,20 @@ export function macFromId(id: string): string {
 }
 
 /**
- * Allocate the lowest free IPv4 in config.ipRange that no row in `taken` uses.
- * Caller passes the set of IPs already claimed.
+ * Allocate the lowest free IPv4 in `range` (default config.ipRange) that no
+ * row in `taken` uses. Caller passes the set of IPs already claimed — scoped
+ * to one network, since the same address is legitimately reused across
+ * different user subnets.
  */
 export class IpAllocator {
   private taken: Set<string>;
-  constructor(taken: string[]) {
+  private range: string;
+  constructor(taken: string[], range: string = config.ipRange) {
     this.taken = new Set(taken);
+    this.range = range;
   }
   next(): string | null {
-    const [start, end] = config.ipRange.split('-').map((part) => part.trim());
+    const [start, end] = this.range.split('-').map((part) => part.trim());
     const startOctets = start.split('.').map((octet) => parseInt(octet, 10));
     const endOctets = end.split('.').map((octet) => parseInt(octet, 10));
     const toInt = (octets: number[]) => ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
@@ -58,32 +62,32 @@ export class IpAllocator {
   }
 }
 
-export async function ensureIpLease(mac: string, ip: string): Promise<void> {
+export async function ensureIpLease(mac: string, ip: string, network: string = config.network): Promise<void> {
   try {
     // A retried provisioning reuses the same MAC, and a previous attempt leaves
     // its reservation behind. net-update then refuses with "there is an
     // existing dhcp host entry ... that matches" and the whole create logs a
     // scary error even though the lease is exactly what we wanted.
-    const xml = await virsh(['net-dumpxml', config.network, '--inactive']);
+    const xml = await virsh(['net-dumpxml', network, '--inactive']);
     const existing = new RegExp(`<host mac='${mac}'[^>]*ip='([^']+)'`);
     const match = xml.match(existing);
     if (match && match[1] === ip) return;
-    if (match) await removeIpLease(mac);
-    await virsh(['net-update', config.network, 'add', 'ip-dhcp-host', `<host mac='${mac}' ip='${ip}'/>`, '--config']);
+    if (match) await removeIpLease(mac, network);
+    await virsh(['net-update', network, 'add', 'ip-dhcp-host', `<host mac='${mac}' ip='${ip}'/>`, '--config']);
   } catch (leaseError) {
     // Not fatal: cloud-init sets a static IP anyway. DHCP entry is belt+braces.
     logInfo(`[driver] dhcp lease update failed (non-fatal): ${(leaseError as Error).message}`);
   }
 }
 
-export async function removeIpLease(mac: string): Promise<void> {
+export async function removeIpLease(mac: string, network: string = config.network): Promise<void> {
   // Live and persistent config are separate stores and either may hold the
   // entry, so each verb is attempted on its own: passing --config --live makes
   // virsh abort on the first store that does not have it, silently leaving the
   // other one behind.
   for (const scope of ['--live', '--config'] as const) {
     try {
-      await virsh(['net-update', config.network, 'delete', 'ip-dhcp-host', `<host mac='${mac}'/>`, scope]);
+      await virsh(['net-update', network, 'delete', 'ip-dhcp-host', `<host mac='${mac}'/>`, scope]);
     } catch {
       /* not present in this scope */
     }
