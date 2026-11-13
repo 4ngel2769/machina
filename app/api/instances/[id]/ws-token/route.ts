@@ -12,6 +12,13 @@ import { rateLimit } from '@/lib/core/crypto';
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** Only the two channels the relay understands; anything else is a client bug. */
+function channelOf(raw: string | undefined): WsChannel | null {
+  if (raw === 'term') return 'term';
+  if (raw === 'vnc') return 'vnc';
+  return null;
+}
+
 /**
  * Issue a 120s single-channel HMAC token after session checks. WS upgrade
  * verifies the token again + checks instance status=running at relay time.
@@ -24,8 +31,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!inst) return err('not found', 404);
   if (inst.userId !== user.id && user.role !== 'admin') return err('forbidden', 403);
   const body = (await req.json().catch(() => ({}))) as { type?: string };
-  const typ: WsChannel = body.type === 'vnc' ? 'vnc' : body.type === 'term' ? 'term' : null as never;
-  if (typ !== 'term' && typ !== 'vnc') return err('type must be term|vnc');
+  const typ = channelOf(body.type);
+  if (!typ) return err('type must be term|vnc');
   if (!rateLimit(`wstok:${user.id}:${id}`, 20, 60_000)) return err('token endpoint rate limited', 429);
   if (inst.status !== 'running') {
     return err('instance is stopped; needs running state before terminal/console', 409);

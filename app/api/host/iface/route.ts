@@ -18,6 +18,42 @@ export async function GET() {
   }
 }
 
+type Admin = { id: string; name: string };
+
+/** Every optional NM field, normalised the way addIface expects it. */
+function ifaceSpec(body: Record<string, unknown>): AddIface {
+  const str = (k: string) => (body[k] ? String(body[k]) : undefined);
+  const num = (k: string) => (body[k] ? Number(body[k]) : undefined);
+  return {
+    kind: String(body.kind ?? '') as AddIface['kind'],
+    name: String(body.name ?? ''),
+    ports: String(body.ports ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    parent: str('parent'),
+    vlanId: num('vlanId'),
+    bondMode: str('bondMode'),
+    address: str('address'),
+    listenPort: num('listenPort'),
+    peerPublicKey: str('peerPublicKey'),
+    peerEndpoint: str('peerEndpoint'),
+    peerAllowedIps: str('peerAllowedIps'),
+  };
+}
+
+async function ifaceDelete(body: Record<string, unknown>, admin: Admin) {
+  const name = String(body.name ?? '');
+  await deleteIface(name);
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.iface.delete', target: name, detail: null });
+  return json({ ok: true, result: `${name} removed` });
+}
+
+async function ifaceAdd(body: Record<string, unknown>, admin: Admin) {
+  const spec = ifaceSpec(body);
+  if (!['bridge', 'vlan', 'bond', 'team', 'vpn'].includes(spec.kind)) return err('kind must be bridge, vlan, bond, team or vpn');
+  const res = await addIface(spec);
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.iface.add', target: res.name, detail: spec as unknown as Record<string, unknown> });
+  return json({ ok: true, result: `${res.name} created${res.detail ? ` · ${res.detail}` : ''}` });
+}
+
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
@@ -26,29 +62,8 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   try {
-    if (body.op === 'delete') {
-      const name = String(body.name ?? '');
-      await deleteIface(name);
-      await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.iface.delete', target: name, detail: null });
-      return json({ ok: true, result: `${name} removed` });
-    }
-    const spec: AddIface = {
-      kind: String(body.kind ?? '') as AddIface['kind'],
-      name: String(body.name ?? ''),
-      ports: String(body.ports ?? '').split(',').map((s) => s.trim()).filter(Boolean),
-      parent: body.parent ? String(body.parent) : undefined,
-      vlanId: body.vlanId ? Number(body.vlanId) : undefined,
-      bondMode: body.bondMode ? String(body.bondMode) : undefined,
-      address: body.address ? String(body.address) : undefined,
-      listenPort: body.listenPort ? Number(body.listenPort) : undefined,
-      peerPublicKey: body.peerPublicKey ? String(body.peerPublicKey) : undefined,
-      peerEndpoint: body.peerEndpoint ? String(body.peerEndpoint) : undefined,
-      peerAllowedIps: body.peerAllowedIps ? String(body.peerAllowedIps) : undefined,
-    };
-    if (!['bridge', 'vlan', 'bond', 'team', 'vpn'].includes(spec.kind)) return err('kind must be bridge, vlan, bond, team or vpn');
-    const res = await addIface(spec);
-    await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.iface.add', target: res.name, detail: spec as unknown as Record<string, unknown> });
-    return json({ ok: true, result: `${res.name} created${res.detail ? ` · ${res.detail}` : ''}` });
+    if (body.op === 'delete') return await ifaceDelete(body, admin);
+    return await ifaceAdd(body, admin);
   } catch (x) {
     return err(friendlyError(x), 400);
   }

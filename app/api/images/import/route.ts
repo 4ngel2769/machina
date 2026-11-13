@@ -26,31 +26,11 @@ async function qemuImgInfo(file: string): Promise<Record<string, unknown>> {
   return JSON.parse(stdout) as Record<string, unknown>;
 }
 
-export async function POST(req: NextRequest) {
-  const deniedMutation = guardMutation(req);
-  if (deniedMutation) return deniedMutation;
-  const { user: user, response: denied } = await requireAdmin();
-  if (denied) return denied;
-
-  const id = String(req.nextUrl.searchParams.get('id') ?? '').trim().toLowerCase();
-  const name = String(req.nextUrl.searchParams.get('name') ?? id).trim() || id;
-  if (!ID_RE.test(id)) return err('id must be lowercase letters, digits, dot, dash or underscore', 400);
-  if (!name || name.length > 80) return err('name required (max 80 chars)', 400);
-
-  const body = req.body;
-  if (!body) return err('empty request body', 400);
-
-  const dir = storagePaths().images;
-  await fs.mkdir(dir, { recursive: true });
-  const existing = await getDb().select({ id: images.id }).from(images).where(eq(images.id, id));
-  if (existing.length) return err('an image with that id already exists', 409);
-
-  const tmp = path.join(dir, `.import-${crypto.randomUUID()}.part`);
-  const final = path.join(dir, `${id}.qcow2`);
-  const hash = crypto.createHash('sha256');
+/** Stream the request body into a temp file, hashing as it goes. */
+async function writeUpload(body: ReadableStream<Uint8Array>, tmp: string) {
   const ws = createWriteStream(tmp, { mode: 0o640 });
+  const hash = crypto.createHash('sha256');
   let size = 0;
-
   try {
     for await (const chunk of Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0])) {
       const buf = Buffer.from(chunk as Uint8Array);
@@ -67,15 +47,60 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     ws.destroy();
     await fs.rm(tmp, { force: true }).catch(() => {});
+    throw e;
+  }
+  return { sha256: hash.digest('hex'), size };
+}
+
+/** qemu-img must agree the file is a standalone, unencrypted qcow2 before it
+ *  becomes a bootable base image. */
+async function validateImage(tmp: string) {
+  const info = await qemuImgInfo(tmp);
+  if (info.format !== 'qcow2') throw new Error(`only qcow2 images can be imported (got ${String(info.format)})`);
+  if (info['backing-filename']) throw new Error('backed qcow2 images are not supported — flatten or convert to a standalone qcow2 first');
+  if (info.encrypted === true) throw new Error('encrypted qcow2 images are not supported');
+}
+
+/** Id/name params plus the duplicate-id check; returns the refusal or the
+ *  resolved upload target. */
+async function importTarget(req: NextRequest) {
+  const id = String(req.nextUrl.searchParams.get('id') ?? '').trim().toLowerCase();
+  const name = String(req.nextUrl.searchParams.get('name') ?? id).trim() || id;
+  if (!ID_RE.test(id)) return err('id must be lowercase letters, digits, dot, dash or underscore', 400);
+  if (!name || name.length > 80) return err('name required (max 80 chars)', 400);
+  const dir = storagePaths().images;
+  await fs.mkdir(dir, { recursive: true });
+  const existing = await getDb().select({ id: images.id }).from(images).where(eq(images.id, id));
+  if (existing.length) return err('an image with that id already exists', 409);
+  return { id, name, dir };
+}
+
+export async function POST(req: NextRequest) {
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: user, response: denied } = await requireAdmin();
+  if (denied) return denied;
+
+  const target = await importTarget(req);
+  if (target instanceof Response) return target;
+  const { id, name, dir } = target;
+
+  const body = req.body;
+  if (!body) return err('empty request body', 400);
+
+  const tmp = path.join(dir, `.import-${crypto.randomUUID()}.part`);
+  const final = path.join(dir, `${id}.qcow2`);
+
+  let sha256: string;
+  let size: number;
+  try {
+    ({ sha256, size } = await writeUpload(body, tmp));
+  } catch (e) {
     return err((e as Error).message || 'upload failed', 400);
   }
 
-  const sha256 = hash.digest('hex');
   try {
-    const info = await qemuImgInfo(tmp);
-    if (info.format !== 'qcow2') throw new Error(`only qcow2 images can be imported (got ${String(info.format)})`);
-    if (info['backing-filename']) throw new Error('backed qcow2 images are not supported — flatten or convert to a standalone qcow2 first');
-    if (info.encrypted === true) throw new Error('encrypted qcow2 images are not supported');
+    await validateImage(tmp);
     await fs.rename(tmp, final);
     await fs.chmod(final, 0o644).catch(() => {});
     await getDb().insert(images).values({

@@ -7,7 +7,6 @@ import { json, err } from '@/lib/api';
 import { rawDb, getDb } from '@/lib/db';
 import { instances } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { readMetrics } from '@/lib/core/metrics';
 import { now } from '@/lib/core/util';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -21,6 +20,52 @@ const RANGES: Record<string, number> = {
   '24h': 24 * 3600_000,
   '7d': 7 * 24 * 3600_000,
 };
+
+type MetricRow = { ts: number; cpuNs: number; ncpu: number; rdB: number; wrB: number; allocB: number; ramMaxKb: number };
+type Point = { t: number; cpu: number; read: number; write: number };
+
+/** Downsample long windows so a 7d view on a 20s sampler (30240 points)
+ *  cannot ship 30k numbers to a sparkline. */
+function bucketMsFor(span: number) {
+  if (span > 24 * 3600_000) return 15 * 60_000;
+  if (span > 6 * 3600_000) return 5 * 60_000;
+  return 60_000;
+}
+
+function metricRows(id: string, since: number): MetricRow[] {
+  return rawDb()
+    .prepare(
+      `select ts, cpu_ns as cpuNs, ncpu, rd_b as rdB, wr_b as wrB, alloc_b as allocB,
+              ram_max_kb as ramMaxKb
+       from metrics where instance_id = ? and ts >= ? order by ts asc`,
+    )
+    .all(id, since) as MetricRow[];
+}
+
+/** Average the derived rates inside each bucket. Rates are already deltas,
+ *  so this is a mean of means over a fixed span and stays honest. */
+function downsample(points: Point[], bucketMs: number): Point[] {
+  const buckets = new Map<number, { cpu: number; read: number; write: number; n: number }>();
+  for (const p of points) {
+    const k = Math.floor(p.t / bucketMs) * bucketMs;
+    const b = buckets.get(k) ?? { cpu: 0, read: 0, write: 0, n: 0 };
+    b.cpu += p.cpu; b.read += p.read; b.write += p.write; b.n += 1;
+    buckets.set(k, b);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([t, b]) => ({
+      t,
+      cpu: Math.round((b.cpu / b.n) * 10) / 10,
+      read: Math.round(b.read / b.n),
+      write: Math.round(b.write / b.n),
+    }));
+}
+
+function planShape(planId: string) {
+  return rawDb().prepare(`select vcpu, ram_mb from plans where id = ?`).get(planId) as
+    { vcpu: number; ram_mb: number } | undefined;
+}
 
 export async function GET(req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
@@ -36,59 +81,44 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const span = RANGES[range];
   if (!span) return err(`unknown range; use one of ${Object.keys(RANGES).join(', ')}`, 400);
 
-  // Downsample long windows so a 7d view on a 20s sampler (30240 points)
-  // cannot ship 30k numbers to a sparkline.
-  const bucketMs = span > 24 * 3600_000 ? 15 * 60_000 : span > 6 * 3600_000 ? 5 * 60_000 : 60_000;
-
-  const rd = rawDb();
-  const rows = rd
-    .prepare(
-      `select ts, cpu_ns as cpuNs, ncpu, rd_b as rdB, wr_b as wrB, alloc_b as allocB,
-              ram_max_kb as ramMaxKb
-       from metrics where instance_id = ? and ts >= ? order by ts asc`,
-    )
-    .all(id, now() - span) as
-    { ts: number; cpuNs: number; ncpu: number; rdB: number; wrB: number; allocB: number; ramMaxKb: number }[];
-
+  const bucketMs = bucketMsFor(span);
+  const rows = metricRows(id, now() - span);
   const { derivePoints } = await import('@/lib/core/metrics');
   let points = derivePoints(rows);
-  if (bucketMs > 60_000 && points.length > 400) {
-    // Average the derived rates inside each bucket. Rates are already deltas,
-    // so this is a mean of means over a fixed span and stays honest.
-    const buckets = new Map<number, { cpu: number; read: number; write: number; n: number }>();
-    for (const p of points) {
-      const k = Math.floor(p.t / bucketMs) * bucketMs;
-      const b = buckets.get(k) ?? { cpu: 0, read: 0, write: 0, n: 0 };
-      b.cpu += p.cpu; b.read += p.read; b.write += p.write; b.n += 1;
-      buckets.set(k, b);
-    }
-    points = [...buckets.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([t, b]) => ({
-        t,
-        cpu: Math.round((b.cpu / b.n) * 10) / 10,
-        read: Math.round(b.read / b.n),
-        write: Math.round(b.write / b.n),
-      }));
-  }
+  if (bucketMs > 60_000 && points.length > 400) points = downsample(points, bucketMs);
 
   const last = rows[rows.length - 1];
-  const plan = rd.prepare(`select vcpu, ram_mb from plans where id = ?`).get(inst.planId) as
-    { vcpu: number; ram_mb: number } | undefined;
+  const plan = planShape(inst.planId);
 
   return json({
     ok: true,
     range,
     points,
     samples: rows.length,
+    ...metricTail(last, plan),
+    running: inst.status === 'running',
+  });
+}
+
+/** Allocated RAM in MB: the newest sample wins, the plan is the fallback. */
+function ramAllocMb(last: MetricRow | undefined, plan: { vcpu: number; ram_mb: number } | undefined) {
+  const kb = last?.ramMaxKb || (plan?.ram_mb ?? 0) * 1024;
+  return Math.round(kb / 1024);
+}
+
+/** The summary fields derived from the newest sample and the plan. */
+function metricTail(
+  last: MetricRow | undefined,
+  plan: { vcpu: number; ram_mb: number } | undefined,
+) {
+  return {
     allocBytes: last?.allocB ?? 0,
     ncpu: last?.ncpu || plan?.vcpu || 0,
     // Allocated, not observed. See metrics.ts for why balloon.current is not
     // a usable memory-usage signal on these guests.
-    ramAllocMb: Math.round((last?.ramMaxKb || (plan?.ram_mb ?? 0) * 1024) / 1024),
+    ramAllocMb: ramAllocMb(last, plan),
     ramObservable: false,
-    running: inst.status === 'running',
-  });
+  };
 }
 
 export const dynamic = 'force-dynamic';
