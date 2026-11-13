@@ -4,7 +4,7 @@
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { rawDb } from '@/lib/db';
-import { quotaWithUsage, getHostCommitted, hostCapacity } from '@/lib/core/quota';
+import { quotaWithUsage } from '@/lib/core/quota';
 import { now } from '@/lib/core/util';
 import { logAudit } from '@/lib/services/audit';
 
@@ -22,6 +22,77 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!user) return err('user not found', 404);
   const { quota, usage } = quotaWithUsage(userId);
   return json({ ok: true, userId, name: user.name, role: user.role, quota, usage });
+}
+
+type QuotaRow = Record<string, unknown> | undefined;
+
+/** Parse a quota bound. null => unlimited, 0 => none. */
+function bound(v: unknown, name: string): number | null | undefined {
+  if (v === undefined || v === '') return undefined; // leave as-is
+  if (v === null || v === 'unlimited') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+    throw new Error(`${name} must be a whole number, 0, or null for unlimited`);
+  }
+  return n;
+}
+
+type Bounds = {
+  vms?: number | null; vcpus?: number | null; mem?: number | null;
+  disk?: number | null; running?: number | null;
+};
+
+function parseBounds(body: Record<string, unknown>): Bounds | ReturnType<typeof err> {
+  try {
+    return {
+      vms: bound(body.maxVms, 'maxVms'),
+      vcpus: bound(body.maxVcpus, 'maxVcpus'),
+      mem: bound(body.maxMemoryMb, 'maxMemoryMb'),
+      disk: bound(body.maxDiskGb, 'maxDiskGb'),
+      running: bound(body.maxRunning, 'maxRunning'),
+    };
+  } catch (err2) {
+    return err((err2 as Error).message, 400);
+  }
+}
+
+function suspendedFlag(v: unknown) {
+  if (v === true || v === 'true') return 1;
+  if (v === false || v === 'false') return 0;
+  return undefined;
+}
+
+function noteText(v: unknown) {
+  return typeof v === 'string' ? v.slice(0, 300) : undefined;
+}
+
+/** Field-by-field merge: an absent field keeps the stored value, an explicit
+ *  null means unlimited and 0 means none. */
+function mergeQuota(b: Bounds, suspended: number | undefined, note: string | undefined, existing: QuotaRow) {
+  const pick = (v: number | null | undefined, col: string) =>
+    v !== undefined ? v : (existing?.[col] as number | null) ?? null;
+  return {
+    max_vms: pick(b.vms, 'max_vms'),
+    max_vcpus: pick(b.vcpus, 'max_vcpus'),
+    max_memory_mb: pick(b.mem, 'max_memory_mb'),
+    max_disk_gb: pick(b.disk, 'max_disk_gb'),
+    max_running: pick(b.running, 'max_running'),
+    suspended: suspended !== undefined ? suspended : Number(existing?.suspended ?? 0),
+    note: note !== undefined ? note : (existing?.note as string | null) ?? null,
+  };
+}
+
+function writeQuota(userId: string, merged: ReturnType<typeof mergeQuota>) {
+  rawDb().prepare(
+    `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
+     values (?,?,?,?,?,?,?,?,?)
+     on conflict(user_id) do update set
+       max_vms=excluded.max_vms, max_vcpus=excluded.max_vcpus,
+       max_memory_mb=excluded.max_memory_mb, max_disk_gb=excluded.max_disk_gb,
+       max_running=excluded.max_running, suspended=excluded.suspended,
+       note=excluded.note, updated_at=excluded.updated_at`,
+  ).run(userId, merged.max_vms, merged.max_vcpus, merged.max_memory_mb, merged.max_disk_gb,
+    merged.max_running, merged.suspended, merged.note, now());
 }
 
 /**
@@ -44,60 +115,15 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!user) return err('user not found', 404);
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-
-  /** Parse a quota bound. null => unlimited, 0 => none. */
-  const bound = (v: unknown, name: string): number | null | undefined => {
-    if (v === undefined || v === '') return undefined; // leave as-is
-    if (v === null || v === 'unlimited') return null;
-    const n = Number(v);
-    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
-      throw new Error(`${name} must be a whole number, 0, or null for unlimited`);
-    }
-    return n;
-  };
-
-  let vms: number | null | undefined;
-  let vcpus: number | null | undefined;
-  let mem: number | null | undefined;
-  let disk: number | null | undefined;
-  let running: number | null | undefined;
-  try {
-    vms = bound(body.maxVms, 'maxVms');
-    vcpus = bound(body.maxVcpus, 'maxVcpus');
-    mem = bound(body.maxMemoryMb, 'maxMemoryMb');
-    disk = bound(body.maxDiskGb, 'maxDiskGb');
-    running = bound(body.maxRunning, 'maxRunning');
-  } catch (err2) {
-    return err((err2 as Error).message, 400);
-  }
-  const suspended = body.suspended === true || body.suspended === 'true' ? 1
-    : body.suspended === false || body.suspended === 'false' ? 0 : undefined;
-  const note = typeof body.note === 'string' ? body.note.slice(0, 300) : undefined;
+  const parsed = parseBounds(body);
+  if (parsed instanceof Response) return parsed;
 
   // A user may have a LOWERED quota below what they already use. That is legal
   // (they keep what they have, they just cannot grow), but it must be visible
   // rather than silently discovered when their next create fails.
-  const existing = rd.prepare(`select * from quotas where user_id = ?`).get(userId) as Record<string, unknown> | undefined;
-  const merged = {
-    max_vms: vms !== undefined ? vms : (existing?.max_vms as number | null) ?? null,
-    max_vcpus: vcpus !== undefined ? vcpus : (existing?.max_vcpus as number | null) ?? null,
-    max_memory_mb: mem !== undefined ? mem : (existing?.max_memory_mb as number | null) ?? null,
-    max_disk_gb: disk !== undefined ? disk : (existing?.max_disk_gb as number | null) ?? null,
-    max_running: running !== undefined ? running : (existing?.max_running as number | null) ?? null,
-    suspended: suspended !== undefined ? suspended : Number(existing?.suspended ?? 0),
-    note: note !== undefined ? note : (existing?.note as string | null) ?? null,
-  };
-
-  rd.prepare(
-    `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
-     values (?,?,?,?,?,?,?,?,?)
-     on conflict(user_id) do update set
-       max_vms=excluded.max_vms, max_vcpus=excluded.max_vcpus,
-       max_memory_mb=excluded.max_memory_mb, max_disk_gb=excluded.max_disk_gb,
-       max_running=excluded.max_running, suspended=excluded.suspended,
-       note=excluded.note, updated_at=excluded.updated_at`,
-  ).run(userId, merged.max_vms, merged.max_vcpus, merged.max_memory_mb, merged.max_disk_gb,
-    merged.max_running, merged.suspended, merged.note, now());
+  const existing = rd.prepare(`select * from quotas where user_id = ?`).get(userId) as QuotaRow;
+  const merged = mergeQuota(parsed, suspendedFlag(body.suspended), noteText(body.note), existing);
+  writeQuota(userId, merged);
 
   await logAudit({
     actorId: admin.id, actorName: admin.name, action: 'quota.set', target: userId,

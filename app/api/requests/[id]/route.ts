@@ -13,32 +13,27 @@ import { logAudit } from '@/lib/services/audit';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
-  const { id } = await ctx.params;
-  const rd = rawDb();
-  const r = rd.prepare(`select * from instance_requests where id=?`).get(id) as
-    | { id: string; user_id: string; name: string; plan_id: string; image_id: string | null; status: string } | undefined;
-  if (!r) return err('not found', 404);
-  if (r.status !== 'pending') return err('request already reviewed', 409);
+type RequestRow = {
+  id: string; user_id: string; name: string; plan_id: string;
+  image_id: string | null; status: string;
+};
 
-  const body = (await req.json().catch(() => ({}))) as { op?: string; note?: string; planId?: string; imageId?: string };
-  const op = body.op === 'approve' ? 'approve' : body.op === 'reject' ? 'reject' : null;
-  if (!op) return err('op must be approve|reject');
+type ReviewBody = { op?: string; note?: string; planId?: string; imageId?: string };
 
-  if (op === 'reject') {
-    rawDb().prepare(`update instance_requests set status='rejected', reviewed_by=?, reviewed_at=?, review_note=? where id=?`).run(
-      admin.id, now(), (body.note ?? '').trim().slice(0, 280) || null, id);
-    await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.reject', target: id });
-    return json({ ok: true, status: 'rejected' });
-  }
+function reviewNote(body: ReviewBody) {
+  return (body.note ?? '').trim().slice(0, 280) || null;
+}
 
+async function reject(r: RequestRow, admin: { id: string; name: string }, body: ReviewBody) {
+  rawDb().prepare(`update instance_requests set status='rejected', reviewed_by=?, reviewed_at=?, review_note=? where id=?`).run(
+    admin.id, now(), reviewNote(body), r.id);
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.reject', target: r.id });
+  return json({ ok: true, status: 'rejected' });
+}
+
+async function approve(r: RequestRow, id: string, admin: { id: string; name: string }, body: ReviewBody) {
   // approve -> provision
-  const db = getDb();
-  const [u] = await db.select().from(users).where(eq(users.id, r.user_id));
+  const [u] = await getDb().select().from(users).where(eq(users.id, r.user_id));
   if (!u) return err('user gone', 404);
   try {
     const inst = await provisionInstance({
@@ -52,12 +47,29 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       excludeRequestId: id,
     });
     rawDb().prepare(`update instance_requests set status='approved', reviewed_by=?, reviewed_at=?, result_instance_id=?, review_note=? where id=?`).run(
-      admin.id, now(), inst.id, (body.note ?? '').trim().slice(0, 280) || null, id);
+      admin.id, now(), inst.id, reviewNote(body), id);
     await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.approve', target: id, detail: { instanceId: inst.id } });
     return json({ ok: true, status: 'approved', instanceId: inst.id });
   } catch (e) {
     return err((e as Error).message || 'provision failed', 400);
   }
+}
+
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const g = guardMutation(req);
+  if (g) return g;
+  const { user: admin, response: e } = await requireAdmin();
+  if (e) return e;
+  const { id } = await ctx.params;
+  const rd = rawDb();
+  const r = rd.prepare(`select * from instance_requests where id=?`).get(id) as RequestRow | undefined;
+  if (!r) return err('not found', 404);
+  if (r.status !== 'pending') return err('request already reviewed', 409);
+
+  const body = (await req.json().catch(() => ({}))) as ReviewBody;
+  if (body.op === 'reject') return reject(r, admin, body);
+  if (body.op === 'approve') return approve(r, id, admin, body);
+  return err('op must be approve|reject');
 }
 
 export const dynamic = 'force-dynamic';

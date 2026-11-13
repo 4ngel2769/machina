@@ -45,9 +45,9 @@ const config = [
   },
   {
     // On from B3, once app/ui and the dash pages were split to fit them.
-    // app/api routes are still over budget — they come on in B4.
+    // app/api routes came on in B4 — they already pass the stricter lib/**
+    // limits (300 lines / 40-line functions) under the same four rules.
     files: ['app/**/*.tsx', 'app/**/*.ts'],
-    ignores: ['app/api/**'],
     rules: {
       'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],

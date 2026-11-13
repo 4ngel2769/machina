@@ -11,11 +11,28 @@ import { hashPassword, verifyPassword, rateLimit } from '@/lib/core/crypto';
 import { now } from '@/lib/core/util';
 import { logAudit } from '@/lib/services/audit';
 
+/** Current-password check against the stored hash. */
+function verifyCurrent(userId: string, current: string) {
+  const row = (rawDb().prepare('select password_hash from users where id=?').all(userId) as
+    { password_hash: string | null }[])[0];
+  if (!row?.password_hash) return err('no password set', 400);
+  if (!verifyPassword(current, row.password_hash)) return err('current password wrong', 401);
+  return null;
+}
+
 /**
  * Self-service credential change: verify current password, then rehash.
  * Persists across restarts — seed only inserts the admin (env rotation is now
  * opt-in via ADMIN_FORCE_RESET=1 in machina.env, never implicit).
  */
+function passwordFields(body: { current?: string; next?: string }) {
+  const current = typeof body.current === 'string' ? body.current : '';
+  const next = typeof body.next === 'string' ? body.next : '';
+  if (!current || !next) return { refused: err('current and next required') };
+  if (next.length < 8 || next.length > 72) return { refused: err('password: 8-72 chars (72 is bcrypt cap)') };
+  return { current, next };
+}
+
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
@@ -24,14 +41,12 @@ export async function POST(req: NextRequest) {
   if (!rateLimit(`pw:${user.id}`, 5, 10 * 60_000)) return err('too many attempts', 429);
 
   const body = (await req.json().catch(() => ({}))) as { current?: string; next?: string };
-  const current = typeof body.current === 'string' ? body.current : '';
-  const next = typeof body.next === 'string' ? body.next : '';
-  if (!current || !next) return err('current and next required');
-  if (next.length < 8 || next.length > 72) return err('password: 8-72 chars (72 is bcrypt cap)');
+  const fields = passwordFields(body);
+  if ('refused' in fields) return fields.refused;
+  const { current, next } = fields;
 
-  const [row] = await rawDb().prepare('select password_hash from users where id=?').all(user.id) as { password_hash: string | null }[];
-  if (!row?.password_hash) return err('no password set', 400);
-  if (!verifyPassword(current, row.password_hash)) return err('current password wrong', 401);
+  const refused = verifyCurrent(user.id, current);
+  if (refused) return refused;
 
   await getDb().update(users).set({ passwordHash: hashPassword(next) }).where(eq(users.id, user.id));
   await logAudit({ actorId: user.id, actorName: user.name, action: 'auth.changePassword' });

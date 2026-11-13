@@ -17,6 +17,7 @@ import { friendlyStep, friendlyError } from '@/lib/core/errors';
 import { provisionInstance } from '@/lib/core/provision';
 import { diskVolFromId } from '@/lib/core/disks';
 import { storagePaths } from '@/lib/config';
+import { logLines } from './log-lines';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -115,95 +116,105 @@ async function load(id: string, userId: string, role: string) {
   return [inst, null] as const;
 }
 
+/** The state machine for start/stop/delete, or the refusal response. */
+function lifecycleRefusal(action: string | undefined, status: string) {
+  if (action !== 'start' && action !== 'stop' && action !== 'delete') return err('unknown action');
+  if (status === 'provisioning') return err('instance still provisioning', 409);
+  if (action === 'start') {
+    if (!['stopped', 'suspended', 'error'].includes(status)) return err(`cannot start from ${status}`, 409);
+    return null;
+  }
+  const allowed = ['running', 'suspended', 'error'];
+  // delete from a stopped state is legitimate; stop is not.
+  const ok = action === 'delete' && ['stopped', 'suspended', 'error'].includes(status)
+    ? true
+    : allowed.includes(status);
+  if (!ok) return err(`cannot ${action} a ${status} instance`, 409);
+  return null;
+}
+
+type JobRow = {
+  id: string; type: string; status: string; error: string; createdAt: number;
+  startedAt: number | null; finishedAt: number | null;
+};
+
+/** The job-log lines for whichever job matters most: the live one, else the
+ *  last failure, else the newest job at all. */
+function pickLogJob(jobs: JobRow[]) {
+  const active = jobs.find((j) => j.status === 'running' || j.status === 'queued');
+  const lastFinished = jobs.find((j) => j.status === 'done' || j.status === 'failed');
+  const lastFailed = lastFinished?.status === 'failed' ? lastFinished : undefined;
+  return { active, lastFailed };
+}
+
+/** One readable line for the UI instead of raw tool output. */
+function stepLine(active: JobRow | undefined) {
+  if (!active) return '';
+  const activeRow = rawDb().prepare(`select log from jobs where id=?`).get(active.id) as { log: string } | undefined;
+  return friendlyStep(activeRow?.log ?? '');
+}
+
+/** camelCase the job rows (raw SQL returns snake_case; the detail page reads
+ *  createdAt, and snake_case silently produced "Invalid Date" on screen). */
+function loadJobs(id: string): JobRow[] {
+  return (rawDb().prepare(
+    `select id, type, instance_id as instanceId, status, error, created_at as createdAt,
+            started_at as startedAt, finished_at as finishedAt
+     from jobs where instance_id=? order by created_at desc limit 10`).all(id)) as JobRow[];
+}
+
+/** The plan's display name and specs, because a custom plan's id is a hash
+ *  ("custom-7e7c3449") and that is all a reader would otherwise see. */
+async function planInfo(planId: string) {
+  return (await getDb().select({ name: plans.name, vcpu: plans.vcpu, ramMb: plans.ramMb, diskGb: plans.diskGb })
+    .from(plans).where(eq(plans.id, planId)))[0] ?? null;
+}
+
+/** structured lines for the live log viewer: one entry per step already
+ *  taken, newest last, each with a readable message */
+function logJobId(active: JobRow | undefined, lastFailed: JobRow | undefined, jobs: JobRow[]) {
+  return active?.id ?? lastFailed?.id ?? jobs[0]?.id;
+}
+
+/** The detail-page payload: instance row plus jobs, live step and log lines. */
+async function instancePayload(inst: {
+  id: string; planId: string; status: string; rootPassEnc: string | null;
+  bandwidthGb: number | null; healCount: number | null;
+}, jobs: JobRow[]) {
+  const { active, lastFailed } = pickLogJob(jobs);
+  // A failure is only a CURRENT problem if nothing has succeeded since. jobs is
+  // newest-first, so take the newest job that has actually finished: an old
+  // failed stop followed by a clean start is history, not an error. The old
+  // `jobs.find(status==='failed')` pinned that banner (and its "try again"
+  // button, which then refused with "nothing to retry") to the page forever.
+  return {
+    ...inst,
+    rootPassEnc: undefined,
+    vncPass: undefined, // drizzle key is camelCase; the leaked VNC password is NOT a feature
+    rootPassword: inst.rootPassEnc ? decrypt(inst.rootPassEnc) : null, // owner/admin session only
+    bw: bandState(inst.id, inst.bandwidthGb ?? 0),
+    planName: await planInfo(inst.planId),
+    step: stepLine(active),
+    problem: problemLine(inst.status, lastFailed),
+    healCount: inst.healCount ?? 0,
+    logLines: logLines(logJobId(active, lastFailed, jobs)),
+    jobs,
+  };
+}
+
+/** 'provisioning failed' banner text, or null when there is nothing to show. */
+function problemLine(status: string, lastFailed: JobRow | undefined) {
+  if (status !== 'error' && !lastFailed) return null;
+  return lastFailed?.error || 'provisioning failed';
+}
+
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
   const [inst, e] = await load(id, user.id, user.role);
   if (e) return e;
-  // camelCase the job rows (raw SQL returns snake_case; the detail page reads
-  // createdAt, and snake_case silently produced "Invalid Date" on screen).
-  const jobs = (rawDb().prepare(
-    `select id, type, instance_id as instanceId, status, error, created_at as createdAt,
-            started_at as startedAt, finished_at as finishedAt
-     from jobs where instance_id=? order by created_at desc limit 10`).all(id)) as Array<{
-    id: string; type: string; status: string; error: string; createdAt: number;
-    startedAt: number | null; finishedAt: number | null;
-  }>;
-
-  // one readable line for the UI instead of raw tool output
-  const active = jobs.find((j) => j.status === 'running' || j.status === 'queued');
-  const activeRow = active
-    ? rawDb().prepare(`select log from jobs where id=?`).get(active.id) as { log: string } | undefined
-    : undefined;
-  const step = active ? friendlyStep(activeRow?.log ?? '') : '';
-  // A failure is only a CURRENT problem if nothing has succeeded since. jobs is
-  // newest-first, so take the newest job that has actually finished: an old
-  // failed stop followed by a clean start is history, not an error. The old
-  // `jobs.find(status==='failed')` pinned that banner (and its "try again"
-  // button, which then refused with "nothing to retry") to the page forever.
-  const lastFinished = jobs.find((j) => j.status === 'done' || j.status === 'failed');
-  const lastFailed = lastFinished?.status === 'failed' ? lastFinished : undefined;
-  return json({
-    ...inst,
-    rootPassEnc: undefined,
-    vncPass: undefined, // drizzle key is camelCase; the leaked VNC password is NOT a feature
-    rootPassword: inst.rootPassEnc ? decrypt(inst.rootPassEnc) : null, // owner/admin session only
-    bw: bandState(inst.id, inst.bandwidthGb ?? 0),
-    // The plan's display name and specs, because a custom plan's id is a hash
-    // ("custom-7e7c3449") and that is all a reader would otherwise see.
-    planName: (await getDb().select({ name: plans.name, vcpu: plans.vcpu, ramMb: plans.ramMb, diskGb: plans.diskGb })
-      .from(plans).where(eq(plans.id, inst.planId)))[0] ?? null,
-    step,
-    problem: inst.status === 'error' || lastFailed ? (lastFailed?.error || 'provisioning failed') : null,
-    healCount: inst.healCount ?? 0,
-    // structured lines for the live log viewer: one entry per step already
-    // taken, newest last, each with a readable message
-    logLines: logLines(active?.id ?? lastFailed?.id ?? jobs[0]?.id),
-    jobs,
-  });
-}
-
-type LogLine = { t: number; m: string; kind: 'step' | 'ok' | 'err' | 'info' };
-
-/** Parse a job log into friendly, animated lines for the UI. Raw text stays in
- *  the DB; this is what a person actually wants to read while waiting. */
-function logLines(jobId?: string): LogLine[] {
-  if (!jobId) return [];
-  const row = rawDb().prepare(`select log, status, error, finished_at, started_at, created_at from jobs where id=?`).get(jobId) as
-    | { log: string; status: string; error: string; finished_at: number | null; started_at: number | null; created_at: number } | undefined;
-  if (!row) return [];
-  const out: LogLine[] = [];
-  const seen = new Set<number>();
-  for (const rawLine of String(row.log ?? '').split('\n')) {
-    const m = rawLine.match(/^\[([^\]]+)\]\s*(.*)$/);
-    if (!m) continue;
-    const t = Date.parse(m[1]);
-    const text = m[2].trim();
-    if (!text || seen.has(t)) continue;
-    seen.add(t);
-    if (/^FAILED:/.test(text)) continue; // rendered separately as the error
-    out.push({ t, m: friendlyStepLine(text), kind: stepKind(text) });
-  }
-  // The terminal line carries the job's REAL end time. Date.now() here was
-  // wrong: it stamped the failure with whenever the page was next opened,
-  // which made a 2-minute failure look like a 10-hour hang.
-  const endT = row.finished_at ?? row.started_at ?? row.created_at;
-  if (row.status === 'done') out.push({ t: endT, m: 'finished successfully', kind: 'ok' });
-  if (row.status === 'failed' && row.error) out.push({ t: endT, m: row.error, kind: 'err' });
-  return out.slice(-40);
-}
-
-function friendlyStepLine(text: string): string {
-  const s = friendlyStep(text);
-  return s === 'working' ? text.replace(/\.$/, '') : s;
-}
-
-function stepKind(text: string): 'step' | 'ok' | 'err' | 'info' {
-  if (/running|started|done|ok|created|reserved|registered/i.test(text)) return 'ok';
-  if (/waiting|cleaning|settling|writing/i.test(text)) return 'info';
-  if (/delete|destroy|remov/i.test(text)) return 'err';
-  return 'step';
+  return json(await instancePayload(inst, loadJobs(id)));
 }
 
 /** lifecycle actions: start | stop | delete */
@@ -219,18 +230,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const action = body.action;
   if (action === 'retry') return retryProvisioning(user, inst);
   if (action === 'clone') return cloneInstance(user, inst, body);
-  if (action !== 'start' && action !== 'stop' && action !== 'delete') return err('unknown action');
-  const status = inst.status;
-  if (status === 'provisioning') return err('instance still provisioning', 409);
-  const needsRunning = action === 'start' ? ['stopped', 'suspended', 'error'] : ['running', 'suspended', 'error'];
-  if (action === 'start' && !needsRunning.includes(status)) return err(`cannot start from ${status}`, 409);
-  if (action !== 'start' && !needsRunning.includes(status)) {
-    if (action === 'delete' && ['stopped', 'suspended', 'error'].includes(status)) {
-      // delete from stopped state is legitimate
-    } else {
-      return err(`cannot ${action} a ${status} instance`, 409);
-    }
-  }
+  const refused = lifecycleRefusal(action, inst.status);
+  if (refused) return refused;
   const active = rawDb().prepare(
     `select 1 from jobs where instance_id=? and status in ('queued','running')`,
   ).get(id);
