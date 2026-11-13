@@ -168,6 +168,18 @@ const result = await save(user)
 if (!result.ok) return logAndFail(result.error)
 ```
 
+**Where this applies in this codebase.** `Result<T>` lives in
+`lib/core/result.ts` and is adopted by core validators (`checkSnapshotName`,
+`validateCustomSpecSafe`). API route handlers keep a different, deliberate
+convention: they `throw` for unexpected failures and return `err(message, status)`
+for expected ones, with `friendlyError()` translating raw tool output into
+user-safe sentences at the boundary. Do not convert routes to `Result` — the
+route surface is already uniform, and `err()` IS the route-level Result.
+
+**Deliberate swallows** use `ignore('reason')` from `lib/core/ignore.ts` instead
+of `.catch(() => {})`, so the reason is readable at the call site. An empty
+`catch {}` is only acceptable with a comment saying why silence is correct.
+
 ---
 
 ## 5. Testing

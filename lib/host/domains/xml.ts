@@ -10,6 +10,7 @@ import { virsh } from '@/lib/core/driver';
 import { storagePaths } from '@/lib/config';
 import fs from 'fs/promises';
 import path from 'path';
+import { ignore } from '@/lib/core/ignore';
 
 const NAME_OK = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 
@@ -55,15 +56,15 @@ export async function editXml(name: string, fn: (xml: string) => string): Promis
   const next = fn(xml);
   if (next === xml) return false;
   const dir = path.join(storagePaths().root, 'xml-backups');
-  await fs.mkdir(dir, { recursive: true }).catch(() => {});
-  await fs.writeFile(path.join(dir, `dom-${name}-${Date.now()}.xml`), xml, 'utf8').catch(() => {});
+  await fs.mkdir(dir, { recursive: true }).catch(ignore('dir may already exist'));
+  await fs.writeFile(path.join(dir, `dom-${name}-${Date.now()}.xml`), xml, 'utf8').catch(ignore('backup copy is best-effort'));
   const tempFile = path.join(storagePaths().tmp, `dom-${Date.now()}.xml`);
   await fs.mkdir(path.dirname(tempFile), { recursive: true });
   await fs.writeFile(tempFile, next, 'utf8');
   try {
     await virsh(['define', tempFile]);
   } finally {
-    await fs.rm(tempFile, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(ignore('temp file may not exist'));
   }
   return true;
 }

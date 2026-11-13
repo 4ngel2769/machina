@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Img, Inst, Plan, Sample } from './types';
 import { useInstanceMutations } from './mutations';
+import { ignore } from '@/lib/core/ignore';
 
 export function useInstancesPage() {
   const [insts, setInsts] = useState<Inst[]>([]);
@@ -33,7 +34,7 @@ export function useInstancesPage() {
       fetch(`/api/instances/${instance.id}/metrics?range=1h`, { cache: 'no-store' })
         .then((metricsResponse) => (metricsResponse.ok ? metricsResponse.json() : { points: [] }))
         .then((metrics) => setSpark((previous) => ({ ...previous, [instance.id]: metrics.points ?? [] })))
-        .catch(() => {});
+        .catch(ignore('catalog fetch failure leaves plans empty'));
     };
     const instancesResponse = await fetch('/api/instances', { cache: 'no-store' });
     if (instancesResponse.ok) {

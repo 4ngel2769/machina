@@ -136,12 +136,12 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
     if (termState.closed) return;
     termState.closed = true;
     stopKeepalive();
-    try { conn.end(); } catch {}
-    try { ws.close(); } catch {}
+    try { conn.end(); } catch { /* conn may already be ended */ }
+    try { ws.close(); } catch { /* already closed */ }
     console.log(`[term] ${bind.instanceId} closed: ${why}`);
   };
   const fail = (msg: string) => {
-    try { ws.send(JSON.stringify({ t: 'e', d: msg })); } catch {}
+    try { ws.send(JSON.stringify({ t: 'e', d: msg })); } catch { /* socket may already be closing */ }
     close(msg);
   };
 

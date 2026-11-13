@@ -18,6 +18,7 @@ import { provisionInstance } from '@/lib/core/provision';
 import { diskVolFromId } from '@/lib/core/disks';
 import { storagePaths } from '@/lib/config';
 import { logJobLines } from './log-lines';
+import { ignore } from '@/lib/core/ignore';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,15 +39,15 @@ async function retryProvisioning(
   const domainRow = raw.prepare(`select domain_name from instances where id=?`).get(inst.id) as { domain_name: string } | undefined;
   if (domainRow) {
     const { destroyDomain, undefineDomain } = await import('@/lib/core/driver');
-    await destroyDomain(domainRow.domain_name).catch(() => {});
-    await undefineDomain(domainRow.domain_name).catch(() => {});
+    await destroyDomain(domainRow.domain_name).catch(ignore('domain may already be gone'));
+    await undefineDomain(domainRow.domain_name).catch(ignore('domain may already be undefined'));
   }
   const { diskVolFromId } = await import('@/lib/core/disks');
   const { storagePaths } = await import('@/lib/config');
   const fsPromises = await import('fs/promises');
   const storage = storagePaths();
-  await fsPromises.rm(`${storage.vms}/${diskVolFromId(inst.id)}.qcow2`, { force: true }).catch(() => {});
-  await fsPromises.rm(`${storage.seeds}/${inst.id}/seed.iso`, { force: true }).catch(() => {});
+  await fsPromises.rm(`${storage.vms}/${diskVolFromId(inst.id)}.qcow2`, { force: true }).catch(ignore('overlay may not exist'));
+  await fsPromises.rm(`${storage.seeds}/${inst.id}/seed.iso`, { force: true }).catch(ignore('seed may not exist'));
 
   const failedJob = raw.prepare(`select id from jobs where instance_id=? and type='instance.create'`).get(inst.id) as { id: string } | undefined;
   if (failedJob) {

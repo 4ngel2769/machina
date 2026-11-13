@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 import { config, storagePaths } from '@/lib/config';
 import { now } from './util';
 import { virsh } from './driver';
+import { ignore } from '@/lib/core/ignore';
 
 const pexec = promisify(execFile);
 
@@ -124,7 +125,7 @@ async function expectedSha(
 ): Promise<string> {
   if (!imageRow.sha256Url) return '';
   const sumsPath = `${partPath}.sums`;
-  await fetchFile(imageRow.sha256Url, sumsPath).catch(() => {});
+  await fetchFile(imageRow.sha256Url, sumsPath).catch(ignore('checksum file is optional'));
   if (!fs.existsSync(sumsPath)) return '';
   const expectedHash = shaFor(fs.readFileSync(sumsPath, 'utf8'), imageRow.version ?? '') || '';
   await fsp.rm(sumsPath, { force: true });
@@ -145,7 +146,7 @@ async function downloadVerified(
   }
   fs.renameSync(partPath, finalPath);
   // libvirt-qemu needs to read it directly from the pool dir.
-  await fsp.chmod(finalPath, 0o644).catch(() => {});
+  await fsp.chmod(finalPath, 0o644).catch(ignore('chmod is cosmetic; the file is already readable'));
 }
 
 async function doSync(imageId: string): Promise<void> {
@@ -165,7 +166,7 @@ async function doSync(imageId: string): Promise<void> {
     await db.update(images).set({ status: 'downloading', updatedAt: now() }).where(eq(images.id, imageId));
     await downloadVerified(row, partPath, finalPath, wantSha);
   } catch (syncError) {
-    await fsp.rm(partPath, { force: true }).catch(() => {});
+    await fsp.rm(partPath, { force: true }).catch(ignore('partial download may not exist'));
     await db.update(images).set({
       status: 'failed',
       failure: String((syncError as Error).message || syncError),
@@ -184,6 +185,6 @@ async function doSync(imageId: string): Promise<void> {
     failure: null,
     updatedAt: now(),
   }).where(eq(images.id, imageId));
-  await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.imagePool]).catch(() => {});
+  await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.imagePool]).catch(ignore('pool refresh is best-effort; libvirt rescans anyway'));
   void virsh;
 }

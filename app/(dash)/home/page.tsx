@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { StatusCue } from '@/app/ui/status';
 import { Skeleton, Empty } from '@/app/ui/loaders';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { ignore } from '@/lib/core/ignore';
 
 type Inst = { id: string; name: string; status: string; planId: string; ip: string; createdAt: number; rateHourlyCents: number };
 type Plan = { id: string; name: string; vcpu: number; ramMb: number };
@@ -30,7 +31,7 @@ export default function HomePage() {
         fetch(`/api/instances/${instance.id}/usage`, { cache: 'no-store' })
           .then((usageResponse) => usageResponse.ok ? usageResponse.json() : [])
           .then((samples) => setSpark((previous) => ({ ...previous, [instance.id]: samples })))
-          .catch(() => {});
+          .catch(ignore('usage fetch failure leaves the card empty'));
       }
     }
     const billingResponse = await fetch('/api/billing', { cache: 'no-store' });

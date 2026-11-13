@@ -12,6 +12,7 @@ import { virsh } from '@/lib/core/driver';
 import { config, storagePaths } from '@/lib/config';
 import fs from 'fs/promises';
 import path from 'path';
+import { ignore } from '@/lib/core/ignore';
 
 export type NetHost = { mac: string; ip: string; name?: string };
 export type NetIp = {
@@ -183,7 +184,7 @@ async function defineXml(xml: string): Promise<void> {
   try {
     await virsh(['net-define', tempFile]);
   } finally {
-    await fs.rm(tempFile, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(ignore('temp file may not exist'));
   }
 }
 
@@ -272,8 +273,8 @@ function applyDomain(next: string, domain: string | null): string {
 /** keep the previous XML: a bad net-define can leave a network unstartable */
 async function backupAndDefine(name: string, xml: string, next: string): Promise<void> {
   const dir = path.join(storagePaths().root, 'xml-backups');
-  await fs.mkdir(dir, { recursive: true }).catch(() => {});
-  await fs.writeFile(path.join(dir, `net-${name}-${Date.now()}.xml`), xml, 'utf8').catch(() => {});
+  await fs.mkdir(dir, { recursive: true }).catch(ignore('dir may already exist'));
+  await fs.writeFile(path.join(dir, `net-${name}-${Date.now()}.xml`), xml, 'utf8').catch(ignore('backup copy is best-effort'));
   await defineXml(next);
 }
 

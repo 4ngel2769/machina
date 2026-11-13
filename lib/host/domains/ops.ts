@@ -16,6 +16,7 @@ import path from 'path';
 import { vmDetail } from './detail';
 import { attr, elems, assertName, editXml, INT } from './xml';
 import type { VmOp } from './types';
+import { ignore } from '@/lib/core/ignore';
 
 type Running = boolean;
 type Handler<K extends VmOp['op']> =
@@ -29,7 +30,7 @@ async function withXmlFile<T>(prefix: string, xml: string, fn: (tempFile: string
   try {
     return await fn(tempFile);
   } finally {
-    await fs.rm(tempFile, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(ignore('temp file may not exist'));
   }
 }
 
@@ -62,7 +63,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
     const count = Math.min(op.count, max);
     await virsh(['setvcpus', name, String(max), '--maximum', '--config']);
     await virsh(['setvcpus', name, String(count), '--config']);
-    if (running) await virsh(['setvcpus', name, String(count), '--live']).catch(() => {});
+    if (running) await virsh(['setvcpus', name, String(count), '--live']).catch(ignore('live update is best-effort; next boot applies it'));
     return `${count} vCPU (max ${max})${running ? '' : ' — applies at next start'}`;
   },
 
@@ -70,7 +71,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
     const mb = INT(op.mb, 128, 1_048_576, 'memory MB');
     await virsh(['setmaxmem', name, `${mb}M`, '--config']);
     await virsh(['setmem', name, `${mb}M`, '--config']);
-    if (running) await virsh(['setmem', name, `${mb}M`, '--live']).catch(() => {});
+    if (running) await virsh(['setmem', name, `${mb}M`, '--live']).catch(ignore('live update is best-effort; next boot applies it'));
     return `${mb} MB${running ? '' : ' — applies at next start'}`;
   },
 
@@ -135,7 +136,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
     if (!free) throw new Error('no free vd* slot left');
     const file = path.join(storagePaths().vms, `hot-${name}-${free}-${Date.now()}.qcow2`);
     await run('qemu-img', ['create', '-f', 'qcow2', file, `${gb}G`], { sudo: true });
-    await run('chown', ['libvirt-qemu:kvm', file], { sudo: true }).catch(() => {});
+    await run('chown', ['libvirt-qemu:kvm', file], { sudo: true }).catch(ignore('ownership fix is best-effort'));
     await virsh(['attach-disk', name, file, free, '--driver', 'qemu', '--subdriver', 'qcow2',
       '--targetbus', op.bus === 'sata' ? 'sata' : 'virtio', '--config']);
     return `attached ${gb}G as ${free} — appears at next start`;

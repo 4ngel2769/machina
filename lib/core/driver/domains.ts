@@ -5,6 +5,7 @@
 import fs from 'fs/promises';
 import { storagePaths, config } from '@/lib/config';
 import { virsh } from './exec';
+import { ignore } from '@/lib/core/ignore';
 
 export interface DomInfo {
   name: string;
@@ -175,7 +176,7 @@ export async function defineDomain(xml: string): Promise<void> {
   try {
     await virsh(['define', xmlPath]);
   } finally {
-    await fs.rm(xmlPath, { force: true }).catch(() => {});
+    await fs.rm(xmlPath, { force: true }).catch(ignore('temp XML may not exist'));
   }
 }
 
@@ -214,7 +215,7 @@ export async function ensureRunning(name: string): Promise<void> {
 }
 
 export async function destroyDomain(name: string): Promise<void> {
-  await virsh(['destroy', name]).catch(() => {});
+  await virsh(['destroy', name]).catch(ignore('domain may already be gone'));
 }
 
 export async function undefineDomain(name: string): Promise<void> {
