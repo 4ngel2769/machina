@@ -4,13 +4,32 @@
 'use client';
 
 import { AsciiSkeleton } from 'ascii-reveal';
+import { useEffect, useState } from 'react';
 import { ThinkingOrb, type OrbState, type OrbSize } from 'thinking-orbs';
 import { Icon, type IconName } from './icons';
 
 /* ---------------------------------------------------------------- skeletons */
 
+function skeletonShape({ w, h, lines }: { w: string | number; h: number; lines?: number }) {
+  if (lines && lines > 1) {
+    return {
+      lines,
+      widths: Array.from({ length: lines }, (_, i) => `${100 - (i % 3) * 14}%`),
+      animate: lines <= 6,
+      style: { display: 'block' as const },
+    };
+  }
+  return {
+    rows: Math.max(1, Math.round(h / 12)),
+    width: w,
+    height: h,
+    animate: true,
+    style: { display: 'block' as const },
+  };
+}
+
 /** ASCII placeholder block. `w`/`h` in px or CSS lengths; `lines` picks a
- *  multi-line text shape for tall blocks. */
+ *  multi-line text shape. Blocks shimmer; long multi-line lists stay still. */
 export function Skeleton({ w = '100%', h = 12, r = 6, style, lines }: {
   w?: string | number;
   h?: number;
@@ -19,19 +38,8 @@ export function Skeleton({ w = '100%', h = 12, r = 6, style, lines }: {
   lines?: number;
 }) {
   void r;
-  if (lines && lines > 1) {
-    const widths = Array.from({ length: lines }, (_, i) => `${100 - (i % 3) * 14}%`);
-    return <AsciiSkeleton lines={lines} widths={widths} animate={lines <= 6} style={{ ...style, width: w }} />;
-  }
-  return (
-    <AsciiSkeleton
-      rows={Math.max(1, Math.round(h / 12))}
-      width={w}
-      height={h}
-      animate={false}
-      style={style}
-    />
-  );
+  const shape = skeletonShape({ w, h, lines });
+  return <AsciiSkeleton variant="scan" {...shape} style={{ ...shape.style, ...style }} />;
 }
 
 export function SkelCard({ lines = 3 }: { lines?: number }) {
@@ -53,6 +61,18 @@ export function SkelRow({ cols = 4 }: { cols?: number }) {
       ))}
     </div>
   );
+}
+
+/** Content gate: stays false for `ms` after mount, so a fast fetch doesn't
+ *  swap a skeleton for real content in a single frame. Pair with the data
+ *  check: `{!ready && <Skeleton/>}{ready && data && …}`. */
+export function useMinVisible(ms = 400): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), ms);
+    return () => clearTimeout(timer);
+  }, [ms]);
+  return ready;
 }
 
 /* ------------------------------------------------------------------- orbs */
@@ -94,6 +114,7 @@ export function Dots() {
   return <span className="dots" aria-hidden><i /><i /><i /></span>;
 }
 
+/** Indeterminate progress bar. */
 export function BarLoader({ label }: { label?: string }) {
   return (
     <div className="barloader" role="status" aria-label={label ?? 'loading'}>

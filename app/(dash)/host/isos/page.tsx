@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/app/ui/toast';
-import { Empty, Skeleton } from '@/app/ui/loaders';
+import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Iso = { name: string; sizeMb: number; mtime: number; sha256: string | null };
 type IsoList = { isos: Iso[]; maxIsoGb: number; maxIsoCount: number; maxIsoTotalGb: number };
@@ -59,6 +59,7 @@ export default function IsosPage() {
   const router = useRouter();
   const [list, setList] = useState<IsoList | null>(null);
   const [busy, setBusy] = useState(false);
+  const ready = useMinVisible(400);
 
   const load = useCallback(async () => {
     const response = await fetch('/api/isos', { cache: 'no-store' });
@@ -97,13 +98,13 @@ export default function IsosPage() {
       </div>
 
       <UploadBar busy={busy} onUpload={(file) => void upload(file)} />
-      <IsoBody list={list} isos={isos} onDelete={(name) => void remove(name)} />
+      <IsoBody ready={ready} list={list} isos={isos} onDelete={(name) => void remove(name)} />
     </>
   );
 }
 
-function IsoBody({ list, isos, onDelete }: { list: IsoList | null; isos: Iso[]; onDelete: (name: string) => void }) {
-  if (!list) return <Skeleton h={120} />;
+function IsoBody({ ready, list, isos, onDelete }: { ready: boolean; list: IsoList | null; isos: Iso[]; onDelete: (name: string) => void }) {
+  if (!ready || !list) return <Skeleton h={120} />;
   if (isos.length === 0) return <Empty icon="hard-drive" text="no isos yet — upload an installer image to attach it to a VM" />;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>

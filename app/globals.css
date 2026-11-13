@@ -8,6 +8,10 @@
   --text-3: #6e6e77;
   --accent: #2dd4bf;
   --accent-dim: #134e4a;
+  --ascii-skeleton: #55555c;
+  --ascii-accent: #2dd4bf;
+  --ascii-glyph: #3a3a41;
+  --ascii-font: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --danger: #f87171;
   --ok: #4ade80;
   --warn: #fbbf24;
@@ -284,6 +288,10 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
   animation: bar-slide 1.2s ease-in-out infinite;
 }
 @keyframes bar-slide { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+
+/* ascii skeleton tuning (vars read by ascii-reveal's own stylesheet) */
+.ars { --ars-base: .42; --ars-wave: 1; --ars-band: 48%; --ars-speed: 1.6s; color: var(--ascii-skeleton); }
+.ars-block { background: color-mix(in srgb, var(--ascii-skeleton) 7%, transparent); }
 
 /* --------------------------------------------------------- empty states */
 .empty { padding: 34px 12px; text-align: center; color: var(--text-3); }

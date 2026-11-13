@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
-import { Empty, Skeleton } from '@/app/ui/loaders';
+import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Token = {
   id: string; name: string; prefix: string; scopes: string;
@@ -133,6 +133,7 @@ export default function TokensPage() {
   const [data, setData] = useState<ScopeList | null>(null);
   const [minted, setMinted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const ready = useMinVisible(400);
 
   const load = useCallback(async () => {
     const response = await fetch('/api/tokens', { cache: 'no-store' });
@@ -180,13 +181,17 @@ export default function TokensPage() {
       {minted && <MintedCard secret={minted} onDone={() => setMinted(null)} />}
       <MintForm scopes={scopes} busy={busy} onMint={(n, p, d) => void mint(n, p, d)} />
 
-      {!data && <Skeleton h={120} />}
-      {data && tokens.length === 0 && <Empty icon="key" text="no tokens yet" />}
-      {tokens.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {tokens.map((token) => <TokenRow key={token.id} token={token} onRevoke={(id) => void revoke(id)} />)}
-        </div>
-      )}
+      {(!ready || !data) && <Skeleton h={120} />}
+      {ready && data && <TokenList tokens={tokens} onRevoke={(id) => void revoke(id)} />}
     </>
+  );
+}
+
+function TokenList({ tokens, onRevoke }: { tokens: Token[]; onRevoke: (id: string) => void }) {
+  if (tokens.length === 0) return <Empty icon="key" text="no tokens yet" />;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {tokens.map((token) => <TokenRow key={token.id} token={token} onRevoke={onRevoke} />)}
+    </div>
   );
 }

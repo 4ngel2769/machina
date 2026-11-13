@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
-import { Empty, Skeleton } from '@/app/ui/loaders';
+import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { ScheduleTable, type Schedule } from './schedule-table';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -87,6 +87,7 @@ export function SchedulePanel({ instanceId, instanceStatus }: { instanceId: stri
   const toast = useToast();
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const settled = instanceStatus === 'running' || instanceStatus === 'stopped';
+  const ready = useMinVisible(400);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/schedules?instanceId=${encodeURIComponent(instanceId)}`, { cache: 'no-store' });
@@ -126,9 +127,13 @@ export function SchedulePanel({ instanceId, instanceStatus }: { instanceId: stri
         </div>
       )}
 
-      {!schedules && <Skeleton h={80} />}
-      {schedules && schedules.length === 0 && <Empty icon="clock" text="nothing scheduled" />}
-      {schedules && schedules.length > 0 && <ScheduleTable schedules={schedules} onCancel={(id) => void cancel(id)} />}
+      {(!ready || !schedules) && <Skeleton h={80} />}
+      {ready && schedules && <ScheduleBody schedules={schedules} onCancel={(id) => void cancel(id)} />}
     </div>
   );
+}
+
+function ScheduleBody({ schedules, onCancel }: { schedules: Schedule[]; onCancel: (id: string) => void }) {
+  if (schedules.length === 0) return <Empty icon="clock" text="nothing scheduled" />;
+  return <ScheduleTable schedules={schedules} onCancel={onCancel} />;
 }
