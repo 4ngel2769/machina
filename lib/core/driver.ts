@@ -214,9 +214,15 @@ export function domainXml(opts: {
   mac: string;
   vncSocket: string;
   vncPass: string;
+  spice?: boolean;
   serialPath: string;
 }): string {
   const { domainName, instanceId, vcpu, ramMb, diskVolPath, seedIsoPath, mac, vncSocket, vncPass, serialPath } = opts;
+  // SPICE is additive: the in-app console speaks VNC over our websocket relay,
+  // and SPICE exists for native clients (remote-viewer) on loopback only.
+  const spice = opts.spice
+    ? `\n    <graphics type='spice' autoport='yes' listen='127.0.0.1'><listen type='address' address='127.0.0.1'/></graphics>`
+    : '';
   return `<?xml version="1.0"?>
 <domain type='kvm'>
   <name>${domainName}</name>
@@ -273,7 +279,7 @@ export function domainXml(opts: {
       <backend model='random'>/dev/urandom</backend>
     </rng>
     <console type='pty'/>
-    <graphics type='vnc' socket='${vncSocket}' passwd='${vncPass}'/>
+    <graphics type='vnc' socket='${vncSocket}' passwd='${vncPass}'/>${spice}
     <video>
       <model type='virtio'/>
     </video>

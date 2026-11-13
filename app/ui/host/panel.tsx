@@ -17,6 +17,10 @@ type Vm = {
 type NetHost = { mac: string; ip: string; name?: string };
 type NetIp = { family: 'ipv4' | 'ipv6'; address: string; prefix: number; dhcp: { start: string; end: string } | null; hosts: NetHost[] };
 type Net = { name: string; active: boolean; autostart: boolean; persistent: boolean; forward: string; bridge: string | null; domain: string | null; ips: NetIp[] };
+type Pool = {
+  name: string; type: string; state: 'running' | 'stopped'; autostart: boolean; persistent: boolean;
+  path: string; capacityMb: number | null; allocationMb: number | null; availableMb: number | null;
+};
 type Iface = {
   name: string; kind: string; driver: 'networkmanager' | 'libvirt' | 'container' | 'unmanaged';
   connection: string | null; state: string; mac: string; mtu: number; addresses: string[];
@@ -26,12 +30,13 @@ type Iface = {
 type Inv = {
   vms: Vm[]; vmsError: string | null; networks: Net[]; networksError: string | null;
   interfaces: Iface[];
+  pools: Pool[];
   instances: { domain_name: string; id: string; plan_id: string; mac: string; ip: string; uid: string | null; uname: string | null; urole: string | null; balance_cents: number }[];
   users: { id: string; name: string; role: string; balance_cents: number }[];
   host: { hostname: string; cpus: number; load: number[]; memTotalMb: number; memFreeMb: number; uptimeSec: number; release: string };
 };
 
-const TABS = ['machines', 'networks', 'interfaces', 'users', 'log'] as const;
+const TABS = ['machines', 'networks', 'interfaces', 'pools', 'users', 'log'] as const;
 type Tab = (typeof TABS)[number];
 
 export function HostPanel() {
@@ -40,7 +45,10 @@ export function HostPanel() {
   const [owner, setOwner] = useState<string>('visible');
   const [busy, setBusy] = useState('');
 
-  const inv = usePoll<Inv>(tab === 'interfaces' ? '/api/host?ifaces=1' : '/api/host', tab === 'interfaces' ? 5000 : 15_000);
+  const inv = usePoll<Inv>(
+    tab === 'interfaces' ? '/api/host?ifaces=1' : tab === 'pools' ? '/api/host?pools=1' : '/api/host',
+    tab === 'interfaces' ? 5000 : 15_000,
+  );
   const log = usePoll<{ rows: { id: string; ts: number; actor_name: string; action: string; target: string; detail: string }[] }>(
     '/api/host?log=1', 20_000, tab === 'log',
   );
@@ -144,6 +152,8 @@ export function HostPanel() {
 
       {tab === 'interfaces' && <Interfaces ifaces={d?.interfaces ?? []} busy={busy} post={post} />}
 
+      {tab === 'pools' && <Pools pools={d?.pools ?? []} busy={busy} post={post} />}
+
       {tab === 'users' && (
         <div className="card" style={{ marginTop: 16 }}>
           <h3>accounts and their machines</h3>
@@ -199,6 +209,50 @@ export function HostPanel() {
         </div>
       )}
     </>
+  );
+}
+
+// ------------------------------------------------------------------- pools
+
+function Pools({ pools, busy, post }: {
+  pools: Pool[];
+  busy: string;
+  post: (url: string, b: Record<string, unknown>, label: string) => Promise<boolean>;
+}) {
+  if (!pools.length) return <div className="card" style={{ marginTop: 16 }}><Empty text="no storage pools defined" /></div>;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3>storage pools</h3>
+      <div className="muted" style={{ marginBottom: 12 }}>
+        a dir pool does not notice files placed there by anything but libvirt until it rescans.
+        refresh after copying a base image or an ISO into the directory.
+      </div>
+      <table>
+        <thead><tr><th>pool</th><th>state</th><th>type</th><th>path</th><th>used</th><th>free</th><th>autostart</th><th /></tr></thead>
+        <tbody>
+          {pools.map((p) => (
+            <tr key={p.name}>
+              <td className="mono">{p.name}</td>
+              <td><span className={`badge ${p.state === 'running' ? 'running' : 'stopped'}`}>{p.state}</span></td>
+              <td>{p.type || '—'}</td>
+              <td className="mono muted" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.path || '—'}</td>
+              <td className="mono">
+                {p.allocationMb != null ? bytes(p.allocationMb * 1048576) : '—'}
+                {p.capacityMb != null ? <span className="muted"> / {bytes(p.capacityMb * 1048576)}</span> : null}
+              </td>
+              <td className="mono">{p.availableMb != null ? bytes(p.availableMb * 1048576) : '—'}</td>
+              <td>{p.autostart ? 'yes' : <span className="muted">no</span>}</td>
+              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <button disabled={!!busy || p.state !== 'running'}
+                  onClick={() => void post('/api/host', { op: 'poolRefresh', name: p.name }, `refresh ${p.name}`)}>
+                  {busy === `refresh ${p.name}` ? <Ring size={10} /> : 'refresh'}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

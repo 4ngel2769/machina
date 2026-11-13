@@ -15,6 +15,7 @@ type Detail = {
   arch: string; machineType: string; osType: string; cpuMode: string; cpuModel: string;
   sockets: number; cores: number; threads: number; boot: string[];
   firmware: 'bios' | 'efi'; vnc: string | null;
+  spice: { port: number; tlsPort: number | null } | null;
   watchdog: { model: string; action: string } | null;
   disks: { target: string; bus: string; device: string; source: string; format: string; sizeGb: number | null }[];
   nics: { mac: string; type: string; source: string; model: string }[];
@@ -36,6 +37,7 @@ export function HostVm({ name }: { name: string }) {
   const toast = useToast();
   const q = usePoll<Payload>(`/api/host/vm?name=${encodeURIComponent(name)}`, 5000);
   const nets = usePoll<{ networks: Net[] }>('/api/host/net', 60_000);
+  const isos = usePoll<{ isos: { name: string; sizeMb: number; sha256: string | null }[]; maxIsoGb: number }>('/api/isos', 60_000);
   const [busy, setBusy] = useState('');
   const [cpuHist, setCpuHist] = useState<{ t: number; v: number }[]>([]);
   const prev = useRef<{ t: number; cpu: number } | null>(null);
@@ -70,6 +72,21 @@ export function HostVm({ name }: { name: string }) {
     } finally { setBusy(''); }
   }
 
+  /** Raw body, filename in the query: the server caps while streaming. */
+  async function uploadIso(file: File): Promise<void> {
+    setBusy('upload iso');
+    try {
+      const r = await fetch(`/api/isos?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { toast.err(j.error ?? 'upload failed'); return; }
+      toast.ok(`uploaded ${j.iso?.name ?? file.name}`);
+      isos.reload();
+      q.reload();
+    } catch {
+      toast.err('upload failed: could not reach the server');
+    } finally { setBusy(''); }
+  }
+
   if (q.error) return <><h1>{name}</h1><div className="notice err" style={{ marginTop: 12 }}>{q.error}</div><Link href="/host">← host</Link></>;
   if (!vm) return <><h1>{name}</h1><Empty text="reading the domain…" /></>;
 
@@ -86,6 +103,7 @@ export function HostVm({ name }: { name: string }) {
             {' · '}{vm.osType || 'hvm'} {vm.arch} · {vm.machineType || 'pc'} · {vm.firmware.toUpperCase()}
             {' · '}{vm.system ? 'system domain' : `machina · ${vm.owner?.name ?? 'unknown'}`}
             {vm.vnc ? ` · vnc :${vm.vnc}` : ''}
+            {vm.spice ? ` · spice :${vm.spice.port}` : ''}
           </div>
         </div>
         <div className="row">
@@ -204,6 +222,77 @@ export function HostVm({ name }: { name: string }) {
             const el = document.getElementById('disk-gb') as HTMLInputElement | null;
             void op({ op: 'diskAttach', sizeGb: Number(el?.value ?? 0) }, 'attach disk');
           }}>attach a new disk</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <h3>media</h3>
+        {vm.disks.filter((d) => d.device === 'cdrom').length === 0 ? (
+          <Empty text="no cdrom attached" />
+        ) : (
+          <table>
+            <thead><tr><th>target</th><th>bus</th><th>media</th><th /></tr></thead>
+            <tbody>
+              {vm.disks.filter((d) => d.device === 'cdrom').map((d) => (
+                <tr key={d.target + d.source}>
+                  <td className="mono">{d.target}</td><td>{d.bus}</td>
+                  <td className="mono muted" style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {d.source ? d.source.split('/').pop() : '(empty)'}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button disabled={!!busy}
+                      onClick={() => { if (confirm(`eject ${d.target}?`)) void op({ op: 'isoDetach', target: d.target }, 'eject media'); }}>
+                      eject
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <div className="row" style={{ marginTop: 10 }}>
+          <Field label="insert iso">
+            <select id="iso-pick" defaultValue="" style={{ minWidth: 220 }}>
+              <option value="">select…</option>
+              {(isos.data?.isos ?? []).map((i) => (
+                <option key={i.name} value={i.name}>{i.name} · {i.sizeMb} MB</option>
+              ))}
+            </select>
+          </Field>
+          <button disabled={!!busy || running || !(isos.data?.isos ?? []).length} onClick={() => {
+            const el = document.getElementById('iso-pick') as HTMLSelectElement | null;
+            if (el?.value) void op({ op: 'isoAttach', iso: el.value }, 'insert media');
+          }}>insert</button>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {running ? 'stop the VM to change media' : isos.data?.isos.length ? '' : 'no isos uploaded yet'}
+          </span>
+        </div>
+
+        <div className="row" style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+          <Field label={`upload iso (max ${isos.data?.maxIsoGb ?? 16} GB)`}>
+            <input id="iso-file" type="file" accept=".iso,application/x-iso9660-image" />
+          </Field>
+          <button disabled={!!busy} onClick={() => {
+            const el = document.getElementById('iso-file') as HTMLInputElement | null;
+            const file = el?.files?.[0];
+            if (!file) { toast.err('pick a .iso file first'); return; }
+            void uploadIso(file);
+          }}>{busy === 'upload iso' ? <Ring size={11} /> : 'upload'}</button>
+        </div>
+
+        <div className="row" style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+          <Field label="spice console">
+            <span className="muted" style={{ fontSize: 12 }}>
+              {vm.spice ? `enabled on 127.0.0.1:${vm.spice.port}` : 'off'}
+            </span>
+          </Field>
+          <button disabled={!!busy || running} onClick={() => void op({ op: 'spice', on: !vm.spice }, vm.spice ? 'disable spice' : 'enable spice')}>
+            {vm.spice ? 'disable' : 'enable'}
+          </button>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {running ? 'stop the VM to change the console' : vm.spice ? 'remote-viewer spice://127.0.0.1:' + vm.spice.port : ''}
+          </span>
         </div>
       </div>
 

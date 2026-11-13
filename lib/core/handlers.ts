@@ -11,7 +11,7 @@ import {
   createSnapshot, revertSnapshot, deleteSnapshot, listSnapshots,
   isDomainRunning, diskUsage, assertSnapshotName, resumeDomain,
 } from './driver';
-import { createBackedDisk, deleteVolume, diskVolFromId } from './disks';
+import { createBackedDisk, deleteVolume, diskVolFromId, copyDisk } from './disks';
 import { syncImage } from './images';
 import { settleUser } from './metering';
 import { ensureThrottleState } from './netmeter';
@@ -195,14 +195,23 @@ async function create(job: JobCtx, log: (m: string) => void): Promise<void> {
   const [image] = await getDb().select().from(images).where(eq(images.id, inst.image_id));
   const [user] = await getDb().select().from(users).where(eq(users.id, inst.user_id));
   if (!plan || !image || !user) throw new Error('plan/image/user row missing');
-  if (image.status !== ('ready' as const) || !image.path || !fs.existsSync(image.path)) {
+  const { copyFromPath } = JSON.parse(job.payload || '{}') as { copyFromPath?: string };
+  // A clone does not read the base image at all, so a pooled image that has
+  // since been removed must not block it.
+  if (!copyFromPath && (image.status !== ('ready' as const) || !image.path || !fs.existsSync(image.path))) {
     throw new Error(`image ${image.id} not ready for provisioning`);
   }
   if (user.balanceCents <= 0) throw new Error('balance exhausted; cannot provision');
 
   const rootPassword = decrypt(inst.root_pass_enc);
-  log(`creating disk ${plan.diskGb}G from ${image.id}`);
-  const disk = await createBackedDisk(inst.id, image.path, plan.diskGb);
+  let disk: { volName: string; volPath: string };
+  if (copyFromPath) {
+    log(`cloning disk ${plan.diskGb}G from an existing volume`);
+    disk = await copyDisk(inst.id, copyFromPath, plan.diskGb);
+  } else {
+    log(`creating disk ${plan.diskGb}G from ${image.id}`);
+    disk = await createBackedDisk(inst.id, image.path, plan.diskGb);
+  }
 
   const seedIsoPath = `${config.storageDir}/seeds/${inst.id}/seed.iso`;
   log('building cloud-init seed');
@@ -236,6 +245,7 @@ async function create(job: JobCtx, log: (m: string) => void): Promise<void> {
     vncSocket,
     vncPass,
     serialPath,
+    spice: config.spice.enabled,
   });
   log('defining domain');
   // a previous attempt may have left the domain defined (or even running);

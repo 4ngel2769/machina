@@ -76,6 +76,9 @@ export const config = {
     snapshotGrowthRatio: 1.5,
     // Never create a snapshot with less than this free on the vms pool.
     snapshotFreeSpaceFloorMb: 2048,
+    /** Largest ISO an admin may upload. An installer image is a few GB; the cap
+     *  exists so a mistyped upload cannot fill the storage volume. */
+    maxIsoGb: 16,
   },
   // Hypervisor metric sampling. 20s keeps the UI lively without the sampler
   // ever competing with the job worker for libvirt. Retention is a flat
@@ -88,6 +91,9 @@ export const config = {
     perInstanceTimeoutMs: 12_000,
   },
   masterKey: process.env.MACHINA_MASTER_KEY || '',
+  /** SPICE console on new VMs. Off by default: the in-app console is VNC, and
+   *  SPICE only pays off for native clients (remote-viewer) via ssh tunnel. */
+  spice: { enabled: process.env.MACHINA_SPICE === '1' },
   host: {
     hostname: 'blade',
     publicDomain: 'machina.home',
@@ -105,6 +111,7 @@ export function storagePaths() {
     tmp: path.join(config.storageDir, 'tmp'),
     ssh: path.join(config.storageDir, 'ssh'),
     serial: path.join(config.storageDir, 'serial'),
+    iso: path.join(config.storageDir, 'iso'),
   };
 }
 

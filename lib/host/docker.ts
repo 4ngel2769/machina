@@ -9,9 +9,11 @@ import { run } from './exec';
  * anything. Arguments are passed as an array and never through a shell, and a
  * container is addressed by its validated id or name only.
  *
- * Scope is deliberately the read plane plus start/stop/restart. Creating and
- * removing containers from a web page is a different risk class (image
- * provenance, volume ownership, port publishing) and nothing here needs it.
+ * Scope is the read plane, lifecycle, plus a deliberately narrow create/remove.
+ * Create takes no bind mounts, no volumes, no privileged flag, no host network,
+ * no capabilities and no devices — a web form that can hand out host filesystem
+ * access is a root shell with a text box. Remove only touches containers this
+ * page created, identified by their own label.
  */
 
 export type Container = {
@@ -30,6 +32,8 @@ export type Container = {
   memLimitMb: number | null;
   memPct: number | null;
   pids: number | null;
+  /** True only for containers this console created (label machina.managed=1). */
+  managed: boolean;
 };
 
 /** docker ps emits one JSON object per line; the field names are docker's. */
@@ -135,6 +139,7 @@ export async function listContainers(): Promise<Container[]> {
       memLimitMb: limit || null,
       memPct: limit ? num(s?.MemPerc ?? '') : null,
       pids: s && Number.isFinite(Number(s.PIDs)) ? Number(s.PIDs) : null,
+      managed: label(r.Labels, 'machina.managed') === '1',
     };
   }).sort((a, b) => (a.project ?? '~').localeCompare(b.project ?? '~') || a.name.localeCompare(b.name));
 }
@@ -168,4 +173,98 @@ export async function containerLogs(ref: string, tail = 200): Promise<string> {
     // or whose stream rotated; the message still carries the reason.
     throw new Error((e as Error).message);
   }
+}
+
+// ---------------------------------------------------------------- create/remove
+
+/**
+ * Image references are restricted to registries we can name, and the tag must
+ * be explicit. `:latest` is refused because a container that silently changes
+ * what it runs on the next pull is not something an admin can audit.
+ */
+const REGISTRIES = ['docker.io', 'ghcr.io', 'quay.io', 'lscr.io', 'registry.k8s.io', 'gcr.io', 'mcr.microsoft.com'];
+const IMAGE_RE = /^(?:([a-z0-9.-]+\.[a-z]{2,})\/)?([a-z0-9][a-z0-9._/-]{0,150}):([A-Za-z0-9_][A-Za-z0-9._-]{0,127})$/;
+const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/;
+
+export type CreateSpec = {
+  name: string;
+  image: string;
+  memoryMb?: number;
+  cpus?: number;
+  ports?: { host: number; container: number }[];
+};
+
+/** Validated and normalised. Anything not on this list never reaches argv. */
+export function parseCreate(body: Record<string, unknown>): CreateSpec {
+  const name = String(body.name ?? '').trim();
+  if (!CONTAINER_NAME.test(name)) {
+    throw new Error('name: 1-63 chars, letters, digits, dot, dash, underscore');
+  }
+  const image = String(body.image ?? '').trim();
+  const m = IMAGE_RE.exec(image);
+  if (!m) throw new Error('image must be a registry path with an explicit tag (e.g. ghcr.io/org/app:1.2.3)');
+  const registry = m[1] ?? 'docker.io';
+  if (!REGISTRIES.includes(registry)) throw new Error(`registry ${registry} is not allowed`);
+  if (m[3] === 'latest' || m[3] === 'main' || m[3] === 'master') {
+    throw new Error('pin a real version tag — latest/main would change under you on the next pull');
+  }
+
+  const memoryMb = body.memoryMb == null ? 512 : Math.trunc(Number(body.memoryMb));
+  if (!Number.isFinite(memoryMb) || memoryMb < 128 || memoryMb > 8192) {
+    throw new Error('memory must be 128-8192 MB');
+  }
+  const cpus = body.cpus == null ? 1 : Number(body.cpus);
+  if (!Number.isFinite(cpus) || cpus <= 0 || cpus > 8) throw new Error('cpus must be greater than 0 and at most 8');
+
+  const rawPorts = Array.isArray(body.ports) ? body.ports : [];
+  if (rawPorts.length > 8) throw new Error('at most 8 published ports');
+  const seen = new Set<number>();
+  const ports = rawPorts.map((p) => {
+    const host = Math.trunc(Number((p as { host?: unknown }).host));
+    const cont = Math.trunc(Number((p as { container?: unknown }).container));
+    if (!Number.isInteger(host) || host < 1024 || host > 65535) throw new Error('host port must be 1024-65535');
+    if (!Number.isInteger(cont) || cont < 1 || cont > 65535) throw new Error('container port must be 1-65535');
+    if (seen.has(host)) throw new Error(`host port ${host} is listed twice`);
+    seen.add(host);
+    return { host, container: cont };
+  });
+
+  return { name, image, memoryMb, cpus, ports };
+}
+
+export async function createContainer(spec: CreateSpec): Promise<string> {
+  // Refuse name collisions before Docker gets a chance to silently replace or
+  // conflict with an unrelated service.
+  const existing = await run('docker', ['ps', '-a', '--filter', `name=^/${spec.name}$`, '--format', '{{.Names}}'], { timeout: 10_000 });
+  if (existing.split('\n').some((n) => n.trim() === spec.name)) throw new Error('a container with that name already exists');
+  const args = [
+    'run', '-d',
+    '--name', spec.name,
+    '--label', 'machina.managed=1',
+    '--memory', `${spec.memoryMb}m`,
+    '--pids-limit', '256',
+    // no auto-restart loop on a container that crashes on boot
+    '--restart', 'unless-stopped',
+  ];
+  if (spec.cpus) args.push('--cpus', String(spec.cpus));
+  for (const p of spec.ports ?? []) args.push('-p', `${p.host}:${p.container}`);
+  args.push(spec.image);
+  const out = await run('docker', args, { timeout: 300_000 });
+  statCache.at = 0;
+  return out.trim().slice(0, 64) || spec.name;
+}
+
+export async function removeContainer(ref: string): Promise<string> {
+  if (!validRef(ref)) throw new Error('invalid container reference');
+  // The label is the entire authorisation: without it this call would delete
+  // any container on the host, including the platform's own dependencies.
+  const label = await run(
+    'docker',
+    ['inspect', '--format', '{{index .Config.Labels "machina.managed"}}', ref],
+    { timeout: 10_000 },
+  );
+  if (label.trim() !== '1') throw new Error('refusing to remove: this container was not created by machina');
+  const out = await run('docker', ['rm', ref], { timeout: 60_000 });
+  statCache.at = 0;
+  return out.trim() || ref;
 }

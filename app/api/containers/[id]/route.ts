@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
-import { containerAction, containerLogs, isAction, validRef } from '@/lib/host/docker';
+import { containerAction, containerLogs, isAction, validRef, removeContainer } from '@/lib/host/docker';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
 
@@ -39,6 +39,22 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       action: `container.${body.action}`, target: id,
       detail: { result },
     });
+    return json({ result });
+  } catch (e) {
+    return err(friendlyError(e), 409);
+  }
+}
+
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const g = guardMutation(req);
+  if (g) return g;
+  const [user, denied] = await requireAdmin();
+  if (denied) return denied;
+  const { id } = await ctx.params;
+  if (!validRef(id)) return err('invalid container reference', 400);
+  try {
+    const result = await removeContainer(id);
+    await logAudit({ actorId: user.id, actorName: user.name, action: 'container.remove', target: id, detail: { result } });
     return json({ result });
   } catch (e) {
     return err(friendlyError(e), 409);

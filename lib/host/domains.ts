@@ -2,6 +2,7 @@ import { virsh } from '@/lib/core/driver';
 import { config, storagePaths } from '@/lib/config';
 import { rawDb } from '@/lib/db';
 import { run } from './exec';
+import { isoPath } from './iso';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -39,6 +40,7 @@ export type VmDetail = VmSummary & {
   disks: VmDisk[]; nics: VmNic[]; hostdevs: VmHostdev[]; dirs: VmDir[];
   watchdog: { model: string; action: string } | null;
   vnc: string | null;
+  spice: { port: number; tlsPort: number | null } | null;
 };
 
 const NAME_OK = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
@@ -146,6 +148,9 @@ export async function vmDetail(name: string): Promise<VmDetail> {
   const cpuMode = attr(cpuBlock, 'cpu', 'mode') ?? 'custom';
   const vnc = (xml.match(/<graphics\b[^>]*type='vnc'[^>]*port='([^']*)'/) ??
     xml.match(/<graphics\b[^>]*port='([^']*)'[^>]*type='vnc'/))?.[1] ?? null;
+  const spiceBlock = elems(xml, 'graphics').find((g) => /type='spice'/.test(g)) ?? '';
+  const spicePort = attr(spiceBlock, 'graphics', 'port');
+  const spiceTlsPort = attr(spiceBlock, 'graphics', 'tlsPort') ?? attr(spiceBlock, 'graphics', 'tlsport');
   const wd = elems(xml, 'watchdog')[0];
 
   const disks: VmDisk[] = elems(xml, 'disk').map((d) => ({
@@ -206,6 +211,9 @@ export async function vmDetail(name: string): Promise<VmDetail> {
     })),
     watchdog: wd ? { model: attr(wd, 'watchdog', 'model') ?? 'i6300esb', action: attr(wd, 'watchdog', 'action') ?? 'reset' } : null,
     vnc: vnc && vnc !== '-1' ? vnc : null,
+    spice: spicePort && spicePort !== '-1'
+      ? { port: Number(spicePort), tlsPort: spiceTlsPort && spiceTlsPort !== '-1' ? Number(spiceTlsPort) : null }
+      : null,
   };
 }
 
@@ -255,7 +263,10 @@ export type VmOp =
   | { op: 'hostdevAttach'; vendor: string; product: string }
   | { op: 'hostdevDetach'; index: number }
   | { op: 'dirAttach'; source: string; tag: string }
-  | { op: 'dirDetach'; tag: string };
+  | { op: 'dirDetach'; tag: string }
+  | { op: 'isoAttach'; iso: string }
+  | { op: 'isoDetach'; target: string }
+  | { op: 'spice'; on: boolean };
 
 /** Apply an admin edit. Returns a human line describing what changed. */
 export async function applyVmOp(name: string, op: VmOp): Promise<string> {
@@ -408,6 +419,43 @@ export async function applyVmOp(name: string, op: VmOp): Promise<string> {
         return xml.replace(el, '');
       });
       return `shared dir ${op.tag} removed`;
+    case 'isoAttach': {
+      // A cdrom's source is a startup property. Swapping it on a live domain is
+      // a change-media job with its own eject/insert dance, and doing it
+      // half-way is how a guest ends up with a locked tray it cannot boot past.
+      if (running) throw new Error('stop the VM first: media is inserted in the stored config');
+      const file = await isoPath(op.iso);
+      const st = await fs.stat(file).catch(() => null);
+      if (!st?.isFile()) throw new Error('no such iso — refresh the list');
+      const detail = await vmDetail(name);
+      const used = new Set(detail.disks.map((d) => d.target));
+      // The seed already owns vdb, so installer media goes on the sata bus as
+      // sd*, exactly where a BIOS looks for a boot cdrom.
+      let free = '';
+      for (let i = 0; i < 26; i += 1) {
+        const cand = `sd${String.fromCharCode(97 + i)}`;
+        if (!used.has(cand)) { free = cand; break; }
+      }
+      if (!free) throw new Error('no free sata slot left');
+      await virsh(['attach-disk', name, file, free,
+        '--type', 'cdrom', '--mode', 'readonly',
+        '--driver', 'qemu', '--subdriver', 'raw',
+        '--targetbus', 'sata', '--config']);
+      return `inserted ${op.iso} as ${free} — appears at next start`;
+    }
+    case 'isoDetach':
+      await virsh(['detach-disk', name, op.target, '--config']);
+      return `ejected ${op.target} — applies at next start`;
+    case 'spice': {
+      if (running) throw new Error('stop the VM first: SPICE graphics changes apply to stored config');
+      await editXml(name, (xml) => {
+        const existing = elems(xml, 'graphics').find((g) => /type='spice'/.test(g));
+        if (!op.on) return existing ? xml.replace(existing, '') : xml;
+        if (existing) return xml;
+        return xml.replace('</devices>', "    <graphics type='spice' autoport='yes' listen='127.0.0.1'><listen type='address' address='127.0.0.1'/></graphics>\n  </devices>");
+      });
+      return op.on ? 'SPICE enabled on loopback — applies at next start' : 'SPICE disabled';
+    }
     default:
       throw new Error('unknown operation');
   }
