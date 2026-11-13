@@ -1,132 +1,155 @@
 # machina
 
-Rent small VMs, kantr-style, on your own box. Next.js control plane on top of
-libvirt with an SSH web terminal, a noVNC console, internal-credit billing
-(hourly metering, auto-suspend at zero), per-account quotas and a self-healing
-reconciler. Admins also get the hypervisor itself: every domain, every vnet,
-every interface, plus the Docker daemon on the same page.
+Rent small VMs on your own box. A self-hosted VM-rental platform: Next.js
+control plane on top of libvirt, with web terminal, VNC console, per-account
+quotas, hourly metering with auto-suspend at zero balance, and a reconciler
+that keeps the database and the hypervisor honest. Admins get the whole
+machine: every libvirt domain, every vnet, every interface, plus the Docker
+daemon.
 
-## Stack
+Think of it as a tiny private cloud in a box — hand someone an account, give
+them a quota, and they get a VM with a billing ledger attached.
 
-- **Next.js 16** app + custom `server.ts` (HTTP + WebSocket host, run with `tsx`)
-- **better-sqlite3** (WAL), drizzle schema/migrations in `lib/db/`
-- **libvirt qemu:///system** as the VM driver (`lib/core/driver.ts`)
-- **next-auth v5** credentials (username/password, bcrypt), JWT sessions
-- **ssh2** web terminal and **noVNC** console, both over HMAC-120s tokens
-- **nftables** guest isolation, applied by a oneshot unit
+## Features
+
+- **VM lifecycle** — provision, start, stop, delete, clone, snapshot,
+  export/import qcow2 disks
+- **Web terminal** — SSH shell over websocket with HMAC-token auth, optional
+  persistent session (tmux/screen attach-or-create, survives reloads)
+- **VNC console** — noVNC in the browser; optional loopback SPICE for
+  `remote-viewer` over an SSH tunnel
+- **Accounts & quotas** — per-user VM/vCPU/RAM/disk limits, credit balances,
+  admin-granted custom VM specs
+- **Billing** — 15-minute sampling, hourly settle, monthly caps, auto-suspend
+  at zero, full ledger
+- **Images** — catalog sync (download → sha256 → rename) or admin upload of
+  standalone qcow2
+- **Host console** (admin) — all domains, vnets, interfaces, storage pools,
+  Docker containers (with a validated create/remove), ISO attach, backups
+- **Guest isolation** — nftables ruleset: DHCP/DNS + internet only, no
+  host/LAN/tailnet/other-VM access
+- **Self-healing** — reconciler reaps orphans, retries stuck provisioning,
+  auto-suspends empty accounts; nightly backup timer included
+
+## Requirements
+
+- Linux with **systemd** (Debian/Ubuntu and RHEL-family supported by the
+  installer)
+- **KVM/libvirt**: `libvirtd`, `qemu-system-x86`, `genisoimage`
+- **Node.js ≥ 20** (the installer can add the NodeSource repo)
+- A user in the `libvirt` and `kvm` groups
+- ~2 GB RAM free for the control plane itself; guests need what their plans
+  say
+
+## Install
+
+One command, Coolify-style:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/4ngel2769/machina/maino/install.sh | bash
+```
+
+The installer will:
+
+1. detect your OS and architecture
+2. check for `sudo`, `git`, `curl`, Node.js ≥ 20 — offer to install missing
+   pieces (NodeSource on Debian/Ubuntu, AppStream on Fedora/RHEL)
+3. check for libvirt/qemu/nftables/genisoimage/sqlite3 — offer to install
+   them and add you to the `libvirt`/`kvm` groups
+4. clone to `/opt/machina` (override with `MACHINA_HOME`), `npm ci`, build
+5. generate `/var/lib/machina/machina.env` with random `AUTH_SECRET`,
+   `ADMIN_PASSWORD`, `machina.key` — printed once
+6. install and start `machina.service`, `machina-gfw.service`,
+   `machina-backup.timer`
+7. install the **`mach`** CLI to `/usr/local/bin`
+
+Non-interactive: `MACHINA_YES=1` auto-accepts dependency installs.
+Uninstall: `mach uninstall` (keeps `/var/lib/machina` data unless `--purge`).
+
+## `mach` CLI
+
+```text
+mach status      service, port, disk, libvirtd, docker — one screen
+mach start|stop|restart
+mach logs [-f]   journalctl for machina.service
+mach update      git pull + npm ci + build + restart
+mach backup      run the backup unit now
+mach version
+mach uninstall [--purge]
+mach help
+```
+
+## Develop
+
+```bash
+git clone https://github.com/4ngel2769/machina.git && cd machina
+npm install
+MACHINA_STORAGE_DIR=/tmp/machina MACHINA_DB_PATH=/tmp/machina.db \
+  AUTH_SECRET=dev AUTH_TRUST_HOST=true ADMIN_USER=admin ADMIN_PASSWORD=test \
+  SERVER_PORT=3999 npx tsx server.ts
+```
+
+Login `admin` / `test`. Create a base image on the admin page ("sync" or
+upload) before provisioning — guests refuse to start until one is `ready`.
 
 ## Layout
 
 ```
 lib/config.ts            env + storage dirs + limits
 lib/db/                  schema, migrations, seed (plans, admin, images)
-lib/core/
-  driver.ts              virsh wrapper, pools/network bootstrap, domain XML
-  disks.ts               qcow2 overlay creation (single source of disk names)
-  cloudinit.ts           user-data/meta-data/network-config + genisoimage seed
-  images.ts              catalog sync: download .part -> sha256 -> rename
-  provision.ts           shared create path: plan, quota, IP, MAC, job
-  handlers.ts            job handlers: create/start/stop/delete/snapshot/imageSync
-  worker.ts              single-flight job claim loop
-  quota.ts               per-account limits, reservations for pending requests
-  plans.ts               preset + custom specs, rate calculation
-  metering.ts            15-min samples, hourly settle, monthly cap
-  netmeter.ts            per-instance byte counters -> throughput + throttle
-  reconciler.ts          DB<->libvirt truth, auto-suspend, orphan cleanup
-  terminal.ts            ws <-> ssh2 relay
-  console-ws.ts          ws <-> vnc unix socket relay
-  ws-keepalive.ts        20s ping (NPM reaps idle websockets at ~90s)
-  tokens.ts              HMAC ws tokens (120s), verified at upgrade time
-lib/host/
-  exec.ts                host command runner (sudo -n, last stderr line)
-  domains.ts             admin domain edits, disks, nics, snapshots
-  networks.ts            vnet CRUD, DHCP reservations
-  ifaces.ts              NetworkManager interfaces + classification
-  sampler.ts             5s interface counters
-  docker.ts              container inventory + lifecycle (CLI, no socket in-proc)
-deploy/
-  install.sh             host install (dirs, secrets, systemd units)
-  machina-gfw.nft        guest isolation ruleset
-  machina-gfw.service    applies it once per boot
-app/(dash)/              home, instances, keys, billing, specs, host, containers, admin
+lib/core/                driver (virsh), disks, cloud-init, images,
+                         provision, handlers, worker, quota, plans,
+                         metering, netmeter, reconciler, terminal,
+                         console-ws, tokens
+lib/host/                domains, networks, ifaces, pools, docker, iso
+app/(dash)/              home, instances, keys, billing, specs,
+                         host, containers, admin
+scripts/                 machina-backup.sh, sync-fork.sh
+install.sh               OS-detecting smart installer
+mach                     CLI (installed to /usr/local/bin by install.sh)
+deploy/                  systemd units, nftables guest-isolation ruleset
+docs/DEPLOYMENT.md       host requirements, upgrades, backups,
+                         public access, troubleshooting
 ```
 
-## Provisioning model
+## Configuration
 
-Base images are plain `.qcow2` files in the `machina-images` dir pool. A guest
-disk is a `qemu-img create -b <abs base> -F qcow2` overlay in the
-`machina-vms` pool, surfaced with pool-refresh (vol-create refuses existing
-files). Domain XML references the disk by absolute path; VNC lands on a
-per-instance unix socket under `storage/vnc/<id>.vnc`. Network `machina0` is
-NAT with our own 192.168.184.x range; cloud-init hands guests a static IP plus
-root password (AES-GCM encrypted at rest) and your account's SSH keys. The seed
-ISO rides on a virtio disk (`vdb`), not a cdrom: cloud-init's systemd generator
-probes for the `cidata` label before the SATA stack has produced `/dev/sda`, and
-a seed it cannot see means the guest boots unconfigured and provisioning times
-out on SSH. `docs/DEPLOYMENT.md` has the evidence trail.
+Everything is env in `/var/lib/machina/machina.env` (0600):
 
-A create job: seed ISO -> disk overlay -> DHCP host entry -> define -> start ->
-wait TCP/22 -> status running. Failure cleans disk + domain and sets
-status=error; stranded provisioning rows are reaped by the worker.
+| var | default | meaning |
+|---|---|---|
+| `MACHINA_STORAGE_DIR` | `/var/lib/machina/storage` | images/vms/seeds/vnc/tmp/ssh/serial/iso |
+| `MACHINA_DB_PATH` | `/var/lib/machina/machina.db` | SQLite (WAL) |
+| `VIRSH_URI` | `qemu:///system` | libvirt URI |
+| `SERVER_PORT` | `3999` | HTTP+WS port |
+| `AUTH_SECRET` | — | ≥24 chars, JWT + ws-token HMAC |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | — | bootstrap admin row |
+| `MACHINA_MASTER_KEY` | `<dbdir>/machina.key` | AES key for stored passwords |
+| `MACHINA_SPICE` | off | `1` adds loopback SPICE to new domains |
+| `MACHINA_BACKUP_DIR` / `_KEEP` | backup script only | snapshot destination / retention |
 
-Sizes are **plan rows**, never per-instance columns. A non-preset box is a plan
-with `custom=1`: it is hidden from the catalog and the request form, and quotas,
-domain XML, overlays and billing all keep reading one source of size.
+## Security notes
 
-## Accounts and billing
+- Guests are untrusted: `machina-gfw` (nftables) allows DHCP/DNS to the
+  gateway and public internet only — no control plane, docker bridges,
+  tailnet, or LAN.
+- Web terminal and console authenticate via 120-second HMAC tokens bound to
+  the instance *and* the requesting user; verified at WS upgrade.
+- Guest root passwords and VNC passwords are AES-256-GCM at rest
+  (`machina.key`, 0600). Losing the key makes them unreadable — it is
+  included in every backup for that reason.
+- API mutations require a same-origin `Origin` header; login is rate-limited.
+- The panel should sit behind TLS for real use (tailnet serve, reverse proxy,
+  or tunnel) — `AUTH_TRUST_HOST=true` is set by the installer for
+  proxy-terminated deployments.
 
-- New accounts start at **zero** — no credit, a zero quota row. A missing quota
-  row still means unlimited; only freshly minted accounts are zeroed.
-- Usage is sampled every 15 min; hourly settle debits
-  `(unsettled hours, capped by plan monthly cap) * rate` from the balance and
-  writes a ledger row. Balance at zero -> reconciler queues a stop and marks the
-  instance auto-suspended.
-- Quotas are enforced at request time *and* inside `provisionInstance()`.
-  Pending requests count as reservations, and usage counts stopped VMs too: a
-  stopped box still owns its overlay, its IP and its disk.
+## Backup & restore
 
-## Admin surfaces
+`machina-backup.timer` runs nightly (03:15 + ≤20m jitter) into
+`$MACHINA_BACKUP_DIR/<timestamp>/`: consistent SQLite snapshot, `machina.key`,
+images/seeds/iso. Guest overlays are excluded — reproducible from base image
++ seed. Restore procedure is in `docs/DEPLOYMENT.md`.
 
-- **host** (`/host`) — every libvirt domain, vnet and interface, with structural
-  edits (`--config`, XML backed up first), DHCP reservations and snapshots.
-- **containers** (`/containers`) — the Docker daemon: grouped by compose
-  project, live CPU/RAM, health, recent logs, start/stop/restart. Admins can
-  also create a container from a pinned image (memory/CPU/port caps, no host
-  mounts, volumes or host networking) and remove only containers this console
-  created.
-- **admin** (`/admin`) — accounts, quotas, credits, role changes, plans.
-  Admins can also upload a standalone qcow2 as a new base image (streamed,
-  checksum-verified, backing files refused).
-- **instance page** — clone a stopped VM (full disk copy through the normal
-  provisioning path) and export its disk as a downloadable qcow2 via a
-  5-minute single-use link.
+## License
 
-## Run it
-
-Dev:
-```
-bun install
-MACHINA_STORAGE_DIR=/tmp/machina MACHINA_DB_PATH=/tmp/machina.db \
-  AUTH_SECRET=dev AUTH_TRUST_HOST=true ADMIN_USER=admin ADMIN_PASSWORD=test \
-  SERVER_PORT=3999 npx tsx server.ts
-```
-
-Login is `admin` + your `ADMIN_PASSWORD`. Create an image first (admin page,
-"sync") — provisioning refuses until that image is `ready`.
-
-Production: `deploy/install.sh` (systemd units `machina` and `machina-gfw`).
-`docs/DEPLOYMENT.md` has the host requirements, the public-access path, the
-upgrade procedure, backups and the failures worth knowing about.
-
-Container: `docker-compose.example.yml` (host network, libvirt + docker sockets
-mounted). It is a secondary shape; systemd on the host stays the supported one.
-
-## Env
-
-- `MACHINA_STORAGE_DIR` (default `/var/lib/machina/storage`) — images/vms/seeds/vnc/tmp/ssh/serial
-- `MACHINA_DB_PATH` (default `/var/lib/machina/machina.db`)
-- `VIRSH_URI` (default `qemu:///system`)
-- `SERVER_PORT` (default 3999)
-- `AUTH_SECRET`, `ADMIN_USER`, `ADMIN_PASSWORD` (bootstraps the admin row)
-- `MACHINA_MASTER_KEY` (optional; otherwise `<dbdir>/machina.key`, 0600)
-- `MACHINA_SPICE` (`1` adds a loopback SPICE graphics device to new domains; default off)
+MIT — see [LICENSE](LICENSE).
