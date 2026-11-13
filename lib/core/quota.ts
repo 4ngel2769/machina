@@ -210,6 +210,52 @@ export type Verdict = Allow | Deny;
 
 const fmtGb = (mb: number) => (mb / 1024).toFixed(1);
 
+type QuotaRow = ReturnType<typeof getQuota>;
+type Committed = ReturnType<typeof getCommittedForNew>;
+
+/** An admin minted the account but has not granted anything yet. */
+function zeroAllocation(q: QuotaRow): boolean {
+  return q.maxVms === 0 && q.maxVcpus === 0 && q.maxMemoryMb === 0 && q.maxDiskGb === 0;
+}
+
+function checkVms(q: QuotaRow, u: Committed): Deny | null {
+  if (q.maxVms === null || u.vms < q.maxVms) return null;
+  // "0 of 0" is a confusing way to say "not allocated".
+  if (zeroAllocation(q)) {
+    return { allowed: false, reason: 'this account has no allocation yet — ask an admin to grant one' };
+  }
+  return { allowed: false, reason: `instance limit reached: you already have or have asked for ${u.vms} of ${q.maxVms}. Delete one or cancel a request, or ask an admin to raise your quota.` };
+}
+
+function checkVcpus(q: QuotaRow, u: Committed, plan: { vcpu: number }): Deny | null {
+  if (q.maxVcpus === null || u.vcpus + plan.vcpu <= q.maxVcpus) return null;
+  return { allowed: false, reason: `vCPU limit reached: this needs ${plan.vcpu} more and you have ${u.vcpus} of ${q.maxVcpus} committed.` };
+}
+
+function checkMemory(q: QuotaRow, u: Committed, plan: { ramMb: number }): Deny | null {
+  if (q.maxMemoryMb === null || u.memoryMb + plan.ramMb <= q.maxMemoryMb) return null;
+  return { allowed: false, reason: `memory limit reached: this needs ${plan.ramMb} MB more and you have ${u.memoryMb} of ${q.maxMemoryMb} MB committed.` };
+}
+
+function checkDisk(q: QuotaRow, u: Committed, plan: { diskGb: number }): Deny | null {
+  if (q.maxDiskGb === null || u.diskGb + plan.diskGb <= q.maxDiskGb) return null;
+  return { allowed: false, reason: `disk limit reached: this needs ${plan.diskGb} GB more and you have ${u.diskGb} of ${q.maxDiskGb} GB committed.` };
+}
+
+function checkRunning(q: QuotaRow, u: Committed): Deny | null {
+  if (q.maxRunning === null || u.running < q.maxRunning) return null;
+  return { allowed: false, reason: `running instance limit reached: ${u.running} of ${q.maxRunning} running. Stop one first.` };
+}
+
+/** The user-level refusals, in the order they are easiest to explain. */
+function checkUserLimits(q: QuotaRow, u: Committed, plan: { vcpu: number; ramMb: number; diskGb: number }): Deny | null {
+  return checkVms(q, u)
+    ?? checkVcpus(q, u, plan)
+    ?? checkMemory(q, u, plan)
+    ?? checkDisk(q, u, plan)
+    ?? checkRunning(q, u);
+}
+
 /**
  * Can this user create one more VM of `plan`?
  *
@@ -224,40 +270,15 @@ export function checkQuota(
   opts: { isAdmin?: boolean; excludeRequestId?: string } = {},
 ): Verdict {
   const q = getQuota(userId);
-
   if (q.suspended) {
     return { allowed: false, reason: 'your account is suspended — contact an admin' };
   }
-
   const u = getCommittedForNew(userId, opts.excludeRequestId);
-
   // An admin creating on someone's behalf is still bound by the HOST's limits,
   // but not by that user's quota: an admin overriding a customer quota is a
   // deliberate act, not an accident.
-  if (!opts.isAdmin) {
-    if (q.maxVms !== null && u.vms >= q.maxVms) {
-      // A zero allocation is an account an admin minted but has not granted
-      // anything to yet. "0 of 0" is a confusing way to say "not allocated".
-      if (q.maxVms === 0 && q.maxVcpus === 0 && q.maxMemoryMb === 0 && q.maxDiskGb === 0) {
-        return { allowed: false, reason: 'this account has no allocation yet — ask an admin to grant one' };
-      }
-      return { allowed: false, reason: `instance limit reached: you already have or have asked for ${u.vms} of ${q.maxVms}. Delete one or cancel a request, or ask an admin to raise your quota.` };
-    }
-    if (q.maxVcpus !== null && u.vcpus + plan.vcpu > q.maxVcpus) {
-      return { allowed: false, reason: `vCPU limit reached: this needs ${plan.vcpu} more and you have ${u.vcpus} of ${q.maxVcpus} committed.` };
-    }
-    if (q.maxMemoryMb !== null && u.memoryMb + plan.ramMb > q.maxMemoryMb) {
-      return { allowed: false, reason: `memory limit reached: this needs ${plan.ramMb} MB more and you have ${u.memoryMb} of ${q.maxMemoryMb} MB committed.` };
-    }
-    if (q.maxDiskGb !== null && u.diskGb + plan.diskGb > q.maxDiskGb) {
-      return { allowed: false, reason: `disk limit reached: this needs ${plan.diskGb} GB more and you have ${u.diskGb} of ${q.maxDiskGb} GB committed.` };
-    }
-    if (q.maxRunning !== null && u.running >= q.maxRunning) {
-      return { allowed: false, reason: `running instance limit reached: ${u.running} of ${q.maxRunning} running. Stop one first.` };
-    }
-  }
-
-  return checkHostCapacity(plan);
+  if (opts.isAdmin) return checkHostCapacity(plan);
+  return checkUserLimits(q, u, plan) ?? checkHostCapacity(plan);
 }
 
 /** Is the HOST able to take this VM? Independent of whose it is. */

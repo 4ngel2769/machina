@@ -46,40 +46,53 @@ export function customRateCents(s: { vcpu: number; ramMb: number; diskGb: number
   return Math.max(1, Math.round(total));
 }
 
+/** Whole number inside a range, or the message naming the bound that failed. */
+function boundedInt(v: unknown, min: number, max: number, message: string): number {
+  const n = INT(v);
+  if (n === null || n < min || n > max) throw new Error(message);
+  return n;
+}
+
+/** Blank means unlimited (0), which is the schema's meaning for instances. */
+function bandwidthOf(v: unknown): number {
+  const raw = v === '' || v === undefined ? 0 : Number(v);
+  if (!Number.isFinite(raw) || raw < 0 || raw > 100_000) {
+    throw new Error('bandwidth must be 0 (unlimited) or GB/month up to 100000');
+  }
+  return Math.round(raw * 100) / 100;
+}
+
+function monthlyCapOf(v: unknown): number {
+  const raw = v === '' || v === undefined ? 720 : INT(v);
+  if (raw === null || raw < 1 || raw > 44_640) throw new Error('monthly cap must be 1-44640 minutes');
+  return raw;
+}
+
+/** Optional per-box rate override; absent means "use the formula". */
+function hourlyRateOf(v: unknown): number | undefined {
+  if (v === undefined || v === '') return undefined;
+  const rate = INT(v);
+  if (rate === null || rate < 0 || rate > 100_000) {
+    throw new Error('rate must be a whole number of cents/hour (0-100000)');
+  }
+  return rate;
+}
+
 /**
  * Validate a spec from a request body. Returns the normalised spec or throws an
  * Error whose message is safe to show an admin (it names the bound that failed).
  */
 export function validateCustomSpec(body: Record<string, unknown>): CustomSpec {
-  const vcpu = INT(body.vcpu);
-  if (vcpu === null || vcpu < 1 || vcpu > 16) throw new Error('vcpu must be a whole number from 1 to 16');
-
-  const ramMb = INT(body.ramMb);
-  if (ramMb === null || ramMb < 128 || ramMb > 32768) throw new Error('ram must be 128-32768 MB');
-
-  const diskGb = INT(body.diskGb);
-  if (diskGb === null || diskGb < config.limits.minDiskGb || diskGb > config.limits.maxDiskGb) {
-    throw new Error(`disk must be ${config.limits.minDiskGb}-${config.limits.maxDiskGb} GB`);
-  }
-
-  // Blank means unlimited (0), which is the schema's meaning for instances.
-  const bwRaw = body.bandwidthGb === '' || body.bandwidthGb === undefined ? 0 : Number(body.bandwidthGb);
-  if (!Number.isFinite(bwRaw) || bwRaw < 0 || bwRaw > 100_000) {
-    throw new Error('bandwidth must be 0 (unlimited) or GB/month up to 100000');
-  }
-  const bandwidthGb = Math.round(bwRaw * 100) / 100;
-
-  const capRaw = body.monthlyCapMin === '' || body.monthlyCapMin === undefined ? 720 : INT(body.monthlyCapMin);
-  if (capRaw === null || capRaw < 1 || capRaw > 44_640) throw new Error('monthly cap must be 1-44640 minutes');
-
-  let hourlyRateCents: number | undefined;
-  if (body.hourlyRateCents !== undefined && body.hourlyRateCents !== '') {
-    const rate = INT(body.hourlyRateCents);
-    if (rate === null || rate < 0 || rate > 100_000) throw new Error('rate must be a whole number of cents/hour (0-100000)');
-    hourlyRateCents = rate;
-  }
-
-  return { vcpu, ramMb, diskGb, bandwidthGb, monthlyCapMin: capRaw, hourlyRateCents };
+  const diskMin = config.limits.minDiskGb;
+  const diskMax = config.limits.maxDiskGb;
+  return {
+    vcpu: boundedInt(body.vcpu, 1, 16, 'vcpu must be a whole number from 1 to 16'),
+    ramMb: boundedInt(body.ramMb, 128, 32768, 'ram must be 128-32768 MB'),
+    diskGb: boundedInt(body.diskGb, diskMin, diskMax, `disk must be ${diskMin}-${diskMax} GB`),
+    bandwidthGb: bandwidthOf(body.bandwidthGb),
+    monthlyCapMin: monthlyCapOf(body.monthlyCapMin),
+    hourlyRateCents: hourlyRateOf(body.hourlyRateCents),
+  };
 }
 
 export function specLabel(s: { vcpu: number; ramMb: number; diskGb: number }): string {

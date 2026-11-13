@@ -110,38 +110,56 @@ export async function dockerAvailable(): Promise<boolean> {
   }
 }
 
+/** docker reports the literal "none" for a container that defines no
+ *  healthcheck, and "" when it has never run one. Neither means healthy, so
+ *  both collapse to null and the UI says nothing. */
+function healthOf(h: string | undefined): string | null {
+  if (!h || h === 'none') return null;
+  return h;
+}
+
+function pidsOf(s: StatRow | undefined): number | null {
+  if (!s) return null;
+  const n = Number(s.PIDs);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Memory sample pair. 0B/0B means "no sample yet", not "uses no memory". */
+function memPair(s: StatRow | undefined): { used: number | null; limit: number | null } {
+  if (!s) return { used: null, limit: null };
+  return { used: mb(s.MemUsage.split('/')[0]), limit: mb(s.MemUsage.split('/')[1]) };
+}
+
+/** One `docker ps` row plus its stats sample, as the console's shape. */
+function toContainer(r: PsRow, s: StatRow | undefined): Container {
+  const { used, limit } = memPair(s);
+  return {
+    id: r.ID,
+    name: r.Names,
+    image: r.Image,
+    state: r.State,
+    status: r.Status,
+    health: healthOf(r.HealthStatus),
+    ports: r.Ports ?? '',
+    project: label(r.Labels, 'com.docker.compose.project'),
+    service: label(r.Labels, 'com.docker.compose.service'),
+    createdAt: r.CreatedAt,
+    cpuPct: s ? num(s.CPUPerc) : null,
+    memMb: used && limit ? used : null,
+    memLimitMb: limit || null,
+    memPct: limit ? num(s?.MemPerc ?? '') : null,
+    pids: pidsOf(s),
+    managed: label(r.Labels, 'machina.managed') === '1',
+  };
+}
+
 export async function listContainers(): Promise<Container[]> {
   const out = await run('docker', ['ps', '-a', '--no-trunc', '--format', '{{json .}}'], { timeout: 20_000 });
   const rows: PsRow[] = out.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as PsRow);
   const live = await stats();
-  return rows.map((r) => {
-    const s = live.get(r.Names);
-    const mem = s ? mb(s.MemUsage.split('/')[0]) : null;
-    const limit = s ? mb(s.MemUsage.split('/')[1]) : null;
-    return {
-      id: r.ID,
-      name: r.Names,
-      image: r.Image,
-      state: r.State,
-      status: r.Status,
-      // docker reports the literal string "none" for a container that defines
-      // no healthcheck, and "" when it has never run one. Neither means healthy,
-      // so both collapse to null and the UI says nothing.
-      health: r.HealthStatus && r.HealthStatus !== 'none' && r.HealthStatus !== '' ? r.HealthStatus : null,
-      ports: r.Ports ?? '',
-      project: label(r.Labels, 'com.docker.compose.project'),
-      service: label(r.Labels, 'com.docker.compose.service'),
-      createdAt: r.CreatedAt,
-      cpuPct: s ? num(s.CPUPerc) : null,
-      // a container that just (re)started reports 0B/0B, which is not "it uses
-      // no memory", it is "no sample yet".
-      memMb: mem && limit ? mem : null,
-      memLimitMb: limit || null,
-      memPct: limit ? num(s?.MemPerc ?? '') : null,
-      pids: s && Number.isFinite(Number(s.PIDs)) ? Number(s.PIDs) : null,
-      managed: label(r.Labels, 'machina.managed') === '1',
-    };
-  }).sort((a, b) => (a.project ?? '~').localeCompare(b.project ?? '~') || a.name.localeCompare(b.name));
+  return rows
+    .map((r) => toContainer(r, live.get(r.Names)))
+    .sort((a, b) => (a.project ?? '~').localeCompare(b.project ?? '~') || a.name.localeCompare(b.name));
 }
 
 const ACTIONS = ['start', 'stop', 'restart', 'pause', 'unpause'] as const;
@@ -194,13 +212,8 @@ export type CreateSpec = {
   ports?: { host: number; container: number }[];
 };
 
-/** Validated and normalised. Anything not on this list never reaches argv. */
-export function parseCreate(body: Record<string, unknown>): CreateSpec {
-  const name = String(body.name ?? '').trim();
-  if (!CONTAINER_NAME.test(name)) {
-    throw new Error('name: 1-63 chars, letters, digits, dot, dash, underscore');
-  }
-  const image = String(body.image ?? '').trim();
+/** Registry path with an explicit, immutable tag, or a message saying why not. */
+function parseImage(image: string): string {
   const m = IMAGE_RE.exec(image);
   if (!m) throw new Error('image must be a registry path with an explicit tag (e.g. ghcr.io/org/app:1.2.3)');
   const registry = m[1] ?? 'docker.io';
@@ -208,28 +221,50 @@ export function parseCreate(body: Record<string, unknown>): CreateSpec {
   if (m[3] === 'latest' || m[3] === 'main' || m[3] === 'master') {
     throw new Error('pin a real version tag — latest/main would change under you on the next pull');
   }
+  return image;
+}
 
-  const memoryMb = body.memoryMb == null ? 512 : Math.trunc(Number(body.memoryMb));
-  if (!Number.isFinite(memoryMb) || memoryMb < 128 || memoryMb > 8192) {
-    throw new Error('memory must be 128-8192 MB');
-  }
-  const cpus = body.cpus == null ? 1 : Number(body.cpus);
-  if (!Number.isFinite(cpus) || cpus <= 0 || cpus > 8) throw new Error('cpus must be greater than 0 and at most 8');
-
-  const rawPorts = Array.isArray(body.ports) ? body.ports : [];
+function parsePorts(rawPorts: unknown[]): { host: number; container: number }[] {
   if (rawPorts.length > 8) throw new Error('at most 8 published ports');
   const seen = new Set<number>();
-  const ports = rawPorts.map((p) => {
+  const ports: { host: number; container: number }[] = [];
+  for (const p of rawPorts) {
     const host = Math.trunc(Number((p as { host?: unknown }).host));
     const cont = Math.trunc(Number((p as { container?: unknown }).container));
     if (!Number.isInteger(host) || host < 1024 || host > 65535) throw new Error('host port must be 1024-65535');
     if (!Number.isInteger(cont) || cont < 1 || cont > 65535) throw new Error('container port must be 1-65535');
     if (seen.has(host)) throw new Error(`host port ${host} is listed twice`);
     seen.add(host);
-    return { host, container: cont };
-  });
+    ports.push({ host, container: cont });
+  }
+  return ports;
+}
 
-  return { name, image, memoryMb, cpus, ports };
+/** Truncated whole number in [min, max], defaulting when absent. */
+function intField(v: unknown, def: number, min: number, max: number, message: string): number {
+  const n = v == null ? def : Math.trunc(Number(v));
+  if (!Number.isFinite(n) || n < min || n > max) throw new Error(message);
+  return n;
+}
+
+/** Number in (0, max], defaulting when absent. */
+function positiveField(v: unknown, def: number, max: number, message: string): number {
+  const n = v == null ? def : Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > max) throw new Error(message);
+  return n;
+}
+
+/** Validated and normalised. Anything not on this list never reaches argv. */
+export function parseCreate(body: Record<string, unknown>): CreateSpec {
+  const name = String(body.name ?? '').trim();
+  if (!CONTAINER_NAME.test(name)) {
+    throw new Error('name: 1-63 chars, letters, digits, dot, dash, underscore');
+  }
+  const image = parseImage(String(body.image ?? '').trim());
+  const memoryMb = intField(body.memoryMb, 512, 128, 8192, 'memory must be 128-8192 MB');
+  const cpus = positiveField(body.cpus, 1, 8, 'cpus must be greater than 0 and at most 8');
+  const rawPorts = Array.isArray(body.ports) ? body.ports : [];
+  return { name, image, memoryMb, cpus, ports: parsePorts(rawPorts) };
 }
 
 export async function createContainer(spec: CreateSpec): Promise<string> {

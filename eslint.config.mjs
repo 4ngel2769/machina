@@ -33,6 +33,16 @@ const config = [
       'react-hooks/exhaustive-deps': 'off',
     },
   },
+  {
+    // On from B2, once lib/ was split to fit them.
+    files: ['lib/**/*.ts'],
+    rules: {
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
+      complexity: ['error', 10],
+      'max-depth': ['error', 3],
+    },
+  },
 ];
 
 export default config;

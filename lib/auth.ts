@@ -6,6 +6,31 @@ import Credentials from 'next-auth/providers/credentials';
 import { rawDb } from '@/lib/db';
 import { verifyPassword, rateLimit } from '@/lib/core/crypto';
 
+/** Client address for the login throttle: first x-forwarded-for hop. */
+function requestIp(req: unknown): string {
+  const hasHeaders = typeof req === 'object' && req !== null && 'headers' in req;
+  const headers = hasHeaders ? new Headers((req as Request).headers) : new Headers();
+  return headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+}
+
+type UserRow = { id: string; name: string; role: string; password_hash: string | null };
+
+/** Username and password out of the provider's bag, or null when either missing. */
+function readCreds(
+  creds: Partial<Record<'username' | 'password', unknown>> | undefined,
+): { name: string; pass: string } | null {
+  const name = typeof creds?.username === 'string' ? creds.username.trim() : '';
+  const pass = typeof creds?.password === 'string' ? creds.password : '';
+  if (!name || !pass) return null;
+  return { name, pass };
+}
+
+function findUser(name: string): UserRow | undefined {
+  return rawDb().prepare('select id, name, role, password_hash from users where name=?').get(name) as
+    | UserRow
+    | undefined;
+}
+
 const authConfig = NextAuth({
   session: { strategy: 'jwt', maxAge: 12 * 3600 },
   pages: { signIn: '/signin' },
@@ -20,17 +45,12 @@ const authConfig = NextAuth({
        *  throttling (in-memory, single process) blunts brute force; success
        *  clears the bucket. */
       authorize(creds, req) {
-        const name = typeof creds?.username === 'string' ? creds.username.trim() : '';
-        const pass = typeof creds?.password === 'string' ? creds.password : '';
-        if (!name || !pass) return null;
-        const ip = (req && 'headers' in req ? new Headers((req as Request).headers) : new Headers())
-          .get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-        if (!rateLimit(`auth:${name}@${ip}`, 8, 5 * 60_000)) return null; // >8 tries / 5min == locked out
-        const row = rawDb().prepare('select id, name, role, password_hash from users where name=?').get(name) as
-          | { id: string; name: string; role: string; password_hash: string | null }
-          | undefined;
-        if (!row || !row.password_hash) return null;
-        if (!verifyPassword(pass, row.password_hash)) return null;
+        const c = readCreds(creds);
+        if (!c) return null;
+        if (!rateLimit(`auth:${c.name}@${requestIp(req)}`, 8, 5 * 60_000)) return null; // >8 tries / 5min == locked out
+        const row = findUser(c.name);
+        if (!row?.password_hash) return null;
+        if (!verifyPassword(c.pass, row.password_hash)) return null;
         return { id: row.id, name: row.name, role: row.role };
       },
     }),
