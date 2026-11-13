@@ -1,5 +1,5 @@
 /**
- * Dashboard shell: session bounce, top navigation and the toast provider.
+ * Dashboard shell: session bounce, sidebar navigation and the toast provider.
  */
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
@@ -10,7 +10,7 @@ import { LoadBar } from '@/app/ui/loadbar';
 import { Shortcuts } from '@/app/ui/shortcuts';
 import { Palette } from '@/app/ui/palette';
 import { BackgroundWatcher } from '@/app/ui/watcher';
-import { TopNav } from './topnav';
+import { Sidebar } from '@/app/ui/sidebar';
 import { SessionGuard } from '@/app/ui/session-guard';
 
 export default async function DashLayout({ children }: { children: React.ReactNode }) {
@@ -26,12 +26,12 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   return (
     <ToastProvider>
       <LoadBar />
-      <div className="topnav">
-        <div className="layout" style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%' }}>
-          {user && <TopNav name={user.name} role={user.role} />}
+      <div className="shell">
+        <Sidebar name={user.name} role={user.role} />
+        <div className="main">
+          <div className="layout">{children}</div>
         </div>
       </div>
-      <div className="layout">{children}</div>
       <BackgroundWatcher />
       <SessionGuard />
       <Shortcuts />
