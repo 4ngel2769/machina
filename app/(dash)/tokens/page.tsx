@@ -181,7 +181,7 @@ export default function TokensPage() {
       <MintForm scopes={scopes} busy={busy} onMint={(n, p, d) => void mint(n, p, d)} />
 
       {!data && <Skeleton h={120} />}
-      {data && tokens.length === 0 && <Empty text="no tokens yet" />}
+      {data && tokens.length === 0 && <Empty icon="key" text="no tokens yet" />}
       {tokens.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {tokens.map((token) => <TokenRow key={token.id} token={token} onRevoke={(id) => void revoke(id)} />)}

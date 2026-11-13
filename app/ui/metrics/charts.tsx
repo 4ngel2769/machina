@@ -98,6 +98,7 @@ function ChartWait({ loading, hasData, sampleCount, off }: {
   if (sampleCount < 2) {
     return (
       <Empty
+        icon={off ? 'power' : 'activity'}
         text={off
           ? 'Start the instance and its load will be charted here.'
           : 'Collecting the first samples. A chart needs two readings, so give it about a minute.'}

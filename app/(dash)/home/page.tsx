@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusCue } from '@/app/ui/status';
 import { Skeleton, Empty } from '@/app/ui/loaders';
+import { ArrowRightIcon } from '@/app/ui/icons';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { ignore } from '@/lib/core/ignore';
 
@@ -73,12 +74,13 @@ export default function HomePage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>your VMs</h3>
-          <Link href="/instances" style={{ fontSize: 12, color: 'var(--accent)' }}>open grid →</Link>
+          <Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>open grid <ArrowRightIcon size={12} /></Link>
         </div>
         {insts.length === 0 && !loading && (
           <Empty
+            icon="server"
             text="no VMs yet — request one from the instances page"
-            action={<Link href="/instances" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances →</Link>}
+            action={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
           />
         )}
         {loading && insts.length === 0 && <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}

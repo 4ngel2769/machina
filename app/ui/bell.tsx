@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BellIcon } from './icons';
 
 export function Bell() {
   const [unread, setUnread] = useState(0);
@@ -32,7 +33,7 @@ export function Bell() {
       title="notifications"
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, color: 'var(--text-2)', textDecoration: 'none', fontSize: 17 }}
     >
-      <span aria-hidden>🔔</span>
+      <BellIcon size={18} />
       {unread > 0 && (
         <span
           aria-hidden

@@ -50,7 +50,7 @@ button, input, select, a, tr {
 .spacer { flex: 1; }
 
 h1 { font-size: 22px; font-weight: 600; margin: 28px 0 4px; }
-.sub { color: var(--text-3); font-size: 13px; margin-bottom: 20px; }
+.sub { color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
 
 .card {
   background: var(--surface);
@@ -287,8 +287,21 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
 
 /* --------------------------------------------------------- empty states */
 .empty { padding: 34px 12px; text-align: center; color: var(--text-3); }
-.empty-orb { display: flex; justify-content: center; margin-bottom: 12px; opacity: .75; }
+.empty-icon { display: flex; justify-content: center; margin-bottom: 12px; color: var(--text-3); opacity: .8; }
 .empty-text { font-size: 13px; }
+
+.link-arrow { display: inline-flex; align-items: center; gap: 4px; }
+
+/* horizontal scroll for anything that would otherwise overflow its card */
+.card > table, .tablewrap > table { display: block; overflow-x: auto; }
+.card > table > thead, .card > table > tbody, .card > table > tfoot,
+.tablewrap > table > thead, .tablewrap > table > tbody, .tablewrap > table > tfoot {
+  display: table; width: 100%; min-width: 560px;
+}
+.card > table td, .card > table th,
+.tablewrap > table td, .tablewrap > table th { white-space: nowrap; }
+.card > table td.wrap, .card > table th.wrap,
+.tablewrap > table td.wrap, .tablewrap > table th.wrap { white-space: normal; }
 
 /* --------------------------------------------------------- log streaming */
 .logview {
@@ -347,7 +360,7 @@ kbd {
   .card { padding: 14px; margin: 12px 0; }
   .kv { grid-template-columns: 1fr; gap: 2px 0; }
   .kv dt { margin-top: 8px; }
-  table { display: block; overflow-x: auto; white-space: nowrap; }
+  /* tables scroll horizontally at every width via .card > table */
   .toaststack { top: 56px; right: 10px; left: 10px; width: auto; }
   .termwrap, .consolwrap { height: 320px; }
   .tabs { overflow-x: auto; }

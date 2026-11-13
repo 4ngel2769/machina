@@ -43,7 +43,7 @@ export function LogCard({ log }: { log: LogPayload | null }) {
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h3>host actions</h3>
-      {!log && <Empty text="loading…" />}
+      {!log && <Empty icon="activity" text="loading…" />}
       <table>
         <thead><tr><th>when</th><th>admin</th><th>action</th><th>target</th><th>detail</th></tr></thead>
         <tbody>

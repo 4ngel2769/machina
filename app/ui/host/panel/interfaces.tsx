@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Ring, Empty } from '@/app/ui/loaders';
 import { bytes, rate, Field, Spark } from '../shared';
 import type { Iface, Post } from './types';
+import { ArrowRightIcon } from '@/app/ui/icons';
 
 /** Drivers whose interfaces this console may delete. */
 const REMOVABLE = /bridge|vlan|bond|team|wireguard/;
@@ -22,7 +23,7 @@ function driverCell(iface: Iface): React.ReactNode {
 
 function masterCell(iface: Iface): React.ReactNode {
   if (!iface.master) return iface.name;
-  return <>{iface.name}<span className="muted"> → {iface.master}</span></>;
+  return <>{iface.name}<span className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}> <ArrowRightIcon size={11} /> {iface.master}</span></>;
 }
 
 function IfaceTable({ rows, busy, post }: { rows: Iface[]; busy: string; post: Post }) {
@@ -30,7 +31,7 @@ function IfaceTable({ rows, busy, post }: { rows: Iface[]; busy: string; post: P
     <table>
       <thead><tr>
         <th>interface</th><th>kind</th><th>managed by</th><th>addresses</th><th>state</th>
-        <th>rx</th><th>tx</th><th>total ↓ / ↑</th><th>graph</th><th />
+        <th>rx</th><th>tx</th><th>total rx / tx</th><th>graph</th><th />
       </tr></thead>
       <tbody>
         {rows.map((iface) => (
@@ -153,7 +154,7 @@ export function Interfaces({ ifaces, busy, post }: {
 
       <div className="card" style={{ marginTop: 14 }}>
         <h3>{shown.length} interfaces</h3>
-        {shown.length === 0 ? <Empty text="none" /> : <IfaceTable rows={shown} busy={busy} post={post} />}
+        {shown.length === 0 ? <Empty icon="inbox" text="none" /> : <IfaceTable rows={shown} busy={busy} post={post} />}
       </div>
 
       <div className="card" style={{ marginTop: 14 }}>

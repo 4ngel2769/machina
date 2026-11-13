@@ -20,7 +20,7 @@ function usedCell(pool: Pool): React.ReactNode {
 export function Pools({ pools, busy, post }: {
   pools: Pool[]; busy: string; post: Post;
 }) {
-  if (!pools.length) return <div className="card" style={{ marginTop: 16 }}><Empty text="no storage pools defined" /></div>;
+  if (!pools.length) return <div className="card" style={{ marginTop: 16 }}><Empty icon="database" text="no storage pools defined" /></div>;
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h3>storage pools</h3>

@@ -273,7 +273,7 @@ export function Networks({ nets, instances, busy, netPost }: {
 
       {create && <NetCreate busy={busy} netPost={netPost} onDone={() => setCreate(false)} />}
 
-      {nets.length === 0 ? <Empty text="no networks" /> : (
+      {nets.length === 0 ? <Empty icon="network" text="no networks" /> : (
         <table>
           <thead><tr>
             <th>name</th><th>state</th><th>mode</th><th>bridge</th><th>ipv4</th><th>ipv6</th><th>dhcp</th><th>auto</th><th />

@@ -3,6 +3,7 @@
 'use client';
 
 import { Field } from '../shared';
+import { ArrowRightIcon } from '@/app/ui/icons';
 import type { Detail, Op } from './types';
 
 const BOOTS = ['hd', 'cdrom', 'network', 'fd'];
@@ -75,7 +76,13 @@ export function BootCard({ vm, op }: { vm: Detail; op: Op }) {
             {BOOTS.filter((bootDevice) => !vm.boot.includes(bootDevice)).map((bootDevice) => <option key={bootDevice} value={bootDevice}>{bootDevice}</option>)}
           </select>
         </Field>
-        <span className="mono" style={{ fontSize: 13 }}>{vm.boot.join(' → ')}</span>
+        <span className="mono" style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {vm.boot.map((bootDevice, i) => (
+            <span key={bootDevice} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {i > 0 && <ArrowRightIcon size={11} />}{bootDevice}
+            </span>
+          ))}
+        </span>
         {vm.boot.length > 1 && <button onClick={rotate}>rotate</button>}
         <Field label="autostart">
           <select value={vm.autostart ? 'on' : 'off'} key={`as${vm.autostart}`} onChange={(event) => op({ op: 'autostart', on: event.target.value === 'on' }, 'autostart')}>

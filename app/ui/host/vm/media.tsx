@@ -63,7 +63,7 @@ export function MediaCard({ vm, running, busy, op, isos, maxGb, uploadBusy, onUp
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <h3>media</h3>
-      {drives.length === 0 ? <Empty text="no cdrom attached" /> : (
+      {drives.length === 0 ? <Empty icon="disc" text="no cdrom attached" /> : (
         <table>
           <thead><tr><th>target</th><th>bus</th><th>media</th><th /></tr></thead>
           <tbody>{drives.map((disk) => <MediaRow key={disk.target + disk.source} disk={disk} busy={busy} op={op} />)}</tbody>

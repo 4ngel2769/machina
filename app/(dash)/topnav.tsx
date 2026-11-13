@@ -10,6 +10,7 @@ import { signOut } from 'next-auth/react';
 import { Blobatar } from '@blobatar/react';
 import 'blobatar/motion.css';
 import { Bell } from '@/app/ui/bell';
+import { ChevronDownIcon } from '@/app/ui/icons';
 
 export function TopNav({ name, role }: { name: string; role: string }) {
   const pathname = usePathname();
@@ -43,7 +44,7 @@ export function TopNav({ name, role }: { name: string; role: string }) {
         <button className="profilebtn" onClick={() => setOpen((prev) => !prev)} aria-haspopup="menu" aria-expanded={open}>
           <Blobatar name={name} size={22} animate="hover" />
           <span>{name}</span>
-          <span style={{ fontSize: 10, color: 'var(--text-3)' }}>▾</span>
+          <ChevronDownIcon size={12} />
         </button>
         {open && (
           <div className="profilemenu" role="menu" onClick={() => setOpen(false)}>

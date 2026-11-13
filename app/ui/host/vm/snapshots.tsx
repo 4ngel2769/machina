@@ -39,7 +39,7 @@ export function SnapshotsCard({ snaps, busy, op }: {
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <h3>snapshots</h3>
-      {snaps.length === 0 ? <Empty text="no snapshots" /> : (
+      {snaps.length === 0 ? <Empty icon="layers" text="no snapshots" /> : (
         <table>
           <thead><tr><th>name</th><th>state</th><th>added</th><th>taken</th><th /></tr></thead>
           <tbody>{snaps.map((snap) => <SnapRow key={snap.name} snap={snap} busy={busy} op={op} />)}</tbody>

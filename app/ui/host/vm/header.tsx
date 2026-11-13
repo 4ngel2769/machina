@@ -5,6 +5,7 @@
 import Link from 'next/link';
 import { bytes } from '../shared';
 import type { Detail, Live, Op } from './types';
+import { ArrowLeftIcon } from '@/app/ui/icons';
 
 /** resume when paused, pause otherwise. */
 function pauseAction(state: string): 'resume' | 'pause' {
@@ -52,7 +53,7 @@ function PowerBar({ vm, running, busy, op }: {
       <button disabled={!running || !!busy} style={{ color: 'var(--danger, #f87171)' }} onClick={forceOff}>
         power off
       </button>
-      <Link href="/host">← host</Link>
+      <Link href="/host" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftIcon size={13} /> host</Link>
     </div>
   );
 }

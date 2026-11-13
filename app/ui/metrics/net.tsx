@@ -141,7 +141,7 @@ export function NetPanel({ instanceId, off }: { instanceId: string; off: boolean
       )}
 
       {points.length < 2 ? (
-        <Empty text="Collecting bandwidth samples. Rates need two readings about 15 minutes apart." />
+        <Empty icon="activity" text="Collecting bandwidth samples. Rates need two readings about 15 minutes apart." />
       ) : (
         <RateChart points={points} />
       )}

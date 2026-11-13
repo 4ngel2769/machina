@@ -239,7 +239,7 @@ export function Palette({ role }: { role: string }) {
         <div style={{ borderTop: '1px solid var(--line)' }} />
         <HitList grouped={grouped} sel={sel} onHover={setSel} onPick={(hit) => hit.run()} />
         <div className="muted" style={{ padding: '10px 16px', borderTop: '1px solid var(--line)', fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>↑ ↓ move · enter run · esc close</span>
+          <span>move · enter run · esc close</span>
           <span>ctrl/cmd-k · ? for shortcuts</span>
         </div>
       </div>

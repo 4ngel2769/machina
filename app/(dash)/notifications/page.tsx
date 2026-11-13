@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
 import { Empty, Skeleton } from '@/app/ui/loaders';
+import { InfoIcon, CheckIcon, WarnIcon, XIcon, BellIcon } from '@/app/ui/icons';
+import type { ReactNode } from 'react';
 
 type Notification = {
   id: string; kind: 'info' | 'ok' | 'warn' | 'error';
@@ -15,8 +17,11 @@ type Notification = {
   readAt: number | null; createdAt: number;
 };
 
-const KIND_ICON: Record<Notification['kind'], string> = {
-  info: 'ℹ', ok: '✓', warn: '!', error: '✕',
+const KIND_ICON: Record<Notification['kind'], ReactNode> = {
+  info: <InfoIcon size={14} />,
+  ok: <CheckIcon size={14} />,
+  warn: <WarnIcon size={14} />,
+  error: <XIcon size={14} />,
 };
 const KIND_COLOR: Record<Notification['kind'], string> = {
   info: 'var(--accent)', ok: 'var(--ok)', warn: 'var(--warn)', error: 'var(--danger)',
@@ -75,7 +80,7 @@ export default function NotificationsPage() {
       <div className="sub">{items ? `${items.filter((item) => item.readAt === null).length} unread` : 'loading…'}</div>
 
       {!items && <Skeleton h={160} />}
-      {items && shown.length === 0 && <Empty text={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'} />}
+      {items && shown.length === 0 && <Empty icon="bell" text={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'} />}
 
       {shown.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

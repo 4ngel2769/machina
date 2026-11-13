@@ -1,15 +1,37 @@
 /**
- * Loading primitives: skeletons, thinking orbs, rings and bars.
+ * Loading primitives: ASCII skeletons, thinking orbs, rings and bars.
  */
 'use client';
 
+import { AsciiSkeleton } from 'ascii-reveal';
 import { ThinkingOrb, type OrbState, type OrbSize } from 'thinking-orbs';
+import { Icon, type IconName } from './icons';
 
 /* ---------------------------------------------------------------- skeletons */
 
-/** Shimmering placeholder block. `w`/`h` in px, or any CSS length. */
-export function Skeleton({ w = '100%', h = 12, r = 6, style }: { w?: string | number; h?: number; r?: number; style?: React.CSSProperties }) {
-  return <div className="skel" style={{ width: w, height: h, borderRadius: r, ...style }} />;
+/** ASCII placeholder block. `w`/`h` in px or CSS lengths; `lines` picks a
+ *  multi-line text shape for tall blocks. */
+export function Skeleton({ w = '100%', h = 12, r = 6, style, lines }: {
+  w?: string | number;
+  h?: number;
+  r?: number;
+  style?: React.CSSProperties;
+  lines?: number;
+}) {
+  void r;
+  if (lines && lines > 1) {
+    const widths = Array.from({ length: lines }, (_, i) => `${100 - (i % 3) * 14}%`);
+    return <AsciiSkeleton lines={lines} widths={widths} animate={lines <= 6} style={{ ...style, width: w }} />;
+  }
+  return (
+    <AsciiSkeleton
+      rows={Math.max(1, Math.round(h / 12))}
+      width={w}
+      height={h}
+      animate={false}
+      style={style}
+    />
+  );
 }
 
 export function SkelCard({ lines = 3 }: { lines?: number }) {
@@ -35,9 +57,7 @@ export function SkelRow({ cols = 4 }: { cols?: number }) {
 
 /* ------------------------------------------------------------------- orbs */
 
-/** Semantic state -> orb state. Deliberately NOT one loader for everything:
- *  a booting VM, a downloading image and a connecting terminal should not
- *  look identical. */
+/** Semantic state -> orb animation. */
 export const ORB_FOR: Record<string, OrbState> = {
   provisioning: 'weaving',
   'instance.create': 'weaving',
@@ -62,28 +82,18 @@ export const ORB_FOR: Record<string, OrbState> = {
   breathing: 'breathing',
 };
 
-/** The house orb loader. */
 export function Orb({ state = 'working', size = 20, label }: { state?: string; size?: OrbSize; label?: string }) {
   return <ThinkingOrb state={(ORB_FOR[state] ?? 'working') as OrbState} size={size} theme="dark" aria-label={label ?? state} />;
 }
 
-/* --------------------------------------------------------------- spinners */
-
-/** Thin conic ring — for actions inside buttons where an orb is too heavy. */
 export function Ring({ size = 14 }: { size?: number }) {
   return <span className="ring" style={{ width: size, height: size }} aria-hidden />;
 }
 
-/** Three-dot wave. */
 export function Dots() {
-  return (
-    <span className="dots" aria-hidden>
-      <i /><i /><i />
-    </span>
-  );
+  return <span className="dots" aria-hidden><i /><i /><i /></span>;
 }
 
-/** Indeterminate progress bar. */
 export function BarLoader({ label }: { label?: string }) {
   return (
     <div className="barloader" role="status" aria-label={label ?? 'loading'}>
@@ -94,11 +104,16 @@ export function BarLoader({ label }: { label?: string }) {
 
 /* ------------------------------------------------------------ empty states */
 
-/** One consistent empty state everywhere: orb, line, optional action. */
-export function Empty({ text, action }: { text: string; action?: React.ReactNode }) {
+/** One consistent empty state everywhere: a static monochrome icon, a line,
+ *  and an optional action. The icon should say *what* is empty. */
+export function Empty({ text, action, icon = 'inbox' }: {
+  text: string;
+  action?: React.ReactNode;
+  icon?: IconName;
+}) {
   return (
     <div className="empty">
-      <div className="empty-orb"><Orb state="breathing" size={32} /></div>
+      <div className="empty-icon"><Icon name={icon} size={26} /></div>
       <div className="empty-text">{text}</div>
       {action && <div style={{ marginTop: 12 }}>{action}</div>}
     </div>
