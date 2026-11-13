@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err } from '@/lib/api';
+import { json, err, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { instances } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const [inst] = await getDb().select().from(instances).where(eq(instances.id, id));
   if (!inst) return err('not found', 404);
   if (inst.userId !== user.id && user.role !== 'admin') return err('forbidden', 403);
-  const body = (await req.json().catch(() => ({}))) as { type?: string };
+  const body = await jsonBody(req, z.object({ type: z.string().optional() }).passthrough());
   const typ = channelOf(body.type);
   if (!typ) return err('type must be term|vnc');
   if (!rateLimit(`wstok:${user.id}:${id}`, 20, 60_000)) return err('token endpoint rate limited', 429);

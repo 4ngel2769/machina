@@ -12,6 +12,9 @@ import { listIfaces } from '@/lib/host/ifaces';
 import { listPools, refreshPool } from '@/lib/host/pools';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+const hostBodySchema = z.object({ op: z.string().optional(), name: z.string().optional() }).passthrough();
 import os from 'os';
 import fs from 'fs';
 
@@ -102,7 +105,7 @@ export async function POST(req: NextRequest) {
   if (deniedMutation) return deniedMutation;
   const { user: admin, response: denied } = await requireAdmin();
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = await jsonBody(req, hostBodySchema);
   if (body.op === 'log') return json(hostLog());
   if (body.op === 'poolRefresh') return poolRefresh(String(body.name ?? ''), admin);
   return err('unknown operation');

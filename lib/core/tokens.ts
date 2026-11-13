@@ -9,6 +9,7 @@
 
 import crypto from 'crypto';
 import { config } from '@/lib/config';
+import { now } from '@/lib/core/util';
 
 export type WsChannel = 'term' | 'vnc';
 
@@ -26,7 +27,7 @@ function hmacKey(): Buffer {
 }
 
 export function mintToken(instanceId: string, channel: WsChannel, ttlSec = 120, userId = '', isAdmin = false): string {
-  const payload: WsTokenPayload = { inst: instanceId, typ: channel, uid: userId, adm: isAdmin, exp: Date.now() + ttlSec * 1000 };
+  const payload: WsTokenPayload = { inst: instanceId, typ: channel, uid: userId, adm: isAdmin, exp: now() + ttlSec * 1000 };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto.createHmac('sha256', hmacKey()).update(encodedPayload).digest('base64url');
   return `${encodedPayload}.${signature}`;
@@ -51,7 +52,7 @@ function isUsable(tokenPayload: WsTokenPayload | null): tokenPayload is WsTokenP
   if (!tokenPayload) return false;
   if (!tokenPayload.inst || !tokenPayload.typ || !tokenPayload.uid) return false;
   if (typeof tokenPayload.exp !== 'number') return false;
-  return tokenPayload.exp >= Date.now();
+  return tokenPayload.exp >= now();
 }
 
 export function verifyToken(token: string | undefined | null): WsTokenPayload | null {

@@ -12,6 +12,17 @@ import { createUser, deleteUser, setPassword, setRole, topup } from './handlers/
 import { createCustomInstance, createInstance, deletePlan } from './handlers/instances';
 import { setPlan, setUserImage as setUserImageOp, syncImage as syncImageOp } from './handlers/plans';
 import type { AdminBody, OpHandler } from './handlers/types';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+const adminBodySchema = z.object({
+  op: z.string().optional(), userId: z.string().optional(), deltaCents: z.number().optional(),
+  name: z.string().optional(), password: z.string().optional(), role: z.string().optional(),
+  creditCents: z.number().optional(), planId: z.string().optional(), vcpu: z.number().optional(),
+  ramMb: z.number().optional(), diskGb: z.number().optional(), hourlyRateCents: z.number().optional(),
+  monthlyCapMin: z.number().optional(), bandwidthGb: z.number().optional(), imageId: z.string().optional(),
+  targetUserId: z.string().optional(), imagePickable: z.boolean().optional(),
+  assignedImageId: z.string().nullable().optional(),
+}).passthrough();
 
 export async function GET(req: NextRequest) {
   const { user: adminUser, response: authError } = await requireAdmin();
@@ -70,7 +81,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
   const { user: admin, response: authError } = await requireAdmin();
   if (!admin) return authError;
-  const body = (await req.json().catch(() => ({}))) as AdminBody;
+  const body = (await jsonBody(req, adminBodySchema)) as AdminBody;
   const op = body.op ? OPS[body.op] : undefined;
   if (!op) return err('unknown op');
   return op(body, { admin });

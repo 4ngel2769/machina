@@ -10,6 +10,9 @@ import { eq } from 'drizzle-orm';
 import { now } from '@/lib/core/util';
 import { provisionInstance } from '@/lib/core/provision';
 import { logAudit } from '@/lib/services/audit';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,7 +21,11 @@ type RequestRow = {
   image_id: string | null; status: string;
 };
 
-type ReviewBody = { op?: string; note?: string; planId?: string; imageId?: string };
+type ReviewBody = z.infer<typeof reviewBodySchema>;
+const reviewBodySchema = z.object({
+  op: z.string().optional(), note: z.string().optional(),
+  planId: z.string().optional(), imageId: z.string().optional(),
+}).passthrough();
 
 function reviewNote(body: ReviewBody) {
   return (body.note ?? '').trim().slice(0, 280) || null;
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!requestRow) return err('not found', 404);
   if (requestRow.status !== 'pending') return err('request already reviewed', 409);
 
-  const body = (await req.json().catch(() => ({}))) as ReviewBody;
+  const body = await jsonBody(req, reviewBodySchema);
   if (body.op === 'reject') return reject(requestRow, admin, body);
   if (body.op === 'approve') return approve(requestRow, id, admin, body);
   return err('op must be approve|reject');

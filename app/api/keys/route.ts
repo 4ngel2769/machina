@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, uuid, guardMutation } from '@/lib/api';
+import { json, err, uuid, guardMutation, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { sshKeys } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -19,12 +20,12 @@ export async function GET() {
   return json(rows);
 }
 
-export async function POST(req: Request) {
-  const denied = guardMutation(req as NextRequest);
+export async function POST(req: NextRequest) {
+  const denied = guardMutation(req);
   if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
-  const body = (await req.json().catch(() => ({}))) as { label?: string; pubKey?: string };
+  const body = await jsonBody(req, z.object({ label: z.string().optional(), pubKey: z.string().optional() }).passthrough());
   const label = (body.label ?? '').trim().slice(0, 64);
   let pubKey = (body.pubKey ?? '').trim();
   // one-line key: type + base64(+comment)
@@ -38,12 +39,12 @@ export async function POST(req: Request) {
   return json({ ok: true }, 201);
 }
 
-export async function DELETE(req: Request) {
-  const denied = guardMutation(req as NextRequest);
+export async function DELETE(req: NextRequest) {
+  const denied = guardMutation(req);
   if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
-  const body = (await req.json().catch(() => ({}))) as { id?: string };
+  const body = await jsonBody(req, z.object({ id: z.string().optional() }).passthrough());
   if (!body.id) return err('id required');
   const [row] = await getDb().select().from(sshKeys).where(eq(sshKeys.id, body.id));
   if (!row) return err('not found', 404);

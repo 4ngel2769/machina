@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { requireAdmin, json, err, guardMutation } from '@/lib/api';
+import { requireAdmin, json, err, guardMutation, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, users, sshKeys } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!requestRow) return err('not found', 404);
   if (requestRow.status !== 'pending') return err('already handled', 409);
 
-  const body = (await req.json().catch(() => ({}))) as { op?: string; note?: string };
+  const body = await jsonBody(req, z.object({ op: z.string().optional(), note: z.string().optional() }).passthrough());
   const op = body.op === 'fulfill' ? 'fulfill' : body.op === 'reject' ? 'reject' : null;
   if (!op) return err('op must be fulfill|reject');
 

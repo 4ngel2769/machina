@@ -10,6 +10,8 @@ import { eq } from 'drizzle-orm';
 import { enqueue } from '@/lib/core/jobs';
 import { logAudit } from '@/lib/services/audit';
 import { listSnapshots, assertSnapshotName } from '@/lib/core/driver';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -124,7 +126,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   });
 }
 
-type SnapBody = { action?: string; name?: string; description?: string; mode?: string };
+type SnapBody = z.infer<typeof snapBodySchema>;
+const snapBodySchema = z.object({
+  action: z.string().optional(), name: z.string().optional(),
+  description: z.string().optional(), mode: z.string().optional(),
+}).passthrough();
 
 function snapshotActionCheck(action: string | undefined, status: string) {
   if (!['create', 'revert', 'delete'].includes(action ?? '')) return err('unknown action');
@@ -197,7 +203,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const [inst, forbidden] = await load(id, user.id, user.role);
   if (forbidden) return forbidden;
 
-  const body = (await req.json().catch(() => ({}))) as SnapBody;
+  const body = await jsonBody(req, snapBodySchema);
   const action = body.action ?? '';
   const refusedAction = snapshotActionCheck(action, inst.status);
   if (refusedAction) return refusedAction;

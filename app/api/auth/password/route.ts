@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation } from '@/lib/api';
+import { json, err, guardMutation, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { rawDb, getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (!user) return err('unauthorized', 401);
   if (!rateLimit(`pw:${user.id}`, 5, 10 * 60_000)) return err('too many attempts', 429);
 
-  const body = (await req.json().catch(() => ({}))) as { current?: string; next?: string };
+  const body = await jsonBody(req, z.object({ current: z.string().optional(), next: z.string().optional() }).passthrough());
   const fields = passwordFields(body);
   if ('refused' in fields) return fields.refused;
   const { current, next } = fields;

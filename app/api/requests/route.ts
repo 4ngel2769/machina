@@ -12,6 +12,12 @@ import { newId } from '@/lib/core/crypto';
 import { rateLimit } from '@/lib/core/crypto';
 import { logAudit } from '@/lib/services/audit';
 import { checkQuota } from '@/lib/core/quota';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+const requestBodySchema = z.object({
+  name: z.string().optional(), planId: z.string().optional(),
+  imageId: z.string().optional(), note: z.string().optional(),
+}).passthrough();
 
 export async function GET() {
   const user = await requireUser();
@@ -98,7 +104,7 @@ export async function POST(req: NextRequest) {
   if (user.role === 'admin') return err('admins create directly via /api/instances', 400);
   if (!rateLimit(`req:${user.id}`, 5, 60 * 60_000)) return err('too many requests; slow down', 429);
 
-  const body = (await req.json().catch(() => ({}))) as { name?: string; planId?: string; imageId?: string; note?: string };
+  const body = await jsonBody(req, requestBodySchema);
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
   const pickedPlan = await pickPlan(body.planId);

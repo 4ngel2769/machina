@@ -132,8 +132,8 @@ export type Capacity = {
  */
 let capCache: { at: number; cap: Capacity } | null = null;
 
-export function hostCapacity(ttlMs = 60_000): Capacity {
-  if (capCache && Date.now() - capCache.at < ttlMs) return capCache.cap;
+export function hostCapacity(ttlMs = 60_000, clock: () => number = now): Capacity {
+  if (capCache && clock() - capCache.at < ttlMs) return capCache.cap;
   let memoryMb = 0;
   let vcpus = 0;
   try {
@@ -152,7 +152,7 @@ export function hostCapacity(ttlMs = 60_000): Capacity {
     vcpus,
     ramOvercommit: Number(process.env.MACHINA_RAM_OVERCOMMIT || '1.5'),
   };
-  capCache = { at: Date.now(), cap };
+  capCache = { at: clock(), cap };
   return cap;
 }
 

@@ -6,6 +6,9 @@ import { logAudit } from '@/lib/services/audit';
 import { vmDetail, applyVmOp, undefineVm, type VmOp } from '@/lib/host/domains';
 import { virsh, listSnapshots, createSnapshot, revertSnapshot, deleteSnapshot } from '@/lib/core/driver';
 import { friendlyError } from '@/lib/core/errors';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+
 
 type Live = {
   cpuSec: number; memMb: number; maxMemMb: number;
@@ -71,6 +74,7 @@ export async function GET(req: NextRequest) {
 
 type Admin = { id: string; name: string };
 type VmBody = Record<string, unknown> & { name?: string };
+const vmBodySchema = z.object({ name: z.string().optional(), snapName: z.string().optional() }).passthrough();
 
 /** Snapshot ops have their own invariants (nested deletes, paused-after-revert),
  *  so they dispatch before the generic domain-edit path. */
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
   if (deniedMutation) return deniedMutation;
   const { user: admin, response: deniedAdmin } = await requireAdmin();
   if (deniedAdmin) return deniedAdmin;
-  const body = (await req.json().catch(() => ({}))) as VmBody;
+  const body = (await jsonBody(req, vmBodySchema)) as VmBody;
   const name = String(body.name ?? '');
   try {
     const snap = await snapshotOp(body, name, admin);

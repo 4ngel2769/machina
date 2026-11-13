@@ -2,7 +2,8 @@
  * One account's quota: read it, edit it, and read the usage behind it.
  */
 import { NextRequest } from 'next/server';
-import { json, err, guardMutation, requireAdmin } from '@/lib/api';
+import { json, err, guardMutation, requireAdmin, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { rawDb } from '@/lib/db';
 import { quotaWithUsage } from '@/lib/core/quota';
 import { now } from '@/lib/core/util';
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     { id: string; name: string } | undefined;
   if (!user) return err('user not found', 404);
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = await jsonBody(req, z.object({}).passthrough());
   const parsed = parseBounds(body);
   if (parsed instanceof Response) return parsed;
 

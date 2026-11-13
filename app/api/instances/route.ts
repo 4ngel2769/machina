@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation } from '@/lib/api';
+import { json, err, guardMutation, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans, images, users } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -58,9 +59,7 @@ export async function POST(req: NextRequest) {
   if (user.role !== 'admin') {
     return err('request an instance via /api/requests (admin approval required)', 403);
   }
-  const body = (await req.json().catch(() => ({}))) as {
-    name?: string; planId?: string; imageId?: string;
-  };
+  const body = await jsonBody(req, z.object({ name: z.string().optional(), planId: z.string().optional(), imageId: z.string().optional() }).passthrough());
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
   if (!rateLimit(`create:${user.id}`, 10, 10 * 60_000)) return err('too many creations; slow down', 429);

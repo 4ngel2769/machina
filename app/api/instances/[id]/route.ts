@@ -3,7 +3,8 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation } from '@/lib/api';
+import { json, err, guardMutation, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -227,7 +228,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const [inst, forbidden] = await load(id, user.id, user.role);
   if (forbidden) return forbidden;
-  const body = (await req.json().catch(() => ({}))) as { action?: string; force?: boolean; name?: string; planId?: string };
+  const body = await jsonBody(req, z.object({ action: z.string().optional(), force: z.boolean().optional(), name: z.string().optional(), planId: z.string().optional() }).passthrough());
   const action = body.action;
   if (action === 'retry') return retryProvisioning(user, inst);
   if (action === 'clone') return cloneInstance(user, inst, body);
