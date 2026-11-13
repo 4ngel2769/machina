@@ -1,3 +1,6 @@
+/**
+ * Status cue for a VM or job.
+ */
 'use client';
 
 import { Orb } from './loaders';

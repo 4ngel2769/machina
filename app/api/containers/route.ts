@@ -1,12 +1,12 @@
+/** Docker inventory (GET) and a narrow create (POST) for the admin console.
+ *  Lifecycle and removal live on the per-container route so a mutation always
+ *  names exactly one container. */
+
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { listContainers, dockerAvailable, parseCreate, createContainer } from '@/lib/host/docker';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
-
-/** Docker inventory (GET) and a narrow create (POST) for the admin console.
- *  Lifecycle and removal live on the per-container route so a mutation always
- *  names exactly one container. */
 
 export async function GET(_req: NextRequest) {
   const [, denied] = await requireAdmin();

@@ -1,3 +1,6 @@
+/**
+ * Quota editor used by the admin console.
+ */
 'use client';
 
 import { useState } from 'react';

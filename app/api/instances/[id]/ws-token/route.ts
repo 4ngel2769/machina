@@ -1,3 +1,6 @@
+/**
+ * Mint a 120-second websocket token for the terminal or console channel.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';

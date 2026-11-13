@@ -1,3 +1,6 @@
+/**
+ * Instance detail, lifecycle actions and provisioning retry.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';

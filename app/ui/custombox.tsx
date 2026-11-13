@@ -1,9 +1,3 @@
-'use client';
-
-import { useState } from 'react';
-import { useToast } from './toast';
-import { Ring } from './loaders';
-
 /**
  * Build a VM that is not on the ladder: cores, RAM (given in MB or GB), disk,
  * bandwidth and monthly cap, all as numbers rather than a preset id.
@@ -13,6 +7,12 @@ import { Ring } from './loaders';
  * as a preset one is. The rate field is optional: blank means "compute it from
  * the configured coefficients", which the server echoes back in the toast.
  */
+
+'use client';
+
+import { useState } from 'react';
+import { useToast } from './toast';
+import { Ring } from './loaders';
 
 type Opt = { id: string; name: string };
 

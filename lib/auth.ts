@@ -1,3 +1,6 @@
+/**
+ * next-auth configuration: credentials provider, JWT session and role lookup.
+ */
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { rawDb } from '@/lib/db';

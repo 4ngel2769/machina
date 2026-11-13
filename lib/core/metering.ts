@@ -1,8 +1,3 @@
-import { rawDb } from '@/lib/db';
-import { config } from '@/lib/config';
-import { newId } from './crypto';
-import { now } from './util';
-
 /**
  * Metering. A 15-minute sampler records one usage row per running instance
  * (weight = fractional HOURS lived in that window). An hourly settlement
@@ -11,6 +6,11 @@ import { now } from './util';
  * simply not billed — never negative billing). Suspend-at-zero belongs to
  * the reconciler: metering records truth, reconciler acts on it.
  */
+
+import { rawDb } from '@/lib/db';
+import { config } from '@/lib/config';
+import { newId } from './crypto';
+import { now } from './util';
 
 const SAMPLE_MIN = config.meters.sampleIntervalMin;
 

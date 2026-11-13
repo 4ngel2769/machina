@@ -1,3 +1,11 @@
+/**
+ * Image catalog model. Base images live as plain .qcow2 files named
+ * <imageId>.qcow2 in the images pool dir; the download path is:
+ *   url --(fetch to .part)--> sha256 verify (when published) --> rename
+ *   <imageId>.qcow2 --> pool-refresh. A missing published SHA256SUMS is not
+ * fatal: the first successful download's hash becomes the recorded baseline.
+ */
+
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -9,14 +17,6 @@ import { now } from './util';
 import { virsh } from './driver';
 
 const pexec = promisify(execFile);
-
-/**
- * Image catalog model. Base images live as plain .qcow2 files named
- * <imageId>.qcow2 in the images pool dir; the download path is:
- *   url --(fetch to .part)--> sha256 verify (when published) --> rename
- *   <imageId>.qcow2 --> pool-refresh. A missing published SHA256SUMS is not
- * fatal: the first successful download's hash becomes the recorded baseline.
- */
 
 export interface CatalogEntry {
   id: string;

@@ -1,3 +1,6 @@
+/**
+ * Instance disk export: mint a short-lived download token, then stream the qcow2.
+ */
 import { createReadStream, promises as fs } from 'fs';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';

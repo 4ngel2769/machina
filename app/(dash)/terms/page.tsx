@@ -1,3 +1,6 @@
+/**
+ * Terms of service page.
+ */
 import Link from 'next/link';
 
 export default function TermsPage() {

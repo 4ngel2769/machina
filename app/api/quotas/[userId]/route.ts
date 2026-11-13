@@ -1,3 +1,6 @@
+/**
+ * One account's quota: read it, edit it, and read the usage behind it.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';

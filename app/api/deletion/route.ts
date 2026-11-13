@@ -1,3 +1,6 @@
+/**
+ * Account-deletion requests: a user asks, an admin decides.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { requireAdmin, json, err, guardMutation } from '@/lib/api';

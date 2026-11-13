@@ -1,11 +1,11 @@
+/** Host interfaces: the live table plus creation/removal of NM connections. */
+
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { logAudit } from '@/lib/services/audit';
 import { addIface, deleteIface, listIfaces, type AddIface } from '@/lib/host/ifaces';
 import { listNetworks, bridges } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
-
-/** Host interfaces: the live table plus creation/removal of NM connections. */
 
 export async function GET() {
   const [, e] = await requireAdmin();

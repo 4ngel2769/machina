@@ -1,3 +1,6 @@
+/**
+ * Admin-only console for the hypervisor itself.
+ */
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { HostPanel } from '@/app/ui/host/panel';

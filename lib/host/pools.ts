@@ -1,5 +1,3 @@
-import { virsh } from '@/lib/core/driver';
-
 /**
  * Libvirt storage pools on the host.
  *
@@ -8,6 +6,8 @@ import { virsh } from '@/lib/core/driver';
  * vol-list` until a refresh. That is the whole reason this panel exists: after
  * dropping a base image or an ISO in place, refresh is the missing step.
  */
+
+import { virsh } from '@/lib/core/driver';
 
 export type Pool = {
   name: string;

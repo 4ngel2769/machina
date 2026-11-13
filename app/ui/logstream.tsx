@@ -1,3 +1,6 @@
+/**
+ * Live log view with a one-line activity summary for provisioning jobs.
+ */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';

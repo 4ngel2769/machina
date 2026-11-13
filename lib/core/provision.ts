@@ -1,3 +1,6 @@
+/**
+ * Create an instance: overlay disk, cloud-init seed, domain XML, IP and MAC.
+ */
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans, images, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';

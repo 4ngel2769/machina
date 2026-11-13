@@ -1,3 +1,6 @@
+/**
+ * Background job watcher: keeps long-running work moving while a page is open.
+ */
 'use client';
 
 import { useEffect, useRef } from 'react';

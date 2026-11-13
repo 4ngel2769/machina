@@ -1,3 +1,6 @@
+/**
+ * Instance requests: a user asks for a VM, an admin approves it.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';

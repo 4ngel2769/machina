@@ -1,3 +1,6 @@
+/**
+ * Route-level error boundary for the dashboard shell.
+ */
 'use client';
 
 import { Orb } from '@/app/ui/loaders';

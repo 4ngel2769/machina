@@ -1,3 +1,6 @@
+/**
+ * Instance metrics panel: CPU, memory, disk and network charts.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

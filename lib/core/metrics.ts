@@ -1,8 +1,3 @@
-import { rawDb } from '@/lib/db';
-import { config } from '@/lib/config';
-import { domStats } from './driver';
-import { now } from './util';
-
 /**
  * Metric sampling. Records RAW cumulative hypervisor counters per running
  * instance; all rates are derived at read time.
@@ -25,6 +20,11 @@ import { now } from './util';
  *    (verified across Ubuntu and Alpine). Reporting that as RAM usage would be
  *    a chart that lies. See readMetrics() for what we surface instead.
  */
+
+import { rawDb } from '@/lib/db';
+import { config } from '@/lib/config';
+import { domStats } from './driver';
+import { now } from './util';
 
 let inFlight = false;
 

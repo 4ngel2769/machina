@@ -1,3 +1,6 @@
+/**
+ * The caller's own quota and current usage.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';

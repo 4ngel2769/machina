@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { execFileSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-
 /**
  * Build identity for uptime monitors and for "is the box I am looking at the
  * box I deployed". Unauthenticated on purpose: it carries nothing an attacker
  * did not already know from a TCP connect, and a version endpoint behind a
  * login is useless to the thing that needs it.
  */
+
+import { NextResponse } from 'next/server';
+import { execFileSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

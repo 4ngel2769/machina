@@ -1,3 +1,6 @@
+/**
+ * Quota list: every account with its limits and live usage (admin only).
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';

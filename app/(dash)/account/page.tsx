@@ -1,3 +1,6 @@
+/**
+ * Account page: profile, password change, data export and self-deletion.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

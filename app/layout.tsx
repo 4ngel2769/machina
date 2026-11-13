@@ -1,3 +1,6 @@
+/**
+ * Root layout: document shell, fonts and global styles.
+ */
 import './globals.css';
 
 export const metadata = {

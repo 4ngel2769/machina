@@ -1,8 +1,8 @@
+/** Fixed top-right toast stack. `toast.ok|err|info(msg)`; errors linger longer. */
+
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-
-/** Fixed top-right toast stack. `toast.ok|err|info(msg)`; errors linger longer. */
 
 export type Toast = { id: number; kind: 'ok' | 'err' | 'info'; msg: string };
 type Ctx = { ok: (m: string) => void; err: (m: string) => void; info: (m: string) => void };

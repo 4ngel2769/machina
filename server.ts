@@ -1,3 +1,11 @@
+/**
+ * Boot sequence:
+ *   ensureSetup (pools/network) -> DB migrate+seed -> Next -> listen
+ *   then worker + metering + reconciler loops. WS upgrade routes:
+ *     /api/instances/<id>/terminal  (token) -> ssh2 relay
+ *     /api/instances/<id>/console   (token) -> vnc unix socket relay
+ */
+
 import { createServer } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import next from 'next';
@@ -17,14 +25,6 @@ import { verifyToken, type WsChannel } from '@/lib/core/tokens';
 import { relayTerm } from '@/lib/core/terminal';
 import { relayVnc } from '@/lib/core/console-ws';
 import { decrypt } from '@/lib/core/crypto';
-
-/**
- * Boot sequence:
- *   ensureSetup (pools/network) -> DB migrate+seed -> Next -> listen
- *   then worker + metering + reconciler loops. WS upgrade routes:
- *     /api/instances/<id>/terminal  (token) -> ssh2 relay
- *     /api/instances/<id>/console   (token) -> vnc unix socket relay
- */
 
 const dev = process.env.NODE_ENV !== 'production';
 // next() reads NODE_ENV on construct; normalise it now (assignment is safe via cast).

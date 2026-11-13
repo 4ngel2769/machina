@@ -1,3 +1,6 @@
+/**
+ * Configuration: env overrides, storage layout and limits.
+ */
 
 import fs from 'fs';
 import path from 'path';

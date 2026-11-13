@@ -1,3 +1,6 @@
+/**
+ * SSH terminal relay: websocket to guest shell, with an optional persistent session.
+ */
 import type { WebSocket } from 'ws';
 import { attachKeepalive } from './ws-keepalive';
 

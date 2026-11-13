@@ -1,3 +1,6 @@
+/**
+ * Admin API: user, plan, image, quota and request operations behind an admin session.
+ */
 import { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api';
 import { json, err, guardMutation } from '@/lib/api';

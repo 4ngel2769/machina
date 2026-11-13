@@ -1,11 +1,11 @@
+/** One host VM: detail, live counters, and every edit the admin console makes. */
+
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { logAudit } from '@/lib/services/audit';
 import { vmDetail, applyVmOp, undefineVm, type VmOp } from '@/lib/host/domains';
 import { virsh, listSnapshots, createSnapshot, revertSnapshot, deleteSnapshot } from '@/lib/core/driver';
 import { friendlyError } from '@/lib/core/errors';
-
-/** One host VM: detail, live counters, and every edit the admin console makes. */
 
 type Live = {
   cpuSec: number; memMb: number; maxMemMb: number;

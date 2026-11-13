@@ -1,3 +1,6 @@
+/**
+ * AES-256-GCM for recoverable secrets, plus password hashing and random ids.
+ */
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';

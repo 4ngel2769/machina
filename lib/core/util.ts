@@ -1,3 +1,6 @@
+/**
+ * Small shared helpers: clock, id generators, token re-export.
+ */
 import { newId, randToken } from './crypto';
 
 export function now(): number {

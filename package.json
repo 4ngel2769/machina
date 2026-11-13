@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "server": "tsx server.ts",
-    "lint": "eslint ."
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "bun test"
   },
   "dependencies": {
     "@blobatar/react": "^2.7.0",

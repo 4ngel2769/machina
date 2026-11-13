@@ -1,9 +1,3 @@
-'use client';
-
-import { Fragment, useState } from 'react';
-import { useToast } from './toast';
-import { Ring } from './loaders';
-
 /**
  * Account lifecycle for the admin panel.
  *
@@ -16,6 +10,12 @@ import { Ring } from './loaders';
  * own qcow2 overlays, IP leases and VNC sockets, and they must be destroyed
  * through the normal handler rather than orphaned.
  */
+
+'use client';
+
+import { Fragment, useState } from 'react';
+import { useToast } from './toast';
+import { Ring } from './loaders';
 
 export type AdminUser = {
   id: string;

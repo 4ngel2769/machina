@@ -1,3 +1,6 @@
+/**
+ * qcow2 overlay creation and disk helpers.
+ */
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';

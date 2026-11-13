@@ -1,3 +1,6 @@
+/**
+ * Root redirect into the dashboard.
+ */
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 

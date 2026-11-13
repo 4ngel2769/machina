@@ -1,3 +1,6 @@
+/**
+ * Instance metrics over a selectable time window.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';

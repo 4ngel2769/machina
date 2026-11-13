@@ -1,3 +1,6 @@
+/**
+ * SSH public key list, add and remove for the signed-in user.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, uuid, guardMutation } from '@/lib/api';

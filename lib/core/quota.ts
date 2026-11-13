@@ -1,8 +1,3 @@
-import os from 'os';
-import { rawDb } from '@/lib/db';
-import { config } from '@/lib/config';
-import { now } from '@/lib/core/util';
-
 /**
  * Per-user quotas and host capacity.
  *
@@ -19,6 +14,11 @@ import { now } from '@/lib/core/util';
  * still costs disk on the pool. Counting only running VMs would let a user
  * stop everything, create a hundred, and then start them all at once.
  */
+
+import os from 'os';
+import { rawDb } from '@/lib/db';
+import { config } from '@/lib/config';
+import { now } from '@/lib/core/util';
 
 export type Quota = {
   maxVms: number | null;
@@ -294,7 +294,6 @@ export function checkHostCapacity(plan: { vcpu: number; ramMb: number; diskGb: n
 export function quotaWithUsage(userId: string): { quota: Quota; usage: Usage } {
   return { quota: getQuota(userId), usage: getUsage(userId) };
 }
-
 
 /** Percentage used, or null when unlimited. Used for the usage bars. */
 export function pct(used: number, max: number | null): number | null {

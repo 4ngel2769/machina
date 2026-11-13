@@ -1,3 +1,6 @@
+/**
+ * Root error boundary: last-resort UI when the app shell itself throws.
+ */
 'use client';
 
 import { useEffect } from 'react';

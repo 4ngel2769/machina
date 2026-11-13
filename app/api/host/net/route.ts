@@ -1,3 +1,6 @@
+/**
+ * Host console network API: virtual networks, DHCP reservations and edits.
+ */
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { logAudit } from '@/lib/services/audit';

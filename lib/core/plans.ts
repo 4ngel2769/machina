@@ -1,10 +1,3 @@
-import { eq } from 'drizzle-orm';
-import { getDb, rawDb } from '@/lib/db';
-import { plans } from '@/lib/db/schema';
-import type { Plan } from '@/lib/db/schema';
-import { newId } from '@/lib/core/crypto';
-import { config } from '@/lib/config';
-
 /**
  * Custom (non-preset) VM specs.
  *
@@ -16,6 +9,13 @@ import { config } from '@/lib/config';
  * columns) would mean every consumer of a size — quota, resize, disk creation,
  * billing — has to know about both, and that is how sizes drift.
  */
+
+import { eq } from 'drizzle-orm';
+import { getDb, rawDb } from '@/lib/db';
+import { plans } from '@/lib/db/schema';
+import type { Plan } from '@/lib/db/schema';
+import { newId } from '@/lib/core/crypto';
+import { config } from '@/lib/config';
 
 export type CustomSpec = {
   vcpu: number;

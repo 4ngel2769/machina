@@ -1,3 +1,6 @@
+/**
+ * Loading primitives: skeletons, thinking orbs, rings and bars.
+ */
 'use client';
 
 import { ThinkingOrb, type OrbState, type OrbSize } from 'thinking-orbs';

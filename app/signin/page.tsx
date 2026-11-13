@@ -1,3 +1,6 @@
+/**
+ * Sign-in page with a same-origin callback URL.
+ */
 'use client';
 
 import { Suspense, useState } from 'react';

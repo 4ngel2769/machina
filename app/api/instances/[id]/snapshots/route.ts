@@ -1,3 +1,6 @@
+/**
+ * Snapshot list, create, revert and delete for one instance.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';

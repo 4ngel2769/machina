@@ -1,9 +1,9 @@
+/** Small shared bits for the host console. */
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
-
-/** Small shared bits for the host console. */
 
 export function bytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '0 B';

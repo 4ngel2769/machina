@@ -1,3 +1,6 @@
+/**
+ * Keyboard shortcut layer for the dashboard shell.
+ */
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';

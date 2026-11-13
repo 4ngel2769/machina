@@ -1,13 +1,13 @@
-'use client';
-
-import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-
 /**
  * Thin gradient progress bar pinned under the top nav. Fires on route
  * changes and on loadStart/loadEnd() guards around long fetches.
  * The gradient fades to transparent on both ends so the track has no edges.
  */
+
+'use client';
+
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 
 let guards = 0;
 const listeners = new Set<(on: boolean) => void>();

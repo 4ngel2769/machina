@@ -1,3 +1,6 @@
+/**
+ * Top navigation bar: tabs, account menu, command palette shortcut and sign-out.
+ */
 'use client';
 
 import { useState } from 'react';

@@ -1,3 +1,6 @@
+/**
+ * Password change for the signed-in account.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation } from '@/lib/api';

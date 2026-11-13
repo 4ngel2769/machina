@@ -1,3 +1,6 @@
+/**
+ * Instance detail: status, web terminal, VNC console, metrics, snapshots and info.
+ */
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
