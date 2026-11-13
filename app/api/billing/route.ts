@@ -1,3 +1,6 @@
+/**
+ * Billing API: the caller's balance, recent ledger rows and host capacity.
+ */
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';
 import { rawDb } from '@/lib/db';

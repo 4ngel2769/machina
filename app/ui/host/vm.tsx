@@ -1,3 +1,5 @@
+/** One host VM: every knob libvirt will let us turn, and the live counters. */
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -5,8 +7,6 @@ import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
 import { Ring, Empty } from '@/app/ui/loaders';
 import { bytes, rate, Field, usePoll } from './shared';
-
-/** One host VM: every knob libvirt will let us turn, and the live counters. */
 
 type Detail = {
   name: string; state: string; persistent: boolean; autostart: boolean;

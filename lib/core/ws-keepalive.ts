@@ -1,3 +1,6 @@
+/**
+ * Server-side websocket keepalive interval.
+ */
 import type { WebSocket } from 'ws';
 
 /**

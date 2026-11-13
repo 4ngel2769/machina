@@ -1,3 +1,6 @@
+/**
+ * Snapshot panel for one instance: list, create, revert and delete.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

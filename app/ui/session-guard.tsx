@@ -1,3 +1,6 @@
+/**
+ * Client-side session guard: any API 401 redirects to sign-in carrying the current path.
+ */
 'use client';
 
 import { useEffect } from 'react';

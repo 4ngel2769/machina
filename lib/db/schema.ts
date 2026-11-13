@@ -1,3 +1,6 @@
+/**
+ * Drizzle table definitions mirroring the SQLite schema.
+ */
 import { sqliteTable, text, integer, real, unique, index, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {

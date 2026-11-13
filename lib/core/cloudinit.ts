@@ -1,3 +1,6 @@
+/**
+ * Cloud-init user-data, meta-data and network-config for a seed ISO.
+ */
 export const CLOUD_INIT_HEADER = '#cloud-config';
 import fs from 'fs';
 import path from 'path';

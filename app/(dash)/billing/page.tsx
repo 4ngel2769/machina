@@ -1,3 +1,6 @@
+/**
+ * Billing page: balance, ledger history and hourly usage.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

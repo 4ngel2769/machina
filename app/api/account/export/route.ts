@@ -1,3 +1,6 @@
+/**
+ * Account data export: a dump of the caller's own records.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';

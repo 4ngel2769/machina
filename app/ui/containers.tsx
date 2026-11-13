@@ -1,10 +1,3 @@
-'use client';
-
-import { Fragment, useMemo, useState } from 'react';
-import { useToast } from '@/app/ui/toast';
-import { Empty } from '@/app/ui/loaders';
-import { bytes, usePoll } from '@/app/ui/host/shared';
-
 /**
  * Docker tab for the admin console.
  *
@@ -13,6 +6,13 @@ import { bytes, usePoll } from '@/app/ui/host/shared';
  * unhealthy. Health, restart count and live usage answer the only question the
  * page exists for — what is broken right now.
  */
+
+'use client';
+
+import { Fragment, useMemo, useState } from 'react';
+import { useToast } from '@/app/ui/toast';
+import { Empty } from '@/app/ui/loaders';
+import { bytes, usePoll } from '@/app/ui/host/shared';
 
 type Container = {
   id: string; name: string; image: string; state: string; status: string;

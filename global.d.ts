@@ -1,3 +1,6 @@
+/**
+ * Ambient module declarations for imported stylesheets.
+ */
 declare module '*.css';
 
 declare module '@novnc/novnc/core/rfb.js' {

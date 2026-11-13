@@ -1,3 +1,6 @@
+/**
+ * Instance list: create, request, start, stop and delete the user's VMs.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

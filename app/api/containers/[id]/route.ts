@@ -1,10 +1,10 @@
+/** One container: recent output (GET) and start/stop/restart (POST). */
+
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { containerAction, containerLogs, isAction, validRef, removeContainer } from '@/lib/host/docker';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
-
-/** One container: recent output (GET) and start/stop/restart (POST). */
 
 type Ctx = { params: Promise<{ id: string }> };
 

@@ -1,3 +1,11 @@
+/**
+ * DB <-> libvirt truth reconciliation, every 60s. Three jobs:
+ *   1. domainState: instances with a domain -> match state; missing domain ->
+ *      status 'error' (do NOT auto-delete; that belongs to a human or delete).
+ *   2. auto-suspend: running instances whose user balance <= 0 get a stop job.
+ *   3. orphan cleanup: qemu processes/disks/seed dirs with no instance row.
+ */
+
 import { rawDb, getDb } from '@/lib/db';
 import { instances, users } from '@/lib/db/schema';
 import { config } from '@/lib/config';
@@ -10,14 +18,6 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { storagePaths } from '@/lib/config';
-
-/**
- * DB <-> libvirt truth reconciliation, every 60s. Three jobs:
- *   1. domainState: instances with a domain -> match state; missing domain ->
- *      status 'error' (do NOT auto-delete; that belongs to a human or delete).
- *   2. auto-suspend: running instances whose user balance <= 0 get a stop job.
- *   3. orphan cleanup: qemu processes/disks/seed dirs with no instance row.
- */
 
 let timer: ReturnType<typeof setInterval> | null = null;
 export function startReconciler(): void {

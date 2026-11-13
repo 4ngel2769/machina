@@ -1,5 +1,3 @@
-import { run } from './exec';
-
 /**
  * Docker inventory for the admin console.
  *
@@ -15,6 +13,8 @@ import { run } from './exec';
  * access is a root shell with a text box. Remove only touches containers this
  * page created, identified by their own label.
  */
+
+import { run } from './exec';
 
 export type Container = {
   id: string;

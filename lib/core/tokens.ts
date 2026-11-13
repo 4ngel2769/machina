@@ -1,6 +1,3 @@
-import crypto from 'crypto';
-import { config } from '@/lib/config';
-
 /**
  * Short-lived HMAC tokens for websocket access (web terminal + VNC console).
  * Format: b64url(json payload).b64url(hmac-sha256(payload)). Payload carries
@@ -9,6 +6,9 @@ import { config } from '@/lib/config';
  * after session checks, verified during the WS upgrade in server.ts — before
  * any byte is relayed. A token minted for user A never opens user B's relay.
  */
+
+import crypto from 'crypto';
+import { config } from '@/lib/config';
 
 export type WsChannel = 'term' | 'vnc';
 

@@ -1,13 +1,10 @@
+/**
+ * Durable job queue: enqueue, claim, finish and wake the worker.
+ */
 import { getDb, rawDb } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { newJobId, now } from './util';
-import { // eslint-disable-line import/order
-  eq,
-  inArray,
-  asc,
-  and,
-  or,
-} from 'drizzle-orm';
+import { eq, inArray, asc, and, or } from 'drizzle-orm';
 
 export type JobType =
   | 'instance.create'

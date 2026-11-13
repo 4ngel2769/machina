@@ -1,3 +1,6 @@
+/**
+ * Plan catalogue: the spec tiers a user can rent.
+ */
 'use client';
 
 import { useEffect, useState } from 'react';

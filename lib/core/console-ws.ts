@@ -1,3 +1,6 @@
+/**
+ * VNC console websocket relay to a domain's unix socket.
+ */
 import net from 'net';
 import fs from 'fs';
 import type { WebSocket } from 'ws';

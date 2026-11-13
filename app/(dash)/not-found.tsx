@@ -1,3 +1,6 @@
+/**
+ * 404 page inside the dashboard shell.
+ */
 'use client';
 
 import Link from 'next/link';

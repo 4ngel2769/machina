@@ -1,11 +1,3 @@
-import fs from 'fs/promises';
-import { createWriteStream } from 'fs';
-import crypto from 'crypto';
-import path from 'path';
-import { Readable } from 'stream';
-import { storagePaths, config } from '@/lib/config';
-import { virsh } from '@/lib/core/driver';
-
 /**
  * Installer media.
  *
@@ -14,6 +6,14 @@ import { virsh } from '@/lib/core/driver';
  * feature. Both live here so the size cap, the name allowlist and the
  * "is it in use" check are in exactly one place.
  */
+
+import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
+import crypto from 'crypto';
+import path from 'path';
+import { Readable } from 'stream';
+import { storagePaths, config } from '@/lib/config';
+import { virsh } from '@/lib/core/driver';
 
 export type Iso = { name: string; sizeMb: number; mtime: number; sha256: string | null };
 

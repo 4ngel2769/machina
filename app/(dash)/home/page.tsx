@@ -1,3 +1,6 @@
+/**
+ * Dashboard home: greeting, instance summary and recent activity.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

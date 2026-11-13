@@ -1,3 +1,6 @@
+/**
+ * Admin console: users, plans, images, the quota editor, requests and the audit log.
+ */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';

@@ -1,3 +1,6 @@
+/**
+ * Request middleware: stamps the requested path so an auth redirect can return to it.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 
 /**

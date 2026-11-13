@@ -1,3 +1,6 @@
+/**
+ * Database creation and in-place migrations, kept in one ordered sequence.
+ */
 import { rawDb } from './index';
 
 export const migrations: { version: string; sql: string }[] = [

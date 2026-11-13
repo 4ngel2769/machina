@@ -1,3 +1,6 @@
+/**
+ * Run host binaries with a timeout and no shell.
+ */
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 

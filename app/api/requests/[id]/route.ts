@@ -1,3 +1,6 @@
+/**
+ * Admin approval or rejection of a pending instance request.
+ */
 import { NextRequest } from 'next/server';
 import { requireAdmin } from '@/lib/api';
 import { json, err, guardMutation } from '@/lib/api';

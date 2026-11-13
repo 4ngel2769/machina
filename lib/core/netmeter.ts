@@ -1,8 +1,3 @@
-import { rawDb } from '@/lib/db';
-import { domNetStats, tuneIface, readIfaceTune, domState } from './driver';
-import { logAudit } from '@/lib/services/audit';
-import { now } from './util';
-
 /**
  * Bandwidth metering. A 15-minute sampler reads libvirt interface counters
  * (`domstats --interface`, one call for all domains) and accumulates monthly
@@ -15,6 +10,11 @@ import { now } from './util';
  * flag; month rollover creates a fresh row, which naturally clears intent,
  * and the reconciler removes any stale live limit.
  */
+
+import { rawDb } from '@/lib/db';
+import { domNetStats, tuneIface, readIfaceTune, domState } from './driver';
+import { logAudit } from '@/lib/services/audit';
+import { now } from './util';
 
 export const THROTTLE_KBS = 128; // ~1 Mbps each way once over quota
 export const GB = 1024 * 1024 * 1024;

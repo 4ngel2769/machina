@@ -1,3 +1,6 @@
+/**
+ * Seed data and one-time repairs: plans, images, admin account.
+ */
 import { getDb, rawDb } from '.';
 import { plans, images, users } from './schema';
 import { config } from '@/lib/config';

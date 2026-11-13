@@ -1,3 +1,6 @@
+/**
+ * Host console page for a single libvirt domain.
+ */
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { HostVm } from '@/app/ui/host/vm';

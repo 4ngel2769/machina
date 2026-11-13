@@ -1,3 +1,6 @@
+/**
+ * Admin-only view of the Docker daemon on this host.
+ */
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { ContainersPanel } from '@/app/ui/containers';

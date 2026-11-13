@@ -1,8 +1,3 @@
-'use client';
-
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-
 /**
  * Ctrl/Cmd-K command palette.
  *
@@ -11,6 +6,11 @@ import { useRouter } from 'next/navigation';
  * owns the vim bindings and deliberately ignores modifier keys, so the two do
  * not fight over Cmd-K.
  */
+
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type Dest = { label: string; href: string; group: string; admin?: boolean };
 

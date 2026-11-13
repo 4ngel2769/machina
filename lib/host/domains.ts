@@ -1,11 +1,3 @@
-import { virsh } from '@/lib/core/driver';
-import { config, storagePaths } from '@/lib/config';
-import { rawDb } from '@/lib/db';
-import { run } from './exec';
-import { isoPath } from './iso';
-import fs from 'fs/promises';
-import path from 'path';
-
 /**
  * Every libvirt domain on the host, not just machina's.
  *
@@ -19,6 +11,14 @@ import path from 'path';
  * watchdog change cannot be applied to a running domain anyway, and pretending
  * otherwise produces a UI that says "saved" while the guest runs the old spec.
  */
+
+import { virsh } from '@/lib/core/driver';
+import { config, storagePaths } from '@/lib/config';
+import { rawDb } from '@/lib/db';
+import { run } from './exec';
+import { isoPath } from './iso';
+import fs from 'fs/promises';
+import path from 'path';
 
 export type VmOwner = { id: string; name: string } | null;
 

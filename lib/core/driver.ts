@@ -1,3 +1,6 @@
+/**
+ * libvirt driver: virsh exec, IP leases, pools and networks, domain XML, snapshots and stats.
+ */
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';

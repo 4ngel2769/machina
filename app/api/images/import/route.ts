@@ -1,3 +1,6 @@
+/**
+ * Streamed qcow2 upload that becomes a standalone base image.
+ */
 import { createWriteStream } from 'fs';
 import { promises as fs } from 'fs';
 import path from 'path';

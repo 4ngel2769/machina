@@ -1,8 +1,3 @@
-import { virsh } from '@/lib/core/driver';
-import { config, storagePaths } from '@/lib/config';
-import fs from 'fs/promises';
-import path from 'path';
-
 /**
  * libvirt virtual networks.
  *
@@ -12,6 +7,11 @@ import path from 'path';
  * it, so that is a separate, explicit action. The one exception is adding or
  * removing a static DHCP reservation, which `net-update` applies in place.
  */
+
+import { virsh } from '@/lib/core/driver';
+import { config, storagePaths } from '@/lib/config';
+import fs from 'fs/promises';
+import path from 'path';
 
 export type NetHost = { mac: string; ip: string; name?: string };
 export type NetIp = {

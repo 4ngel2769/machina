@@ -1,3 +1,6 @@
+/**
+ * Dashboard shell: session bounce, top navigation and the toast provider.
+ */
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/auth';

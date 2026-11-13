@@ -1,7 +1,3 @@
-import fs from 'fs';
-import { run, has } from './exec';
-import { ifaceTraffic } from './sampler';
-
 /**
  * Host interface inventory and creation.
  *
@@ -12,6 +8,10 @@ import { ifaceTraffic } from './sampler';
  * matters when you are deciding what is safe to touch, so it is a column rather
  * than a second page.
  */
+
+import fs from 'fs';
+import { run, has } from './exec';
+import { ifaceTraffic } from './sampler';
 
 export type Driver = 'networkmanager' | 'libvirt' | 'container' | 'unmanaged';
 

@@ -1,3 +1,6 @@
+/**
+ * Admin decision on a user's account-deletion request.
+ */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { requireAdmin, json, err, guardMutation } from '@/lib/api';

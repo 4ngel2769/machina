@@ -1,3 +1,6 @@
+/**
+ * Audit log writes, fire-and-forget.
+ */
 import { getDb } from '@/lib/db';
 import { audit } from '@/lib/db/schema';
 import { newId } from '@/lib/core/crypto';

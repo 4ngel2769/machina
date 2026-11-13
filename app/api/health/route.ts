@@ -1,9 +1,3 @@
-import { NextResponse } from 'next/server';
-import { statfs } from 'fs/promises';
-import { rawDb } from '@/lib/db';
-import { run } from '@/lib/host/exec';
-import { config } from '@/lib/config';
-
 /**
  * Liveness for the platform, for uptime monitoring and HESTIA probes.
  *
@@ -14,6 +8,12 @@ import { config } from '@/lib/config';
  * 200 = healthy or degraded, 503 = unhealthy. A monitor that only checks for
  * 200 is then still right: "up but limping" is up.
  */
+
+import { NextResponse } from 'next/server';
+import { statfs } from 'fs/promises';
+import { rawDb } from '@/lib/db';
+import { run } from '@/lib/host/exec';
+import { config } from '@/lib/config';
 
 let libvirtCache: { at: number; ok: boolean } = { at: 0, ok: false };
 

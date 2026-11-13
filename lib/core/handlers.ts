@@ -1,3 +1,9 @@
+/**
+ * Job handlers. Contract: handler throws -> job retries (with backoff) up to
+ * maxAttempts, then 'failed'. Create failures ALWAYS clean their own partial
+ * state (disk, seed) and set instance status='error'.
+ */
+
 import fs from 'fs';
 import net from 'net';
 import { rawDb, getDb } from '@/lib/db';
@@ -17,12 +23,6 @@ import { settleUser } from './metering';
 import { ensureThrottleState } from './netmeter';
 import { now, newInstanceId } from './util';
 import { eq } from 'drizzle-orm';
-
-/**
- * Job handlers. Contract: handler throws -> job retries (with backoff) up to
- * maxAttempts, then 'failed'. Create failures ALWAYS clean their own partial
- * state (disk, seed) and set instance status='error'.
- */
 
 export interface JobCtx {
   id: string;

@@ -1,3 +1,6 @@
+/**
+ * Plan and image catalogue visible to the signed-in user.
+ */
 import { requireUser } from '@/lib/auth';
 import { json, err } from '@/lib/api';
 import { getDb } from '@/lib/db';

@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 /**
  * Host interface counters.
  *
@@ -10,6 +7,9 @@ import path from 'path';
  * row per interface per 5s forever is a lot of churn for a sparkline. A restart
  * loses the series, which is honest — the first poll after boot has no rate yet.
  */
+
+import fs from 'fs';
+import path from 'path';
 
 export type IfaceSample = { t: number; rx: number; tx: number };
 export type IfaceTraffic = { rxBps: number; txBps: number; series: { t: number; rx: number; tx: number }[] };

@@ -1,3 +1,5 @@
+/** Admin console for the whole hypervisor, not just machina's own guests. */
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -5,8 +7,6 @@ import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
 import { Ring, Empty } from '@/app/ui/loaders';
 import { bytes, rate, Field, Spark, usePoll } from './shared';
-
-/** Admin console for the whole hypervisor, not just machina's own guests. */
 
 type Owner = { id: string; name: string } | null;
 type Vm = {

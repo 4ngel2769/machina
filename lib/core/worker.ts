@@ -1,3 +1,6 @@
+/**
+ * Background worker: claim jobs, run handlers, self-heal stuck provisioning, audit images.
+ */
 import { rawDb } from '@/lib/db';
 import { config } from '@/lib/config';
 import { claimNext, finishJob } from './jobs';

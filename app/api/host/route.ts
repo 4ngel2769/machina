@@ -1,3 +1,8 @@
+/**
+ * Host inventory for the admin console. Admin-only: this exposes every domain
+ * and interface on the machine, including ones that do not belong to machina.
+ */
+
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { rawDb } from '@/lib/db';
@@ -9,11 +14,6 @@ import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
 import os from 'os';
 import fs from 'fs';
-
-/**
- * Host inventory for the admin console. Admin-only: this exposes every domain
- * and interface on the machine, including ones that do not belong to machina.
- */
 
 /** Host actions land in the shared audit table under host.*, so the log tab is
  *  just a filtered read of the stream every other admin action already uses. */
