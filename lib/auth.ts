@@ -18,11 +18,11 @@ type UserRow = { id: string; name: string; role: string; password_hash: string |
 /** Username and password out of the provider's bag, or null when either missing. */
 function readCreds(
   creds: Partial<Record<'username' | 'password', unknown>> | undefined,
-): { name: string; pass: string } | null {
+): { name: string; password: string } | null {
   const name = typeof creds?.username === 'string' ? creds.username.trim() : '';
-  const pass = typeof creds?.password === 'string' ? creds.password : '';
-  if (!name || !pass) return null;
-  return { name, pass };
+  const password = typeof creds?.password === 'string' ? creds.password : '';
+  if (!name || !password) return null;
+  return { name, password };
 }
 
 function findUser(name: string): UserRow | undefined {
@@ -45,12 +45,12 @@ const authConfig = NextAuth({
        *  throttling (in-memory, single process) blunts brute force; success
        *  clears the bucket. */
       authorize(creds, req) {
-        const c = readCreds(creds);
-        if (!c) return null;
-        if (!rateLimit(`auth:${c.name}@${requestIp(req)}`, 8, 5 * 60_000)) return null; // >8 tries / 5min == locked out
-        const row = findUser(c.name);
+        const credsBag = readCreds(creds);
+        if (!credsBag) return null;
+        if (!rateLimit(`auth:${credsBag.name}@${requestIp(req)}`, 8, 5 * 60_000)) return null; // >8 tries / 5min == locked out
+        const row = findUser(credsBag.name);
         if (!row?.password_hash) return null;
-        if (!verifyPassword(c.pass, row.password_hash)) return null;
+        if (!verifyPassword(credsBag.password, row.password_hash)) return null;
         return { id: row.id, name: row.name, role: row.role };
       },
     }),

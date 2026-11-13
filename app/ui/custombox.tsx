@@ -27,26 +27,26 @@ export function CustomBox({
   onCreated: () => void;
 }) {
   const toast = useToast();
-  const { f, set, reset } = useCustomBoxForm();
+  const { form, set, reset } = useCustomBoxForm();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setBusy(true);
     setErr('');
     try {
-      const r = await fetch('/api/admin', {
+      const response = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(customBoxBody(f)),
+        body: JSON.stringify(customBoxBody(form)),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        setErr(j.error ?? 'could not create the box');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setErr(payload.error ?? 'could not create the box');
         return;
       }
-      toast.ok(`created ${j.name} · ${j.planId} · $${((j.rateHourlyCents ?? 0) / 100).toFixed(2)}/h`);
+      toast.ok(`created ${payload.name} · ${payload.planId} · $${((payload.rateHourlyCents ?? 0) / 100).toFixed(2)}/h`);
       reset();
       onCreated();
     } catch {
@@ -58,8 +58,8 @@ export function CustomBox({
 
   return (
     <form onSubmit={submit}>
-      <SpecRow f={f} set={set} users={users} />
-      <BillingRow f={f} set={set} images={images} busy={busy} submit={submit} />
+      <SpecRow form={form} set={set} users={users} />
+      <BillingRow form={form} set={set} images={images} busy={busy} submit={submit} />
 
       <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
         Auto rate = $0.05 per vCPU·h + $0.25 per GB RAM·h + $0.0005 per GB disk·h

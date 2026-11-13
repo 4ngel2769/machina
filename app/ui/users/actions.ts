@@ -10,9 +10,9 @@ export function useUserAdmin(onChanged: () => void): {
   busy: boolean;
   msg: string;
   pw: string;
-  setPw: (v: string) => void;
+  setPw: (value: string) => void;
   topup: string;
-  setTopup: (v: string) => void;
+  setTopup: (value: string) => void;
   send: (body: Record<string, unknown>, label: string) => Promise<boolean>;
   startEdit: (id: string) => void;
   suspend: (id: string, next: boolean) => Promise<void>;
@@ -28,16 +28,16 @@ export function useUserAdmin(onChanged: () => void): {
     setBusy(true);
     setMsg('');
     try {
-      const r = await fetch('/api/admin', {
+      const response = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const m = j.error ?? `${label} failed`;
-        setMsg(m);
-        toast.err(m);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = payload.error ?? `${label} failed`;
+        setMsg(message);
+        toast.err(message);
         return false;
       }
       toast.ok(`${label} done`);
@@ -62,14 +62,14 @@ export function useUserAdmin(onChanged: () => void): {
     setBusy(true);
     setMsg('');
     try {
-      const r = await fetch(`/api/quotas/${id}`, {
+      const response = await fetch(`/api/quotas/${id}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ suspended: next }),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        setMsg(j.error ?? 'could not change suspension');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMsg(payload.error ?? 'could not change suspension');
         return;
       }
       toast.ok(next ? 'account suspended' : 'account reinstated');

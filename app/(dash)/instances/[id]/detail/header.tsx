@@ -14,82 +14,82 @@ const EXPORTABLE = ['stopped', 'suspended', 'error'];
 const DELETABLE = ['stopped', 'suspended', 'running', 'error'];
 
 /** Badges: ip (click to copy), rate, bandwidth, suspension flags. */
-function Badges({ inst }: { inst: Inst }) {
+function Badges({ instance }: { instance: Inst }) {
   return (
     <>
-      {inst.ip
+      {instance.ip
         ? <span
             data-copy
-            title={`${inst.ip} — click to copy`}
+            title={`${instance.ip} — click to copy`}
             className="mono"
-            onClick={() => void copyText(inst.ip, null)}
-          >{inst.ip}</span>
+            onClick={() => void copyText(instance.ip, null)}
+          >{instance.ip}</span>
         : null}
-      <span className="mono" style={{ color: 'var(--accent)' }}>${(inst.rateHourlyCents / 100).toFixed(2)}/h</span>
-      {inst.bw && inst.bw.quotaGb > 0
-        ? <span className="mono muted">bw {fmtGb(inst.bw.rxBytes + inst.bw.txBytes)}/{inst.bw.quotaGb}GB</span>
+      <span className="mono" style={{ color: 'var(--accent)' }}>${(instance.rateHourlyCents / 100).toFixed(2)}/h</span>
+      {instance.bw && instance.bw.quotaGb > 0
+        ? <span className="mono muted">bw {fmtGb(instance.bw.rxBytes + instance.bw.txBytes)}/{instance.bw.quotaGb}GB</span>
         : null}
-      {inst.bw?.throttled ? <span className="badge suspended">throttled</span> : null}
-      {inst.autoSuspended ? <span className="badge suspended">auto-suspended</span> : null}
+      {instance.bw?.throttled ? <span className="badge suspended">throttled</span> : null}
+      {instance.autoSuspended ? <span className="badge suspended">auto-suspended</span> : null}
     </>
   );
 }
 
 /** Lifecycle buttons shown for the current status. */
-function Actions({ inst, busy, act, clone, exportDisk }: {
-  inst: Inst; busy: boolean;
-  act: (a: string) => Promise<void>; clone: () => Promise<void>; exportDisk: () => Promise<void>;
+function Actions({ instance, busy, act, clone, exportDisk }: {
+  instance: Inst; busy: boolean;
+  act: (action: string) => Promise<void>; clone: () => Promise<void>; exportDisk: () => Promise<void>;
 }) {
-  const st = inst.status;
+  const status = instance.status;
   return (
     <>
-      {STOPPABLE.includes(st) ? <button disabled={busy} onClick={() => void act('stop')}>stop</button> : null}
-      {STARTABLE.includes(st) ? <button disabled={busy} onClick={() => void act('start')}>start</button> : null}
-      {CLONABLE.includes(st) ? <button disabled={busy} onClick={() => void clone()}>clone</button> : null}
-      {EXPORTABLE.includes(st) ? <button disabled={busy} onClick={() => void exportDisk()}>export</button> : null}
-      {DELETABLE.includes(st)
+      {STOPPABLE.includes(status) ? <button disabled={busy} onClick={() => void act('stop')}>stop</button> : null}
+      {STARTABLE.includes(status) ? <button disabled={busy} onClick={() => void act('start')}>start</button> : null}
+      {CLONABLE.includes(status) ? <button disabled={busy} onClick={() => void clone()}>clone</button> : null}
+      {EXPORTABLE.includes(status) ? <button disabled={busy} onClick={() => void exportDisk()}>export</button> : null}
+      {DELETABLE.includes(status)
         ? <button className="danger" disabled={busy} onClick={() => void act('delete')}>delete</button>
         : null}
     </>
   );
 }
 
-export function StatusCard({ inst, busy, msg, act, clone, exportDisk }: {
-  inst: Inst; busy: boolean; msg: string;
-  act: (a: string) => Promise<void>; clone: () => Promise<void>; exportDisk: () => Promise<void>;
+export function StatusCard({ instance, busy, msg, act, clone, exportDisk }: {
+  instance: Inst; busy: boolean; msg: string;
+  act: (action: string) => Promise<void>; clone: () => Promise<void>; exportDisk: () => Promise<void>;
 }) {
   return (
     <div className="card">
       <div className="row" style={{ gap: 14 }}>
-        <span className={`badge ${inst.status}`}>
-          {['provisioning', 'queued'].includes(inst.status) ? <StatusCue status={inst.status} /> : null}
-          {inst.status}
+        <span className={`badge ${instance.status}`}>
+          {['provisioning', 'queued'].includes(instance.status) ? <StatusCue status={instance.status} /> : null}
+          {instance.status}
         </span>
-        <Badges inst={inst} />
+        <Badges instance={instance} />
         <div className="spacer" />
-        <Actions inst={inst} busy={busy} act={act} clone={clone} exportDisk={exportDisk} />
+        <Actions instance={instance} busy={busy} act={act} clone={clone} exportDisk={exportDisk} />
       </div>
       {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
-      {inst.status === 'provisioning' && inst.step && (
+      {instance.status === 'provisioning' && instance.step && (
         <div className="busybtn" style={{ marginTop: 10, color: 'var(--text-2)', fontSize: 13 }}>
           <Orb state="weaving" size={20} label="provisioning" />
-          {inst.step}…
+          {instance.step}…
         </div>
       )}
-      {inst.status === 'provisioning' && <div style={{ marginTop: 10 }}><BarLoader label="provisioning" /></div>}
-      {inst.problem && <ProblemBox inst={inst} busy={busy} act={act} />}
+      {instance.status === 'provisioning' && <div style={{ marginTop: 10 }}><BarLoader label="provisioning" /></div>}
+      {instance.problem && <ProblemBox instance={instance} busy={busy} act={act} />}
     </div>
   );
 }
 
-function ProblemBox({ inst, busy, act }: { inst: Inst; busy: boolean; act: (a: string) => Promise<void> }) {
+function ProblemBox({ instance, busy, act }: { instance: Inst; busy: boolean; act: (action: string) => Promise<void> }) {
   return (
     <div className="errbox" style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
       <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
         <Orb state="solving" size={20} label="error" />
         <span>
-          {inst.problem}
-          {(inst.healCount ?? 0) > 0 && <span className="muted"> · auto-recovery attempt {inst.healCount} of 3</span>}
+          {instance.problem}
+          {(instance.healCount ?? 0) > 0 && <span className="muted"> · auto-recovery attempt {instance.healCount} of 3</span>}
         </span>
       </span>
       <button onClick={() => void act('retry')} disabled={busy} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>

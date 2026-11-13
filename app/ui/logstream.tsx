@@ -8,18 +8,18 @@ import { Orb, Dots } from './loaders';
 
 export type LogLine = { t: number; m: string; kind: 'step' | 'ok' | 'err' | 'info' };
 
-const hhmm = (t: number) => new Date(t).toTimeString().slice(0, 8);
+const hhmm = (timestampMs: number) => new Date(timestampMs).toTimeString().slice(0, 8);
 
 /** Human duration: 2m34s, 1h 04m, 12s. */
 function fmtSpan(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '—';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  if (m < 60) return `${m}m ${String(rs).padStart(2, '0')}s`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${String(m % 60).padStart(2, '0')}m`;
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
 
 /**
@@ -43,23 +43,23 @@ export function LogStream({
   const [pinned, setPinned] = useState(true);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
-  // adopt server data unless we have newer local lines
+  // adopt server payload unless we have newer local lines
   useEffect(() => {
-    setItems((prev) => {
-      if (!prev.length) return lines;
-      const newest = prev[prev.length - 1]?.t ?? 0;
-      return lines.filter((l) => l.t >= newest - 1).length > prev.length ? lines : prev;
+    setItems((previous) => {
+      if (!previous.length) return lines;
+      const newest = previous[previous.length - 1]?.t ?? 0;
+      return lines.filter((line) => line.t >= newest - 1).length > previous.length ? lines : previous;
     });
   }, [lines]);
 
   useEffect(() => {
     if (!live) return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       // the page's own poller feeds `lines`; this only drives the "still
       // working" heartbeat so the panel does not look frozen
-      setItems((p) => (p.length ? p : p));
+      setItems((previous) => (previous.length ? previous : previous));
     }, pollMs);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [live, pollMs]);
 
   useEffect(() => {
@@ -67,9 +67,9 @@ export function LogStream({
   }, [items, pinned]);
 
   const onScroll = () => {
-    const el = boxRef.current;
-    if (!el) return;
-    setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
+    const element = boxRef.current;
+    if (!element) return;
+    setPinned(element.scrollHeight - element.scrollTop - element.clientHeight < 24);
   };
 
   return (
@@ -85,10 +85,10 @@ export function LogStream({
             {live ? 'waiting for the first step…' : 'no activity recorded yet'}
           </div>
         )}
-        {items.map((l, i) => (
-          <div className={`logline ${l.kind}`} key={`${l.t}-${i}`}>
-            <span className="t">{hhmm(l.t)}</span>
-            <span className="m">{l.m}</span>
+        {items.map((line, index) => (
+          <div className={`logline ${line.kind}`} key={`${line.t}-${index}`}>
+            <span className="t">{hhmm(line.t)}</span>
+            <span className="m">{line.m}</span>
           </div>
         ))}
         {live && (

@@ -23,12 +23,12 @@ export async function run(
   try {
     const { stdout } = await pexec(b, a, { timeout: opts.timeout ?? 30_000, maxBuffer: 16 * 1024 * 1024 });
     return stdout;
-  } catch (e) {
-    const err = e as { stderr?: string; message?: string; killed?: boolean };
+  } catch (caught) {
+    const err = caught as { stderr?: string; message?: string; killed?: boolean };
     if (err.killed) throw new Error(`${bin} timed out after ${(opts.timeout ?? 30_000) / 1000}s`);
     const line = String(err.stderr ?? '')
       .split('\n')
-      .map((s) => s.trim())
+      .map((line) => line.trim())
       .filter(Boolean)
       .pop();
     throw new Error(line || err.message || `${bin} failed`);

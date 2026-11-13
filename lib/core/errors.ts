@@ -46,7 +46,7 @@ function isInvocationLine(line: string): boolean {
  * line whenever the first is only a command.
  */
 function firstReadableLine(msg: string): string {
-  const lines = msg.split('\n').map((s) => s.trim()).filter(Boolean);
+  const lines = msg.split('\n').map((line) => line.trim()).filter(Boolean);
   let first = lines[0] ?? msg;
   if (lines.length > 1 && isInvocationLine(first)) first = lines[1];
   return first.replace(/^Command failed:\s*/i, '').replace(/\s+/g, ' ').trim();

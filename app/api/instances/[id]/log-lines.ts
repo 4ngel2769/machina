@@ -9,8 +9,8 @@ import { friendlyStep } from '@/lib/core/errors';
 export type LogLine = { t: number; m: string; kind: 'step' | 'ok' | 'err' | 'info' };
 
 function friendlyStepLine(text: string): string {
-  const s = friendlyStep(text);
-  return s === 'working' ? text.replace(/\.$/, '') : s;
+  const step = friendlyStep(text);
+  return step === 'working' ? text.replace(/\.$/, '') : step;
 }
 
 function stepKind(text: string): 'step' | 'ok' | 'err' | 'info' {
@@ -22,19 +22,19 @@ function stepKind(text: string): 'step' | 'ok' | 'err' | 'info' {
 
 /** One "[ts] text" row -> a LogLine, or null when it carries nothing new. */
 function parseLogLine(rawLine: string, seen: Set<number>): LogLine | null {
-  const m = rawLine.match(/^\[([^\]]+)\]\s*(.*)$/);
-  if (!m) return null;
-  const t = Date.parse(m[1]);
-  const text = m[2].trim();
-  if (!text || seen.has(t)) return null;
-  seen.add(t);
+  const match = rawLine.match(/^\[([^\]]+)\]\s*(.*)$/);
+  if (!match) return null;
+  const timestamp = Date.parse(match[1]);
+  const text = match[2].trim();
+  if (!text || seen.has(timestamp)) return null;
+  seen.add(timestamp);
   if (/^FAILED:/.test(text)) return null; // rendered separately as the error
-  return { t, m: friendlyStepLine(text), kind: stepKind(text) };
+  return { t: timestamp, m: friendlyStepLine(text), kind: stepKind(text) };
 }
 
 /** Parse a job log into friendly, animated lines for the UI. Raw text stays in
  *  the DB; this is what a person actually wants to read while waiting. */
-export function logLines(jobId?: string): LogLine[] {
+export function logJobLines(jobId?: string): LogLine[] {
   if (!jobId) return [];
   const row = rawDb().prepare(`select log, status, error, finished_at, started_at, created_at from jobs where id=?`).get(jobId) as
     | { log: string; status: string; error: string; finished_at: number | null; started_at: number | null; created_at: number } | undefined;

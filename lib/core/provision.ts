@@ -50,13 +50,13 @@ async function resolveImageId(
   return imageId;
 }
 
-function assertNameFree(rd: ReturnType<typeof rawDb>, userId: string, name: string): void {
-  const dupe = rd.prepare(`select 1 from instances where user_id=? and name=?`).get(userId, name);
+function assertNameFree(raw: ReturnType<typeof rawDb>, userId: string, name: string): void {
+  const dupe = raw.prepare(`select 1 from instances where user_id=? and name=?`).get(userId, name);
   if (dupe) throw new Error('name already used');
 }
 
-function allocateIp(rd: ReturnType<typeof rawDb>): string {
-  const taken = (rd.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((r) => r.ip);
+function allocateIp(raw: ReturnType<typeof rawDb>): string {
+  const taken = (raw.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((row) => row.ip);
   const ip = new IpAllocator(taken).next();
   if (!ip) throw new Error('no free IP in range');
   return ip;
@@ -67,13 +67,13 @@ function allocateIp(rd: ReturnType<typeof rawDb>): string {
  * every VM but one hang on networkd-wait-online, so refuse rather than
  * provision a VM that can never get an address.
  */
-function assertMacFree(rd: ReturnType<typeof rawDb>, mac: string, id: string): void {
-  const macClash = rd.prepare(`select id from instances where mac=? and id<>?`).get(mac, id);
+function assertMacFree(raw: ReturnType<typeof rawDb>, mac: string, id: string): void {
+  const macClash = raw.prepare(`select id from instances where mac=? and id<>?`).get(mac, id);
   if (macClash) throw new Error('MAC address collision — please retry');
 }
 
 function instanceValues(
-  a: ProvisionArgs,
+  args: ProvisionArgs,
   plan: { id: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number | null },
   imageId: string,
   id: string,
@@ -85,10 +85,10 @@ function instanceValues(
   return {
     id,
     domainName: `${config.domainPrefix}${id.slice(3, 16)}`,
-    userId: a.userId,
+    userId: args.userId,
     planId: plan.id,
     imageId,
-    name: a.name,
+    name: args.name,
     status: 'provisioning',
     mac,
     ip,
@@ -106,15 +106,15 @@ function instanceValues(
 /** Shared provisioning entry point used by direct (admin) create and by
  *  request approval. Validates plan/image, budget, caps, uniqueness, IP
  *  allocation, inserts the instance row and enqueues the create job. */
-export async function provisionInstance(a: ProvisionArgs): Promise<{ id: string; name: string; ip: string }> {
+export async function provisionInstance(args: ProvisionArgs): Promise<{ id: string; name: string; ip: string }> {
   const db = getDb();
-  const [plan] = await db.select().from(plans).where(and(eq(plans.id, a.planId), eq(plans.active, 1)));
+  const [plan] = await db.select().from(plans).where(and(eq(plans.id, args.planId), eq(plans.active, 1)));
   if (!plan) throw new Error('plan invalid');
 
-  const [dbUser] = await db.select().from(users).where(eq(users.id, a.userId));
+  const [dbUser] = await db.select().from(users).where(eq(users.id, args.userId));
   if (!dbUser) throw new Error('no user');
 
-  const imageId = await resolveImageId(dbUser, a.imageId);
+  const imageId = await resolveImageId(dbUser, args.imageId);
   const [image] = await db.select().from(images).where(eq(images.id, imageId));
   if (!image) throw new Error('no OS image is available on the host yet — an admin needs to add one first');
   if (image.status !== 'ready') throw new Error(`OS image "${image.id}" is ${image.status}, not ready`);
@@ -125,29 +125,29 @@ export async function provisionInstance(a: ProvisionArgs): Promise<{ id: string;
   // request approval) funnels through here, so this is the only place that has
   // to be right — an enforcement check that lives in one caller and not the
   // other is not enforcement, it is a suggestion.
-  const verdict = checkQuota(a.userId, { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb }, {
-    isAdmin: a.actorRole === 'admin',
-    excludeRequestId: a.excludeRequestId,
+  const verdict = checkQuota(args.userId, { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb }, {
+    isAdmin: args.actorRole === 'admin',
+    excludeRequestId: args.excludeRequestId,
   });
   if (!verdict.allowed) throw new Error(verdict.reason);
 
-  const rd = rawDb();
-  assertNameFree(rd, a.userId, a.name);
-  const ip = allocateIp(rd);
-  const id = newInstanceId();
-  const mac = macFromId(id);
-  assertMacFree(rd, mac, id);
+  const raw = rawDb();
+  assertNameFree(raw, args.userId, args.name);
+  const ip = allocateIp(raw);
+  const instanceId = newInstanceId();
+  const mac = macFromId(instanceId);
+  assertMacFree(raw, mac, instanceId);
 
   const rootPassword = randPassword();
-  const vncPass = randToken(4).slice(0, 8).replace(/[^a-zA-Z0-9]/g, 'x');
-  await db.insert(instances).values(instanceValues(a, plan, image.id, id, mac, ip, rootPassword, vncPass));
-  await logAudit({ actorId: a.userId, actorName: a.actorName ?? a.userId, action: 'instance.create',
-    target: id, detail: { name: a.name, planId: plan.id, imageId: image.id, clone: Boolean(a.copyFromPath) } });
+  const vncPassword = randToken(4).slice(0, 8).replace(/[^a-zA-Z0-9]/g, 'x');
+  await db.insert(instances).values(instanceValues(args, plan, image.id, instanceId, mac, ip, rootPassword, vncPassword));
+  await logAudit({ actorId: args.userId, actorName: args.actorName ?? args.userId, action: 'instance.create',
+    target: instanceId, detail: { name: args.name, planId: plan.id, imageId: image.id, clone: Boolean(args.copyFromPath) } });
 
-  await enqueue({ type: 'instance.create', instanceId: id, userId: a.userId,
+  await enqueue({ type: 'instance.create', instanceId, userId: args.userId,
     payload: {
       planSnapshot: { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb },
-      ...(a.copyFromPath ? { copyFromPath: a.copyFromPath } : {}),
+      ...(args.copyFromPath ? { copyFromPath: args.copyFromPath } : {}),
     } });
-  return { id, name: a.name, ip };
+  return { id: instanceId, name: args.name, ip };
 }

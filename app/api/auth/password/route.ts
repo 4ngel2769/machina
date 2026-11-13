@@ -34,8 +34,8 @@ function passwordFields(body: { current?: string; next?: string }) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   if (!rateLimit(`pw:${user.id}`, 5, 10 * 60_000)) return err('too many attempts', 429);

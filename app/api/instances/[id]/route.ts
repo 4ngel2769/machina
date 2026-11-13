@@ -17,7 +17,7 @@ import { friendlyStep, friendlyError } from '@/lib/core/errors';
 import { provisionInstance } from '@/lib/core/provision';
 import { diskVolFromId } from '@/lib/core/disks';
 import { storagePaths } from '@/lib/config';
-import { logLines } from './log-lines';
+import { logJobLines } from './log-lines';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -28,33 +28,33 @@ async function retryProvisioning(
   user: { id: string; name: string },
   inst: { id: string; userId: string; status: string; planId: string; imageId: string },
 ) {
-  const rd = rawDb();
+  const raw = rawDb();
   if (!['error', 'provisioning'].includes(inst.status)) {
     return err(`nothing to retry — instance is ${inst.status}`, 409);
   }
-  const active = rd.prepare(`select 1 from jobs where instance_id=? and status in ('queued','running')`).get(inst.id);
+  const active = raw.prepare(`select 1 from jobs where instance_id=? and status in ('queued','running')`).get(inst.id);
   if (active) return err('a job is already running for this instance', 409);
 
-  const row = rd.prepare(`select domain_name from instances where id=?`).get(inst.id) as { domain_name: string } | undefined;
-  if (row) {
+  const domainRow = raw.prepare(`select domain_name from instances where id=?`).get(inst.id) as { domain_name: string } | undefined;
+  if (domainRow) {
     const { destroyDomain, undefineDomain } = await import('@/lib/core/driver');
-    await destroyDomain(row.domain_name).catch(() => {});
-    await undefineDomain(row.domain_name).catch(() => {});
+    await destroyDomain(domainRow.domain_name).catch(() => {});
+    await undefineDomain(domainRow.domain_name).catch(() => {});
   }
   const { diskVolFromId } = await import('@/lib/core/disks');
   const { storagePaths } = await import('@/lib/config');
-  const fsp = await import('fs/promises');
-  const sp = storagePaths();
-  await fsp.rm(`${sp.vms}/${diskVolFromId(inst.id)}.qcow2`, { force: true }).catch(() => {});
-  await fsp.rm(`${sp.seeds}/${inst.id}/seed.iso`, { force: true }).catch(() => {});
+  const fsPromises = await import('fs/promises');
+  const storage = storagePaths();
+  await fsPromises.rm(`${storage.vms}/${diskVolFromId(inst.id)}.qcow2`, { force: true }).catch(() => {});
+  await fsPromises.rm(`${storage.seeds}/${inst.id}/seed.iso`, { force: true }).catch(() => {});
 
-  const failed = rd.prepare(`select id from jobs where instance_id=? and type='instance.create'`).get(inst.id) as { id: string } | undefined;
-  if (failed) {
-    rd.prepare(`update jobs set status='queued', attempts=0, run_after=0, error='' where id=?`).run(failed.id);
+  const failedJob = raw.prepare(`select id from jobs where instance_id=? and type='instance.create'`).get(inst.id) as { id: string } | undefined;
+  if (failedJob) {
+    raw.prepare(`update jobs set status='queued', attempts=0, run_after=0, error='' where id=?`).run(failedJob.id);
   } else {
     await enqueue({ type: 'instance.create', instanceId: inst.id, userId: inst.userId, payload: {} });
   }
-  rd.prepare(`update instances set status='provisioning', heal_count=0, updated_at=? where id=?`).run(now(), inst.id);
+  raw.prepare(`update instances set status='provisioning', heal_count=0, updated_at=? where id=?`).run(now(), inst.id);
   await logAudit({ actorId: user.id, actorName: user.name, action: 'instance.retry', target: inst.id });
   return json({ ok: true, action: 'retry', note: 'provisioning restarted — expect 60–90s' });
 }
@@ -90,7 +90,7 @@ async function cloneInstance(
   if (!fs.existsSync(sourceDisk)) return err('the source disk is missing, so there is nothing to copy', 409);
 
   try {
-    const out = await provisionInstance({
+    const created = await provisionInstance({
       userId: user.id,
       name,
       planId: String(body.planId ?? inst.planId),
@@ -100,12 +100,12 @@ async function cloneInstance(
       copyFromPath: sourceDisk,
     });
     await logAudit({
-      actorId: user.id, actorName: user.name, action: 'instance.clone', target: out.id,
-      detail: { from: inst.id, name: out.name },
+      actorId: user.id, actorName: user.name, action: 'instance.clone', target: created.id,
+      detail: { from: inst.id, name: created.name },
     });
-    return json({ ok: true, action: 'clone', id: out.id, name: out.name, ip: out.ip, note: 'cloning — expect 60–90s' });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+    return json({ ok: true, action: 'clone', id: created.id, name: created.name, ip: created.ip, note: 'cloning — expect 60–90s' });
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
@@ -126,10 +126,10 @@ function lifecycleRefusal(action: string | undefined, status: string) {
   }
   const allowed = ['running', 'suspended', 'error'];
   // delete from a stopped state is legitimate; stop is not.
-  const ok = action === 'delete' && ['stopped', 'suspended', 'error'].includes(status)
+  const canTransition = action === 'delete' && ['stopped', 'suspended', 'error'].includes(status)
     ? true
     : allowed.includes(status);
-  if (!ok) return err(`cannot ${action} a ${status} instance`, 409);
+  if (!canTransition) return err(`cannot ${action} a ${status} instance`, 409);
   return null;
 }
 
@@ -141,8 +141,8 @@ type JobRow = {
 /** The job-log lines for whichever job matters most: the live one, else the
  *  last failure, else the newest job at all. */
 function pickLogJob(jobs: JobRow[]) {
-  const active = jobs.find((j) => j.status === 'running' || j.status === 'queued');
-  const lastFinished = jobs.find((j) => j.status === 'done' || j.status === 'failed');
+  const active = jobs.find((job) => job.status === 'running' || job.status === 'queued');
+  const lastFinished = jobs.find((job) => job.status === 'done' || job.status === 'failed');
   const lastFailed = lastFinished?.status === 'failed' ? lastFinished : undefined;
   return { active, lastFailed };
 }
@@ -197,7 +197,7 @@ async function instancePayload(inst: {
     step: stepLine(active),
     problem: problemLine(inst.status, lastFailed),
     healCount: inst.healCount ?? 0,
-    logLines: logLines(logJobId(active, lastFailed, jobs)),
+    logLines: logJobLines(logJobId(active, lastFailed, jobs)),
     jobs,
   };
 }
@@ -212,20 +212,20 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
-  const [inst, e] = await load(id, user.id, user.role);
-  if (e) return e;
+  const [inst, forbidden] = await load(id, user.id, user.role);
+  if (forbidden) return forbidden;
   return json(await instancePayload(inst, loadJobs(id)));
 }
 
 /** lifecycle actions: start | stop | delete */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
-  const [inst, e] = await load(id, user.id, user.role);
-  if (e) return e;
+  const [inst, forbidden] = await load(id, user.id, user.role);
+  if (forbidden) return forbidden;
   const body = (await req.json().catch(() => ({}))) as { action?: string; force?: boolean; name?: string; planId?: string };
   const action = body.action;
   if (action === 'retry') return retryProvisioning(user, inst);

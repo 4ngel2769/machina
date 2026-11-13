@@ -49,13 +49,13 @@ function memTotalMb() {
 }
 
 export async function GET(req: NextRequest) {
-  const { response: e } = await requireAdmin();
-  if (e) return e;
+  const { response: denied } = await requireAdmin();
+  if (denied) return denied;
   if (req.nextUrl.searchParams.get('log')) return json(hostLog());
 
   const [vms, nets] = await Promise.all([
-    listVms().catch((x) => ({ error: (x as Error).message }) as never),
-    listNetworks().catch((x) => ({ error: (x as Error).message }) as never),
+    listVms().catch((err) => ({ error: (err as Error).message }) as never),
+    listNetworks().catch((err) => ({ error: (err as Error).message }) as never),
   ]);
   const { ifaces, pools } = await optionalSections(req, nets);
 
@@ -92,16 +92,16 @@ async function poolRefresh(name: string, admin: { id: string; name: string }) {
     const result = await refreshPool(name);
     await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.pool.refresh', target: name, detail: null });
     return json({ ok: true, result });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   if (body.op === 'log') return json(hostLog());
   if (body.op === 'poolRefresh') return poolRefresh(String(body.name ?? ''), admin);

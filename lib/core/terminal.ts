@@ -27,9 +27,9 @@ export interface TermBind {
 /** tmux attach-or-create, or screen equivalent, with a plain-shell fallback
  *  when the guest has neither multiplexer. */
 function persistentCommand(cols: number, rows: number): string {
-  const c = Math.min(Math.max(Math.floor(cols) || 80, 1), 500);
-  const r = Math.min(Math.max(Math.floor(rows) || 24, 1), 200);
-  return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s machina -x ${c} -y ${r}; ` +
+  const clampedCols = Math.min(Math.max(Math.floor(cols) || 80, 1), 500);
+  const clampedRows = Math.min(Math.max(Math.floor(rows) || 24, 1), 200);
+  return `if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s machina -x ${clampedCols} -y ${clampedRows}; ` +
     `elif command -v screen >/dev/null 2>&1; then exec screen -x machina || exec screen -S machina; ` +
     `else echo 'no tmux or screen on this guest — plain shell'; exec bash -l; fi`;
 }
@@ -44,24 +44,24 @@ type TermState = {
   pendingSize: { cols: number; rows: number } | null;
 };
 
-function writeStdin(st: TermState, raw: Buffer): void {
+function writeStdin(termState: TermState, raw: Buffer): void {
   // stdin can arrive before the shell stream exists; drop it rather than
   // buffer arbitrary amounts of typed input.
-  if (st.stream) st.stream.write(raw);
+  if (termState.stream) termState.stream.write(raw);
 }
 
-function writeBase64(st: TermState, data: string | undefined): void {
-  if (typeof data !== 'string' || !st.stream) return;
-  st.stream.write(Buffer.from(data, 'base64'));
+function writeBase64(termState: TermState, data: string | undefined): void {
+  if (typeof data !== 'string' || !termState.stream) return;
+  termState.stream.write(Buffer.from(data, 'base64'));
 }
 
-function applyResize(st: TermState, msg: ClientFrame): void {
+function applyResize(termState: TermState, msg: ClientFrame): void {
   const cols = Math.min(Math.max(msg.c ?? 80, 1), 500);
   const rows = Math.min(Math.max(msg.r ?? 24, 1), 200);
-  st.pendingSize = { cols, rows };
-  if (!st.stream) return;
-  st.stream.setWindow(rows, cols, 0, 0);
-  st.pendingSize = null;
+  termState.pendingSize = { cols, rows };
+  if (!termState.stream) return;
+  termState.stream.setWindow(rows, cols, 0, 0);
+  termState.pendingSize = null;
 }
 
 /**
@@ -72,13 +72,13 @@ function applyResize(st: TermState, msg: ClientFrame): void {
  * is why TUIs came up small. So the handler is attached immediately and the
  * newest size is buffered until the stream exists.
  */
-function handleFrame(st: TermState, raw: unknown, isBinary: boolean, close: (why: string) => void): void {
-  if (st.closed) return;
+function handleFrame(termState: TermState, raw: unknown, isBinary: boolean, close: (why: string) => void): void {
+  if (termState.closed) return;
   try {
-    if (isBinary) return writeStdin(st, raw as Buffer);
+    if (isBinary) return writeStdin(termState, raw as Buffer);
     const msg = JSON.parse(String(raw)) as ClientFrame;
-    if (msg.t === 'i') return writeBase64(st, msg.d);
-    if (msg.t === 'r') return applyResize(st, msg);
+    if (msg.t === 'i') return writeBase64(termState, msg.d);
+    if (msg.t === 'r') return applyResize(termState, msg);
     if (msg.t === 'c') close('client close');
   } catch { /* frame-level tolerance: malformed envelope is dropped */ }
 }
@@ -90,24 +90,24 @@ function handleFrame(st: TermState, raw: unknown, isBinary: boolean, close: (why
 function onReady(
   conn: import('ssh2').Client,
   ws: WebSocket,
-  st: TermState,
+  termState: TermState,
   bind: TermBind,
   close: (why: string) => void,
   fail: (msg: string) => void,
 ): void {
-  if (st.closed) return;
-  const open = (err: Error | undefined, s?: Stream) => {
-    if (err || st.closed || !s) return fail(`shell: ${err?.message ?? 'closed'}`);
-    st.stream = s;
+  if (termState.closed) return;
+  const open = (err: Error | undefined, shell?: Stream) => {
+    if (err || termState.closed || !shell) return fail(`shell: ${err?.message ?? 'closed'}`);
+    termState.stream = shell;
     ws.send(JSON.stringify({ t: 'ready' }));
-    if (st.pendingSize) {
-      s.setWindow(st.pendingSize.rows, st.pendingSize.cols, 0, 0);
-      st.pendingSize = null;
+    if (termState.pendingSize) {
+      shell.setWindow(termState.pendingSize.rows, termState.pendingSize.cols, 0, 0);
+      termState.pendingSize = null;
     }
-    s.on('data', (d: Buffer) => {
-      if (ws.readyState === 1 && !st.closed) ws.send(d);
+    shell.on('data', (chunk: Buffer) => {
+      if (ws.readyState === 1 && !termState.closed) ws.send(chunk);
     });
-    s.on('close', () => close('stream end'));
+    shell.on('close', () => close('stream end'));
   };
   // Persistent mode runs the multiplexer attach-or-create via exec()+pty. Plain
   // mode keeps the interactive shell() call. exec channels get the same
@@ -124,7 +124,7 @@ function onReady(
 
 export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
   const { Client } = await import('ssh2');
-  const st: TermState = { closed: false, stream: null, pendingSize: null };
+  const termState: TermState = { closed: false, stream: null, pendingSize: null };
   const conn = new Client();
 
   // Must be armed immediately, not after the ssh handshake: the SSH connect
@@ -133,8 +133,8 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
   const stopKeepalive = attachKeepalive(ws);
 
   const close = (why: string) => {
-    if (st.closed) return;
-    st.closed = true;
+    if (termState.closed) return;
+    termState.closed = true;
     stopKeepalive();
     try { conn.end(); } catch {}
     try { ws.close(); } catch {}
@@ -145,12 +145,12 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
     close(msg);
   };
 
-  ws.on('message', (raw, isBinary) => handleFrame(st, raw, isBinary, close));
+  ws.on('message', (raw, isBinary) => handleFrame(termState, raw, isBinary, close));
   ws.on('close', () => close('socket close'));
   ws.on('error', () => close('socket error'));
 
-  conn.on('ready', () => onReady(conn, ws, st, bind, close, fail));
-  conn.on('error', (e) => fail(`ssh: ${e.message}`));
+  conn.on('ready', () => onReady(conn, ws, termState, bind, close, fail));
+  conn.on('error', (sshError) => fail(`ssh: ${sshError.message}`));
   conn.on('close', () => close('ssh end'));
   conn.connect({
     host: bind.ip,

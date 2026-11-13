@@ -7,17 +7,17 @@ import { DeletionCard, PasswordCard, ProfileCard, RequestsCard } from './cards';
 import { useAccount } from './use';
 
 export default function AccountPage() {
-  const a = useAccount();
+  const account = useAccount();
 
   return (
     <>
       <h1>account</h1>
       <div className="sub">profile, credentials, data</div>
 
-      <ProfileCard a={a} />
-      <PasswordCard a={a} />
-      <RequestsCard a={a} />
-      <DeletionCard a={a} />
+      <ProfileCard account={account} />
+      <PasswordCard account={account} />
+      <RequestsCard account={account} />
+      <DeletionCard account={account} />
     </>
   );
 }

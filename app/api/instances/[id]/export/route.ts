@@ -28,20 +28,20 @@ function sign(payload: string): string {
   return createHmac('sha256', tokenKey()).update(payload).digest('base64url');
 }
 
-function payloadOk(p: { id: string; uid: string; exp: number }, id: string, uid: string) {
+function payloadOk(claims: { id: string; uid: string; exp: number }, id: string, uid: string) {
   const nowMs = Date.now();
-  return p.id === id && p.uid === uid && Number.isSafeInteger(p.exp) && p.exp >= nowMs && p.exp <= nowMs + 6 * 60_000;
+  return claims.id === id && claims.uid === uid && Number.isSafeInteger(claims.exp) && claims.exp >= nowMs && claims.exp <= nowMs + 6 * 60_000;
 }
 
 function verify(token: string, id: string, uid: string): boolean {
   const [body, signature] = token.split('.');
   if (!body || !signature) return false;
-  const a = Buffer.from(signature);
-  const b = Buffer.from(sign(body));
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  const actual = Buffer.from(signature);
+  const expected = Buffer.from(sign(body));
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return false;
   try {
-    const p = JSON.parse(Buffer.from(body, 'base64url').toString()) as { id: string; uid: string; exp: number; nonce: string };
-    return payloadOk(p, id, uid);
+    const claims = JSON.parse(Buffer.from(body, 'base64url').toString()) as { id: string; uid: string; exp: number; nonce: string };
+    return payloadOk(claims, id, uid);
   } catch { return false; }
 }
 
@@ -77,8 +77,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const token = `${payload}.${sign(payload)}`;
     await logAudit({ actorId: user.id, actorName: user.name, action: 'instance.export.token', target: id, detail: { size: st.size } });
     return json({ url: `/api/instances/${id}/export?token=${encodeURIComponent(token)}`, filename: `${inst.name}.qcow2`, size: st.size, expiresInSec: 300 });
-  } catch (e) {
-    return err((e as Error).message || 'disk unavailable', 404);
+  } catch (error) {
+    return err((error as Error).message || 'disk unavailable', 404);
   }
 }
 
@@ -88,7 +88,7 @@ function qcow2Stream(file: string, size: number, filename: string) {
     start(controller) {
       body.on('data', (chunk) => controller.enqueue(new Uint8Array(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))));
       body.on('end', () => controller.close());
-      body.on('error', (e) => controller.error(e));
+      body.on('error', (streamError) => controller.error(streamError));
     },
     cancel() { body.destroy(); },
   });

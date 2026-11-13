@@ -45,20 +45,20 @@ function metricRows(id: string, since: number): MetricRow[] {
 /** Average the derived rates inside each bucket. Rates are already deltas,
  *  so this is a mean of means over a fixed span and stays honest. */
 function downsample(points: Point[], bucketMs: number): Point[] {
-  const buckets = new Map<number, { cpu: number; read: number; write: number; n: number }>();
-  for (const p of points) {
-    const k = Math.floor(p.t / bucketMs) * bucketMs;
-    const b = buckets.get(k) ?? { cpu: 0, read: 0, write: 0, n: 0 };
-    b.cpu += p.cpu; b.read += p.read; b.write += p.write; b.n += 1;
-    buckets.set(k, b);
+  const buckets = new Map<number, { cpu: number; read: number; write: number; count: number }>();
+  for (const point of points) {
+    const bucketStart = Math.floor(point.t / bucketMs) * bucketMs;
+    const bucket = buckets.get(bucketStart) ?? { cpu: 0, read: 0, write: 0, count: 0 };
+    bucket.cpu += point.cpu; bucket.read += point.read; bucket.write += point.write; bucket.count += 1;
+    buckets.set(bucketStart, bucket);
   }
   return [...buckets.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([t, b]) => ({
+    .sort((first, second) => first[0] - second[0])
+    .map(([t, bucket]) => ({
       t,
-      cpu: Math.round((b.cpu / b.n) * 10) / 10,
-      read: Math.round(b.read / b.n),
-      write: Math.round(b.write / b.n),
+      cpu: Math.round((bucket.cpu / bucket.count) * 10) / 10,
+      read: Math.round(bucket.read / bucket.count),
+      write: Math.round(bucket.write / bucket.count),
     }));
 }
 
@@ -82,19 +82,19 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   if (!span) return err(`unknown range; use one of ${Object.keys(RANGES).join(', ')}`, 400);
 
   const bucketMs = bucketMsFor(span);
-  const rows = metricRows(id, now() - span);
+  const sampleRows = metricRows(id, now() - span);
   const { derivePoints } = await import('@/lib/core/metrics');
-  let points = derivePoints(rows);
+  let points = derivePoints(sampleRows);
   if (bucketMs > 60_000 && points.length > 400) points = downsample(points, bucketMs);
 
-  const last = rows[rows.length - 1];
+  const last = sampleRows[sampleRows.length - 1];
   const plan = planShape(inst.planId);
 
   return json({
     ok: true,
     range,
     points,
-    samples: rows.length,
+    samples: sampleRows.length,
     ...metricTail(last, plan),
     running: inst.status === 'running',
   });

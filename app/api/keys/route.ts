@@ -20,8 +20,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const g = guardMutation(req as NextRequest);
-  if (g) return g;
+  const denied = guardMutation(req as NextRequest);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const body = (await req.json().catch(() => ({}))) as { label?: string; pubKey?: string };
@@ -39,8 +39,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const g = guardMutation(req as NextRequest);
-  if (g) return g;
+  const denied = guardMutation(req as NextRequest);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const body = (await req.json().catch(() => ({}))) as { id?: string };
@@ -53,8 +53,8 @@ export async function DELETE(req: Request) {
   return json({ ok: true });
 }
 
-function pubkeyLabel(k: string): string {
-  const parts = k.split(/\s+/);
+function pubkeyLabel(keyText: string): string {
+  const parts = keyText.split(/\s+/);
   if (parts.length >= 3) return parts[2].slice(0, 32);
   return parts[0].replace(/^ssh-/, '');
 }

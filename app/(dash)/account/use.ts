@@ -11,22 +11,22 @@ async function loadLists(
   setReqs: (v: Req[]) => void,
   setDelReqs: (v: DelReq[]) => void,
 ) {
-  const [r, d] = await Promise.all([
+  const [requestsResponse, deletionResponse] = await Promise.all([
     fetch('/api/requests', { cache: 'no-store' }),
     fetch('/api/deletion', { cache: 'no-store' }),
   ]);
-  if (r.ok) setReqs(await r.json());
-  if (d.ok) setDelReqs(await d.json());
+  if (requestsResponse.ok) setReqs(await requestsResponse.json());
+  if (deletionResponse.ok) setDelReqs(await deletionResponse.json());
 }
 
 export function useAccount(): {
   name: string; role: string; balance: number | null;
   reqs: Req[]; delReqs: DelReq[];
-  cur: string; setCur: (v: string) => void;
-  nw: string; setNw: (v: string) => void;
+  currentPw: string; setCurrentPw: (v: string) => void;
+  newPw: string; setNewPw: (v: string) => void;
   pwBusy: boolean;
   delBusy: boolean;
-  changePw: (e: React.FormEvent) => Promise<void>;
+  changePw: (event: React.FormEvent) => Promise<void>;
   requestDeletion: () => Promise<void>;
   exportData: () => Promise<void>;
   load: () => Promise<void>;
@@ -35,63 +35,63 @@ export function useAccount(): {
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
-  const [cur, setCur] = useState('');
-  const [nw, setNw] = useState('');
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
   const [reqs, setReqs] = useState<Req[]>([]);
   const [delReqs, setDelReqs] = useState<DelReq[]>([]);
   const [delBusy, setDelBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const s = await fetch('/api/auth/session', { cache: 'no-store' });
-    if (s.ok) {
-      const j = await s.json();
-      setName(j?.user?.name ?? '');
-      setRole(j?.user?.role ?? '');
+    const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
+    if (sessionResponse.ok) {
+      const session = await sessionResponse.json();
+      setName(session?.user?.name ?? '');
+      setRole(session?.user?.role ?? '');
     }
-    const b = await fetch('/api/billing', { cache: 'no-store' });
-    if (b.ok) { const j = await b.json(); setBalance(j.balanceCents); }
+    const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
+    if (billingResponse.ok) { const billing = await billingResponse.json(); setBalance(billing.balanceCents); }
     await loadLists(setReqs, setDelReqs);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  async function changePw(e: React.FormEvent) {
-    e.preventDefault();
+  async function changePw(event: React.FormEvent) {
+    event.preventDefault();
     setPwBusy(true);
-    const r = await fetch('/api/auth/password', {
+    const response = await fetch('/api/auth/password', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ current: cur, next: nw }),
+      body: JSON.stringify({ current: currentPw, next: newPw }),
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) { toast.ok('password changed'); setCur(''); setNw(''); }
-    else toast.err(j.error ?? 'change failed');
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) { toast.ok('password changed'); setCurrentPw(''); setNewPw(''); }
+    else toast.err(body.error ?? 'change failed');
     setPwBusy(false);
   }
 
   async function requestDeletion() {
     if (!confirm('Request permanent deletion of your account and all data? An admin must approve.')) return;
     setDelBusy(true);
-    const r = await fetch('/api/deletion', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) { toast.ok('deletion request submitted'); void load(); }
-    else toast.err(j.error ?? 'request failed');
+    const response = await fetch('/api/deletion', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) { toast.ok('deletion request submitted'); void load(); }
+    else toast.err(body.error ?? 'request failed');
     setDelBusy(false);
   }
 
   async function exportData() {
-    const r = await fetch('/api/account/export', { cache: 'no-store' });
-    if (!r.ok) { toast.err('export failed'); return; }
-    const blob = await r.blob();
+    const response = await fetch('/api/account/export', { cache: 'no-store' });
+    if (!response.ok) { toast.err('export failed'); return; }
+    const blob = await response.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `machina-export-${name}.json`;
-    a.click(); URL.revokeObjectURL(url);
+    const link = document.createElement('a');
+    link.href = url; link.download = `machina-export-${name}.json`;
+    link.click(); URL.revokeObjectURL(url);
     toast.ok('data exported');
   }
 
   return {
     name, role, balance, reqs, delReqs,
-    cur, setCur, nw, setNw, pwBusy, delBusy,
+    currentPw, setCurrentPw, newPw, setNewPw, pwBusy, delBusy,
     changePw, requestDeletion, exportData, load,
   };
 }

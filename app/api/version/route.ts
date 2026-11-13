@@ -18,8 +18,8 @@ const startedAt = Date.now();
 /** Read once: package.json cannot change under a running process. */
 const VERSION = (() => {
   try {
-    const p = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')) as { version?: string };
-    return String(p.version ?? 'unknown');
+    const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')) as { version?: string };
+    return String(pkg.version ?? 'unknown');
   } catch {
     return 'unknown';
   }

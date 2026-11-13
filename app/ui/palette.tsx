@@ -36,25 +36,25 @@ export function Palette({ role }: { role: string }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const dests = useMemo(
-    () => DESTS.filter((d) => !d.admin || role === 'admin'),
+    () => DESTS.filter((dest) => !dest.admin || role === 'admin'),
     [role],
   );
   const hits = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return dests;
-    return dests.filter((d) => d.label.includes(needle) || d.group.includes(needle));
+    return dests.filter((dest) => dest.label.includes(needle) || dest.group.includes(needle));
   }, [dests, q]);
 
   const close = useCallback(() => { setOpen(false); setQ(''); setSel(0); }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setOpen((v) => !v);
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setOpen((open) => !open);
         return;
       }
-      if (e.key === 'Escape' && open) { e.preventDefault(); close(); }
+      if (event.key === 'Escape' && open) { event.preventDefault(); close(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -70,11 +70,11 @@ export function Palette({ role }: { role: string }) {
 
   const go = (href: string) => { close(); router.push(href); };
 
-  const onInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, hits.length - 1)); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-    if (e.key === 'Enter') {
-      e.preventDefault();
+  const onInputKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setSel((index) => Math.min(index + 1, hits.length - 1)); }
+    if (event.key === 'ArrowUp') { event.preventDefault(); setSel((index) => Math.max(index - 1, 0)); }
+    if (event.key === 'Enter') {
+      event.preventDefault();
       const hit = hits[sel];
       if (hit) go(hit.href);
     }
@@ -85,11 +85,11 @@ export function Palette({ role }: { role: string }) {
       onClick={close}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 80, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '12vh 20px 20px' }}
     >
-      <div className="card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460, width: '100%', padding: 0, overflow: 'hidden' }}>
+      <div className="card" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 460, width: '100%', padding: 0, overflow: 'hidden' }}>
         <input
           ref={inputRef}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(event) => setQ(event.target.value)}
           onKeyDown={onInputKey}
           placeholder="jump to…"
           aria-label="command palette"
@@ -97,19 +97,19 @@ export function Palette({ role }: { role: string }) {
         />
         <div style={{ borderTop: '1px solid var(--line)' }} />
         {hits.length === 0 && <div className="muted" style={{ padding: '14px 16px' }}>nothing matches</div>}
-        {hits.map((d, i) => (
+        {hits.map((dest, index) => (
           <button
-            key={d.href}
-            onMouseEnter={() => setSel(i)}
-            onClick={() => go(d.href)}
+            key={dest.href}
+            onMouseEnter={() => setSel(index)}
+            onClick={() => go(dest.href)}
             style={{
               display: 'flex', justifyContent: 'space-between', width: '100%', textAlign: 'left',
               padding: '10px 16px', borderRadius: 0, border: 0,
-              background: i === sel ? 'var(--surface-2, #17171a)' : 'transparent',
+              background: index === sel ? 'var(--surface-2, #17171a)' : 'transparent',
             }}
           >
-            <span>{d.label}</span>
-            <span className="muted mono" style={{ fontSize: 11 }}>{d.href}</span>
+            <span>{dest.label}</span>
+            <span className="muted mono" style={{ fontSize: 11 }}>{dest.href}</span>
           </button>
         ))}
         <div className="muted" style={{ padding: '10px 16px', borderTop: '1px solid var(--line)', fontSize: 11 }}>

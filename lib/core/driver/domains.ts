@@ -16,12 +16,12 @@ export async function listDomains(): Promise<DomInfo[]> {
   const out = await virsh(['list', '--all']);
   const rows: DomInfo[] = [];
   for (const line of out.split('\n').slice(2)) {
-    const t = line.trim();
-    if (!t) continue;
-    const parts = t.split(/\s+/);
-    if (parts.length < 3) continue;
-    const name = parts[1];
-    const state = parts.slice(2).join(' ');
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const fields = trimmed.split(/\s+/);
+    if (fields.length < 3) continue;
+    const name = fields[1];
+    const state = fields.slice(2).join(' ');
     let uuid = '';
     try { uuid = (await virsh(['domuuid', name])).trim(); } catch { /* gone */ }
     rows.push({ name, state, uuid });
@@ -40,7 +40,7 @@ export async function domState(name: string): Promise<string | null> {
 
 export async function vmGenIdNameList(): Promise<string[]> {
   const doms = await listDomains();
-  return doms.filter((d) => d.name.startsWith(config.domainPrefix)).map((d) => d.name);
+  return doms.filter((domain) => domain.name.startsWith(config.domainPrefix)).map((domain) => domain.name);
 }
 
 /** True only when libvirt reports the domain running. A destroyed domain is
@@ -170,12 +170,12 @@ ${domainCoreXml(opts)}${domainDevicesXml(opts)}</domain>`;
 }
 
 export async function defineDomain(xml: string): Promise<void> {
-  const tmp = `${storagePaths().tmp}/define-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xml`;
-  await fs.writeFile(tmp, xml);
+  const xmlPath = `${storagePaths().tmp}/define-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xml`;
+  await fs.writeFile(xmlPath, xml);
   try {
-    await virsh(['define', tmp]);
+    await virsh(['define', xmlPath]);
   } finally {
-    await fs.rm(tmp, { force: true }).catch(() => {});
+    await fs.rm(xmlPath, { force: true }).catch(() => {});
   }
 }
 
@@ -204,9 +204,9 @@ export async function resumeDomain(name: string): Promise<void> {
  * every caller that wants "running" should go through here.
  */
 export async function ensureRunning(name: string): Promise<void> {
-  const st = await domState(name);
-  if (st && /running/i.test(st) && !/paused/i.test(st)) return; // already there
-  if (st && /paused/i.test(st)) {
+  const state = await domState(name);
+  if (state && /running/i.test(state) && !/paused/i.test(state)) return; // already there
+  if (state && /paused/i.test(state)) {
     await resumeDomain(name);
     return;
   }

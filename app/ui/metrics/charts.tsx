@@ -41,8 +41,8 @@ export function CpuChart({ points, ncpu }: { points: Point[]; ncpu: number }) {
             />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v) => new Date(Number(v)).toLocaleString()}
-              formatter={(v) => [`${Math.round(Number(v))}%`, 'cpu']}
+              labelFormatter={(value) => new Date(Number(value)).toLocaleString()}
+              formatter={(value) => [`${Math.round(Number(value))}%`, 'cpu']}
             />
             <Area
               type="monotone" dataKey="cpu" stroke="var(--accent)"
@@ -66,12 +66,12 @@ export function DiskChart({ points }: { points: Point[] }) {
             {timeAxis}
             <YAxis
               stroke="var(--text-3)" fontSize={10} tickLine={false} width={44}
-              tickFormatter={(v) => fmtRate(Number(v))}
+              tickFormatter={(value) => fmtRate(Number(value))}
             />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v) => new Date(Number(v)).toLocaleString()}
-              formatter={(v, n) => [fmtRate(Number(v)), n === 'read' ? 'read' : 'write']}
+              labelFormatter={(value) => new Date(Number(value)).toLocaleString()}
+              formatter={(value, name) => [fmtRate(Number(value)), name === 'read' ? 'read' : 'write']}
             />
             <Line type="monotone" dataKey="read" stroke="var(--accent)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
             <Line type="monotone" dataKey="write" stroke="var(--warn)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
@@ -83,8 +83,8 @@ export function DiskChart({ points }: { points: Point[] }) {
 }
 
 /** Loading and not-yet-enough-samples states, in place of the charts. */
-function ChartWait({ loading, hasData, points, off }: {
-  loading: boolean; hasData: boolean; points: number; off: boolean;
+function ChartWait({ loading, hasData, sampleCount, off }: {
+  loading: boolean; hasData: boolean; sampleCount: number; off: boolean;
 }): React.ReactNode {
   if (loading && !hasData) {
     return (
@@ -95,7 +95,7 @@ function ChartWait({ loading, hasData, points, off }: {
       </div>
     );
   }
-  if (points < 2) {
+  if (sampleCount < 2) {
     return (
       <Empty
         text={off
@@ -108,18 +108,18 @@ function ChartWait({ loading, hasData, points, off }: {
 }
 
 /** The charts plus the footnote, or the loading/empty state in their place. */
-export function ChartBody({ data, loading, off }: {
-  data: Payload | null; loading: boolean; off: boolean;
+export function ChartBody({ payload, loading, off }: {
+  payload: Payload | null; loading: boolean; off: boolean;
 }) {
-  const points = data?.points ?? [];
-  const wait = ChartWait({ loading, hasData: !!data, points: points.length, off });
+  const points = payload?.points ?? [];
+  const wait = ChartWait({ loading, hasData: !!payload, sampleCount: points.length, off });
   if (wait) return <>{wait}</>;
   return (
     <>
-      <CpuChart points={points} ncpu={data?.ncpu ?? 1} />
+      <CpuChart points={points} ncpu={payload?.ncpu ?? 1} />
       <DiskChart points={points} />
       <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-        Disk in use {fmtBytes(data?.allocBytes ?? 0)} · {points.length} sample points ·
+        Disk in use {fmtBytes(payload?.allocBytes ?? 0)} · {points.length} sample points ·
         {' '}memory usage is not shown: the balloon device does not report it on these guests
         without the QEMU guest agent, which is intentionally not installed.
       </div>

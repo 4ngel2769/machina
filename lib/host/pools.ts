@@ -32,16 +32,16 @@ function assertPool(name: string): string {
 /** pool-info humanises units (100.00 GiB, 1.5 MiB, 512 bytes). Normalise. */
 function toMb(raw: string | undefined): number | null {
   if (!raw) return null;
-  const m = /^([\d.]+)\s*([KMGTP]?i?B)$/i.exec(raw.trim());
-  if (!m) return null;
-  const n = Number(m[1]);
-  if (!Number.isFinite(n)) return null;
+  const match = /^([\d.]+)\s*([KMGTP]?i?B)$/i.exec(raw.trim());
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
   const mult: Record<string, number> = {
     B: 1 / 1048576, KB: 1 / 1024, KIB: 1 / 1024,
     MB: 1, MIB: 1, GB: 1024, GIB: 1024,
     TB: 1048576, TIB: 1048576, PB: 1073741824, PIB: 1073741824,
   };
-  return Math.round(n * (mult[m[2].toUpperCase()] ?? 1));
+  return Math.round(value * (mult[match[2].toUpperCase()] ?? 1));
 }
 
 function field(txt: string, key: string): string | undefined {
@@ -50,7 +50,7 @@ function field(txt: string, key: string): string | undefined {
 
 export async function listPools(): Promise<Pool[]> {
   const names = (await virsh(['pool-list', '--all', '--name']))
-    .split('\n').map((s) => s.trim()).filter(Boolean);
+    .split('\n').map((line) => line.trim()).filter(Boolean);
 
   // pool-info and pool-dumpxml are one process each; pools are few, and a
   // failure on one must not blank the table for the others.

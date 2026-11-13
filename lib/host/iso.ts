@@ -41,17 +41,17 @@ export async function isoPath(name: string): Promise<string> {
 export async function listIsos(): Promise<Iso[]> {
   const dir = await isoDir();
   const out: Iso[] = [];
-  for (const f of await fs.readdir(dir)) {
-    if (!/\.iso$/i.test(f)) continue;
-    const st = await fs.stat(path.join(dir, f)).catch(() => null);
-    if (!st?.isFile()) continue;
+  for (const file of await fs.readdir(dir)) {
+    if (!/\.iso$/i.test(file)) continue;
+    const stat = await fs.stat(path.join(dir, file)).catch(() => null);
+    if (!stat?.isFile()) continue;
     // The checksum is written once at upload; recomputing it on every list
     // would hash gigabytes per page view.
-    const sha = await fs.readFile(path.join(dir, `${f}.sha256`), 'utf8')
-      .then((s) => s.trim().slice(0, 64)).catch(() => null);
-    out.push({ name: f, sizeMb: Math.round(st.size / 1048576), mtime: Math.round(st.mtimeMs), sha256: sha });
+    const sha = await fs.readFile(path.join(dir, `${file}.sha256`), 'utf8')
+      .then((contents) => contents.trim().slice(0, 64)).catch(() => null);
+    out.push({ name: file, sizeMb: Math.round(stat.size / 1048576), mtime: Math.round(stat.mtimeMs), sha256: sha });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 /**
@@ -68,10 +68,10 @@ export async function saveIso(
 
   const dir = await isoDir();
   const maxBytes = config.limits.maxIsoGb * 1024 ** 3;
-  const tmp = path.join(dir, `.upload-${crypto.randomUUID()}.part`);
+  const tempFile = path.join(dir, `.upload-${crypto.randomUUID()}.part`);
   const final = path.join(dir, name);
   const hash = crypto.createHash('sha256');
-  const ws = createWriteStream(tmp, { mode: 0o640 });
+  const ws = createWriteStream(tempFile, { mode: 0o640 });
   let size = 0;
 
   try {
@@ -87,16 +87,16 @@ export async function saveIso(
       ws.once('error', reject);
       ws.end();
     });
-  } catch (e) {
+  } catch (caught) {
     ws.destroy();
-    await fs.rm(tmp, { force: true }).catch(() => {});
-    throw e;
+    await fs.rm(tempFile, { force: true }).catch(() => {});
+    throw caught;
   }
 
   const sha256 = hash.digest('hex');
   // Same directory, so the rename is atomic: a half-written ISO can never
   // appear under the name a domain would attach.
-  await fs.rename(tmp, final);
+  await fs.rename(tempFile, final);
   await fs.writeFile(`${final}.sha256`, `${sha256}\n`, { mode: 0o640 });
 
   return { name, sizeMb: Math.round(size / 1048576), mtime: Date.now(), sha256 };
@@ -106,7 +106,7 @@ export async function saveIso(
 export async function isoUsers(name: string): Promise<string[]> {
   const target = await isoPath(name);
   const names = (await virsh(['list', '--all', '--name']))
-    .split('\n').map((s) => s.trim()).filter(Boolean);
+    .split('\n').map((line) => line.trim()).filter(Boolean);
   const used: string[] = [];
   for (const domain of names) {
     const xml = await virsh(['dumpxml', '--inactive', domain]).catch(() => '');

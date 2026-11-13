@@ -9,8 +9,8 @@ import type { Container } from './types';
 /** "host:container" pairs from the comma separated form field. */
 function parsePorts(spec: string): { host: number; container: number }[] {
   if (!spec.trim()) return [];
-  return spec.split(',').map((s) => {
-    const [host, container] = s.trim().split(':').map(Number);
+  return spec.split(',').map((pair) => {
+    const [host, container] = pair.trim().split(':').map(Number);
     return { host, container };
   });
 }
@@ -20,13 +20,13 @@ export function useContainerActions(reload: () => void): {
   logs: Record<string, string>;
   openId: string | null;
   createOpen: boolean;
-  setCreateOpen: (v: boolean) => void;
+  setCreateOpen: (value: boolean) => void;
   form: { name: string; image: string; memory: string; cpus: string; ports: string };
-  setForm: (v: { name: string; image: string; memory: string; cpus: string; ports: string }) => void;
-  act: (c: Container, action: string) => Promise<void>;
-  showLogs: (c: Container) => Promise<void>;
+  setForm: (value: { name: string; image: string; memory: string; cpus: string; ports: string }) => void;
+  act: (container: Container, action: string) => Promise<void>;
+  showLogs: (container: Container) => Promise<void>;
   create: () => Promise<void>;
-  remove: (c: Container) => Promise<void>;
+  remove: (container: Container) => Promise<void>;
 } {
   const toast = useToast();
   const [busy, setBusy] = useState('');
@@ -35,16 +35,16 @@ export function useContainerActions(reload: () => void): {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: '', image: '', memory: '512', cpus: '1', ports: '' });
 
-  const act = async (c: Container, action: string) => {
-    setBusy(`${c.id}:${action}`);
+  const act = async (container: Container, action: string) => {
+    setBusy(`${container.id}:${action}`);
     try {
-      const r = await fetch(`/api/containers/${c.id}`, {
+      const response = await fetch(`/api/containers/${container.id}`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) toast.err(j.error ?? `${action} failed`);
-      else toast.ok(`${c.name}: ${action}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) toast.err(payload.error ?? `${action} failed`);
+      else toast.ok(`${container.name}: ${action}`);
       reload();
     } catch {
       toast.err(`${action}: could not reach the server`);
@@ -53,16 +53,16 @@ export function useContainerActions(reload: () => void): {
     }
   };
 
-  const showLogs = async (c: Container) => {
-    if (openId === c.id) { setOpenId(null); return; }
-    setOpenId(c.id);
-    if (logs[c.id]) return;
+  const showLogs = async (container: Container) => {
+    if (openId === container.id) { setOpenId(null); return; }
+    setOpenId(container.id);
+    if (logs[container.id]) return;
     try {
-      const r = await fetch(`/api/containers/${c.id}?tail=200`, { cache: 'no-store' });
-      const j = await r.json();
-      setLogs((m) => ({ ...m, [c.id]: r.ok ? (j.logs || '(no output)') : (j.error ?? 'could not read logs') }));
+      const response = await fetch(`/api/containers/${container.id}?tail=200`, { cache: 'no-store' });
+      const payload = await response.json();
+      setLogs((previous) => ({ ...previous, [container.id]: response.ok ? (payload.logs || '(no output)') : (payload.error ?? 'could not read logs') }));
     } catch {
-      setLogs((m) => ({ ...m, [c.id]: 'could not reach the server' }));
+      setLogs((previous) => ({ ...previous, [container.id]: 'could not reach the server' }));
     }
   };
 
@@ -70,15 +70,15 @@ export function useContainerActions(reload: () => void): {
     setBusy('create');
     try {
       const ports = parsePorts(form.ports);
-      const r = await fetch('/api/containers', {
+      const response = await fetch('/api/containers', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           name: form.name, image: form.image,
           memoryMb: Number(form.memory), cpus: Number(form.cpus), ports,
         }),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) toast.err(j.error ?? 'create failed');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) toast.err(payload.error ?? 'create failed');
       else {
         toast.ok(`created ${form.name}`);
         setCreateOpen(false);
@@ -92,14 +92,14 @@ export function useContainerActions(reload: () => void): {
     }
   };
 
-  const remove = async (c: Container) => {
-    if (!c.managed || !confirm(`Remove ${c.name}? This deletes the container, not its image.`)) return;
-    setBusy(`${c.id}:remove`);
+  const remove = async (container: Container) => {
+    if (!container.managed || !confirm(`Remove ${container.name}? This deletes the container, not its image.`)) return;
+    setBusy(`${container.id}:remove`);
     try {
-      const r = await fetch(`/api/containers/${c.id}`, { method: 'DELETE' });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) toast.err(j.error ?? 'remove failed');
-      else { toast.ok(`removed ${c.name}`); reload(); }
+      const response = await fetch(`/api/containers/${container.id}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) toast.err(payload.error ?? 'remove failed');
+      else { toast.ok(`removed ${container.name}`); reload(); }
     } catch {
       toast.err('remove: could not reach the server');
     } finally {

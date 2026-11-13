@@ -28,41 +28,41 @@ export function useAdmin(): {
   const [quotas, setQuotas] = useState<Quotas>(null);
 
   const load = useCallback(async () => {
-    const r = await fetch(`/api/admin?limit=50&offset=${auditOffset}`, { cache: 'no-store' });
-    if (r.ok) {
-      const j = await r.json();
-      setUsers(j.users); setPlans(j.plans); setImgs(j.images); setAud(j.audit);
-      setPlanUsage(j.planUsage ?? {});
-      setAuditTotal(j.auditTotal ?? j.audit.length);
+    const adminResponse = await fetch(`/api/admin?limit=50&offset=${auditOffset}`, { cache: 'no-store' });
+    if (adminResponse.ok) {
+      const adminJson = await adminResponse.json();
+      setUsers(adminJson.users); setPlans(adminJson.plans); setImgs(adminJson.images); setAud(adminJson.audit);
+      setPlanUsage(adminJson.planUsage ?? {});
+      setAuditTotal(adminJson.auditTotal ?? adminJson.audit.length);
     }
-    const rq = await fetch('/api/requests', { cache: 'no-store' });
-    if (rq.ok) setReqs(await rq.json());
-    const dq = await fetch('/api/deletion', { cache: 'no-store' });
-    if (dq.ok) setDelReqs(await dq.json());
-    const qq = await fetch('/api/quotas', { cache: 'no-store' });
-    if (qq.ok) setQuotas(await qq.json());
+    const requestsResponse = await fetch('/api/requests', { cache: 'no-store' });
+    if (requestsResponse.ok) setReqs(await requestsResponse.json());
+    const deletionResponse = await fetch('/api/deletion', { cache: 'no-store' });
+    if (deletionResponse.ok) setDelReqs(await deletionResponse.json());
+    const quotasResponse = await fetch('/api/quotas', { cache: 'no-store' });
+    if (quotasResponse.ok) setQuotas(await quotasResponse.json());
   }, [auditOffset]);
   useEffect(() => { void load(); }, [load]);
 
   const post = async (body: object, label = 'op') => {
-    const r = await fetch('/api/admin', {
+    const response = await fetch('/api/admin', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) toast.ok(`${label} done`);
-    else toast.err(j.error ?? `${label} failed`);
+    const responseBody = await response.json().catch(() => ({}));
+    if (response.ok) toast.ok(`${label} done`);
+    else toast.err(responseBody.error ?? `${label} failed`);
     void load();
   };
 
   const importImage = async (id: string, name: string, file: File | null, close: () => void) => {
     if (!file || !id) { toast.err('pick an id and a qcow2 file first'); return; }
-    const qs = new URLSearchParams({ id, name: name || id });
+    const queryString = new URLSearchParams({ id, name: name || id });
     try {
-      const r = await fetch(`/api/images/import?${qs}`, { method: 'POST', body: file });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok) { toast.ok(`image ${id} imported`); close(); }
-      else toast.err(j.error ?? 'import failed');
+      const response = await fetch(`/api/images/import?${queryString}`, { method: 'POST', body: file });
+      const responseBody = await response.json().catch(() => ({}));
+      if (response.ok) { toast.ok(`image ${id} imported`); close(); }
+      else toast.err(responseBody.error ?? 'import failed');
       void load();
     } catch {
       toast.err('import failed');

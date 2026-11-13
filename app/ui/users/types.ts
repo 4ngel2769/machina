@@ -21,5 +21,5 @@ export type Allocation = {
   usage: { vms: number; running: number; vcpus: number; memoryMb: number; diskGb: number };
 };
 
-export const money = (c: number) => `$${(c / 100).toFixed(2)}`;
-export const bound = (v: number | null) => (v === null ? '∞' : String(v));
+export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+export const bound = (value: number | null) => (value === null ? '∞' : String(value));

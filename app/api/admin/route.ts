@@ -14,22 +14,22 @@ import { setPlan, setUserImage as setUserImageOp, syncImage as syncImageOp } fro
 import type { AdminBody, OpHandler } from './handlers/types';
 
 export async function GET(req: NextRequest) {
-  const { user: g, response: authError } = await requireAdmin();
-  if (!g) return authError;
+  const { user: adminUser, response: authError } = await requireAdmin();
+  if (!adminUser) return authError;
   const limit = Math.min(200, Math.max(10, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get('offset') ?? 0));
-  const rd0 = rawDb();
-  const auditTotal = (rd0.prepare(`select count(*) c from audit`).get() as { c: number }).c;
+  const raw = rawDb();
+  const auditTotal = (raw.prepare(`select count(*) c from audit`).get() as { c: number }).c;
   // Per-plan instance counts: a custom plan is a one-off and is safe to drop
   // only while nothing references it (the instance list inner-joins plans, so a
   // dangling plan_id would hide the VM from its own owner).
   const planUsage: Record<string, number> = {};
-  for (const r of rd0.prepare(`select plan_id, count(*) c from instances group by plan_id`).all() as
-    { plan_id: string; c: number }[]) planUsage[r.plan_id] = r.c;
+  for (const planRow of raw.prepare(`select plan_id, count(*) c from instances group by plan_id`).all() as
+    { plan_id: string; c: number }[]) planUsage[planRow.plan_id] = planRow.c;
   // Counts come along so the delete button can refuse before it is pressed
   // rather than after: an account with instances must have them destroyed
   // first, and the UI should say so on the row, not in an error toast.
-  const userRows = rd0.prepare(
+  const userRows = raw.prepare(
     `select u.id, u.name, u.role,
             u.balance_cents as balanceCents, u.created_at as createdAt,
             u.image_pickable as imagePickable, u.assigned_image_id as assignedImageId,
@@ -66,8 +66,8 @@ const OPS: Record<string, OpHandler> = {
 };
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const { user: admin, response: authError } = await requireAdmin();
   if (!admin) return authError;
   const body = (await req.json().catch(() => ({}))) as AdminBody;

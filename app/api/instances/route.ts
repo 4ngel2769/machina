@@ -41,9 +41,9 @@ export async function GET() {
       .where(eq(instances.userId, user.id)).orderBy(desc(instances.createdAt));
   const jobs = rawDb().prepare(`select instance_id, status, type from jobs
      where status in ('queued','running')`).all() as { instance_id: string; status: string; type: string }[];
-  return json(rows.map((r) => ({
-    ...r,
-    activeJob: jobs.find((j) => j.instance_id === r.id) ?? null,
+  return json(rows.map((row) => ({
+    ...row,
+    activeJob: jobs.find((job) => job.instance_id === row.id) ?? null,
   })));
 }
 
@@ -51,8 +51,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
-  const originErr = guardMutation(req);
-  if (originErr) return originErr;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   // Non-admin users must REQUEST an instance (admin approves). Direct create
   // is admin-only to enforce the approval gate.
   if (user.role !== 'admin') {
@@ -66,13 +66,13 @@ export async function POST(req: NextRequest) {
   if (!rateLimit(`create:${user.id}`, 10, 10 * 60_000)) return err('too many creations; slow down', 429);
 
   try {
-    const r = await provisionInstance({
+    const created = await provisionInstance({
       userId: user.id, name, planId: body.planId ?? '', imageId: body.imageId,
       actorName: user.name, actorRole: user.role,
     });
-    return json({ id: r.id, ip: r.ip, name: r.name, status: 'provisioning' }, 201);
-  } catch (e) {
-    return err((e as Error).message || 'create failed', 400);
+    return json({ id: created.id, ip: created.ip, name: created.name, status: 'provisioning' }, 201);
+  } catch (error) {
+    return err((error as Error).message || 'create failed', 400);
   }
 }
 

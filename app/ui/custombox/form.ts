@@ -15,37 +15,37 @@ const EMPTY: CustomBoxForm = {
 };
 
 export function useCustomBoxForm(): {
-  f: CustomBoxForm;
-  set: <K extends keyof CustomBoxForm>(k: K, v: CustomBoxForm[K]) => void;
+  form: CustomBoxForm;
+  set: <K extends keyof CustomBoxForm>(key: K, value: CustomBoxForm[K]) => void;
   reset: () => void;
 } {
-  const [f, setF] = useState<CustomBoxForm>(EMPTY);
-  const set = <K extends keyof CustomBoxForm>(k: K, v: CustomBoxForm[K]) =>
-    setF((p) => ({ ...p, [k]: v }));
+  const [form, setForm] = useState<CustomBoxForm>(EMPTY);
+  const set = <K extends keyof CustomBoxForm>(key: K, value: CustomBoxForm[K]) =>
+    setForm((previous) => ({ ...previous, [key]: value }));
   // Only the name and the rate override are cleared after a create; the spec
   // numbers stay so a second box can be built by changing one field.
-  const reset = () => setF((p) => ({ ...p, name: '', rate: '' }));
-  return { f, set, reset };
+  const reset = () => setForm((previous) => ({ ...previous, name: '', rate: '' }));
+  return { form, set, reset };
 }
 
 /** RAM as megabytes, whatever unit the operator typed it in. */
-function ramMb(f: CustomBoxForm): number {
-  return f.unit === 'GB' ? Math.round(Number(f.ram) * 1024) : Math.round(Number(f.ram));
+function ramMb(form: CustomBoxForm): number {
+  return form.unit === 'GB' ? Math.round(Number(form.ram) * 1024) : Math.round(Number(form.ram));
 }
 
 /** POST body for /api/admin; blank optional fields stay absent. */
-export function customBoxBody(f: CustomBoxForm): Record<string, unknown> {
+export function customBoxBody(form: CustomBoxForm): Record<string, unknown> {
   const body: Record<string, unknown> = {
     op: 'createCustomInstance',
-    targetUserId: f.userId,
-    name: f.name,
-    vcpu: Number(f.vcpu),
-    ramMb: ramMb(f),
-    diskGb: Number(f.disk),
-    bandwidthGb: f.bw === '' ? 0 : Number(f.bw),
-    monthlyCapMin: Math.round(Number(f.capHours || '12') * 60),
-    imageId: f.imageId || undefined,
+    targetUserId: form.userId,
+    name: form.name,
+    vcpu: Number(form.vcpu),
+    ramMb: ramMb(form),
+    diskGb: Number(form.disk),
+    bandwidthGb: form.bw === '' ? 0 : Number(form.bw),
+    monthlyCapMin: Math.round(Number(form.capHours || '12') * 60),
+    imageId: form.imageId || undefined,
   };
-  if (f.rate !== '') body.hourlyRateCents = Math.round(Number(f.rate) * 100);
+  if (form.rate !== '') body.hourlyRateCents = Math.round(Number(form.rate) * 100);
   return body;
 }

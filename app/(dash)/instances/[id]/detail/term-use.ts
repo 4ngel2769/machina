@@ -50,14 +50,14 @@ function wireSocket(
     fitRef: React.RefObject<Fit | null>;
     sizePushRef: React.RefObject<(() => void) | null>;
   },
-  cbs: {
+  callbacks: {
     setState: (s: WsState) => void;
     setErr: (e: string) => void;
     onClose: () => void;
   },
 ) {
   const { connRef, wsRef, boxRef, termRef, fitRef, sizePushRef } = refs;
-  const { setState, setErr, onClose } = cbs;
+  const { setState, setErr, onClose } = callbacks;
 
   ws.onopen = () => {
     const box = boxRef.current;
@@ -73,12 +73,12 @@ function wireSocket(
     // user types into a prompt that no longer has their history.
     term?.write('\r\n\x1b[2m— connected\x1b[0m\r\n');
   };
-  ws.onmessage = (ev) => {
-    if (ev.data instanceof ArrayBuffer) { termRef.current?.write(new Uint8Array(ev.data)); return; }
-    if (typeof ev.data === 'string') {
+  ws.onmessage = (event) => {
+    if (event.data instanceof ArrayBuffer) { termRef.current?.write(new Uint8Array(event.data)); return; }
+    if (typeof event.data === 'string') {
       try {
-        const j = JSON.parse(ev.data) as { t: string; d?: string };
-        if (j.t === 'e') setErr(j.d ?? 'terminal error');
+        const message = JSON.parse(event.data) as { t: string; d?: string };
+        if (message.t === 'e') setErr(message.d ?? 'terminal error');
       } catch { /* ignore */ }
     }
   };
@@ -92,13 +92,13 @@ function wireSocket(
 
 /** Mint the short-lived ws token for this instance's terminal. */
 async function mintToken(instanceId: string): Promise<string> {
-  const res = await fetch(`/api/instances/${instanceId}/ws-token`, {
+  const response = await fetch(`/api/instances/${instanceId}/ws-token`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ type: 'term' }),
   });
-  const tok = await res.json();
-  if (!tok?.token) throw new Error(tok?.error ?? 'could not get a terminal token');
-  return tok.token as string;
+  const tokenBody = await response.json();
+  if (!tokenBody?.token) throw new Error(tokenBody?.error ?? 'could not get a terminal token');
+  return tokenBody.token as string;
 }
 
 /** Build the xterm instance once; handlers bind against wsRef, never per socket. */
@@ -115,30 +115,30 @@ function useEnsureTerm(
       import('@xterm/addon-fit'),
       import('@xterm/xterm/css/xterm.css'),
     ]);
-    const t = new Terminal({
+    const term = new Terminal({
       cursorBlink: true, fontFamily: '"JetBrains Mono", monospace', fontSize: 13,
       scrollback: 5000,
     });
-    const f = new FitAddon();
-    t.loadAddon(f);
-    termRef.current = t;
-    fitRef.current = f;
-    t.onData((d) => {
-      const w = wsRef.current;
-      if (w && w.readyState === WebSocket.OPEN) {
-        w.send(JSON.stringify({ t: 'i', d: btoa(unescape(encodeURIComponent(d))) }));
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    termRef.current = term;
+    fitRef.current = fitAddon;
+    term.onData((inputData) => {
+      const socket = wsRef.current;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ t: 'i', d: btoa(unescape(encodeURIComponent(inputData))) }));
       }
     });
     const pushSize = () => {
-      const w = wsRef.current;
-      const term = termRef.current;
-      if (w && w.readyState === WebSocket.OPEN && term && term.element) {
-        w.send(JSON.stringify({ t: 'r', c: term.cols, r: term.rows }));
+      const socket = wsRef.current;
+      const terminal = termRef.current;
+      if (socket && socket.readyState === WebSocket.OPEN && terminal && terminal.element) {
+        socket.send(JSON.stringify({ t: 'r', c: terminal.cols, r: terminal.rows }));
       }
     };
-    t.onResize(() => pushSize());
+    term.onResize(() => pushSize());
     sizePushRef.current = pushSize;
-    return t;
+    return term;
   }, [wsRef, termRef, fitRef, sizePushRef]);
 }
 
@@ -166,8 +166,8 @@ function useWake(connect: () => Promise<void>, refs: WakeRefs) {
     const onWake = () => {
       if (document.visibilityState === 'hidden') return;
       onResize();
-      const c = connRef.current;
-      if (c && (c.readyState === WebSocket.OPEN || c.readyState === WebSocket.CONNECTING)) return;
+      const conn = connRef.current;
+      if (conn && (conn.readyState === WebSocket.OPEN || conn.readyState === WebSocket.CONNECTING)) return;
       if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
       triesRef.current = 0;
       void connect();
@@ -218,25 +218,25 @@ export function useTerminal(instanceId: string) {
     try {
       const term = await ensureTerm();
       const token = await mintToken(instanceId);
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
       // Fit first when possible so the multiplexer spawns at the real grid
       // size; the 'r' push right after open corrects any drift anyway.
       try { fitRef.current?.fit(); } catch { /* not laid out */ }
       const cols = term.cols || 80;
       const rows = term.rows || 24;
-      const ws = new WebSocket(`${proto}://${location.host}/api/instances/${instanceId}/terminal?token=${token}&persist=${persist ? 1 : 0}&cols=${cols}&rows=${rows}`);
-      ws.binaryType = 'arraybuffer'; // server streams stdout as binary frames
-      connRef.current = ws;
-      wsRef.current = ws;
-      wireSocket(ws, { connRef, wsRef, boxRef, termRef, fitRef, sizePushRef }, {
+      const socket = new WebSocket(`${protocol}://${location.host}/api/instances/${instanceId}/terminal?token=${token}&persist=${persist ? 1 : 0}&cols=${cols}&rows=${rows}`);
+      socket.binaryType = 'arraybuffer'; // server streams stdout as binary frames
+      connRef.current = socket;
+      wsRef.current = socket;
+      wireSocket(socket, { connRef, wsRef, boxRef, termRef, fitRef, sizePushRef }, {
         setState, setErr, onClose: scheduleReconnect,
       });
       // tries reset on open, inside wireSocket's onopen via triesRef — kept
       // here so the callback shape stays identical to the pre-split code.
-      const prevOnOpen = ws.onopen;
-      ws.onopen = (ev) => { triesRef.current = 0; prevOnOpen?.call(ws, ev); };
-    } catch (e) {
-      setErr(String((e as Error).message));
+      const prevOnOpen = socket.onopen;
+      socket.onopen = (event) => { triesRef.current = 0; prevOnOpen?.call(socket, event); };
+    } catch (event) {
+      setErr(String((event as Error).message));
       connRef.current = null;
       scheduleReconnect();
     }

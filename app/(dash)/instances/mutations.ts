@@ -17,41 +17,41 @@ export function useInstanceMutations(load: () => Promise<void>): {
 
   async function create(name: string, planId: string, imageId: string): Promise<string | null> {
     setBusy(true); loadStart();
-    const r = await fetch('/api/instances', {
+    const response = await fetch('/api/instances', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name, planId, imageId }),
     });
-    const j = await r.json().catch(() => ({}));
+    const body = await response.json().catch(() => ({}));
     loadEnd(); setBusy(false);
-    if (r.ok) { toast.ok(`provisioning ${j.name} — boots in ~60s`); void load(); return null; }
-    const err = j.error ?? 'create failed';
+    if (response.ok) { toast.ok(`provisioning ${body.name} — boots in ~60s`); void load(); return null; }
+    const err = body.error ?? 'create failed';
     toast.err(err);
     return err;
   }
 
   async function requestInstance(name: string, planId: string, imageId: string, note: string): Promise<boolean> {
     setBusy(true); loadStart();
-    const r = await fetch('/api/requests', {
+    const response = await fetch('/api/requests', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name, planId, imageId, note }),
     });
-    const j = await r.json().catch(() => ({}));
-    const ok = r.ok;
-    if (ok) toast.ok('request submitted — admin will review');
-    else toast.err(j.error ?? 'request failed');
+    const body = await response.json().catch(() => ({}));
+    const succeeded = response.ok;
+    if (succeeded) toast.ok('request submitted — admin will review');
+    else toast.err(body.error ?? 'request failed');
     loadEnd(); setBusy(false);
-    return ok;
+    return succeeded;
   }
 
   async function act(id: string, action: string) {
     setBusy(true); loadStart();
-    const r = await fetch(`/api/instances/${id}`, {
+    const response = await fetch(`/api/instances/${id}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action }),
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) toast.ok(`${action}: ${j.status ?? 'ok'}`);
-    else toast.err(j.error ?? `${action} failed`);
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) toast.ok(`${action}: ${body.status ?? 'ok'}`);
+    else toast.err(body.error ?? `${action} failed`);
     loadEnd(); setBusy(false); void load();
   }
 

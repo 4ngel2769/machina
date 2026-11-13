@@ -55,27 +55,27 @@ export function validRef(ref: string): boolean {
 
 function label(labels: string | undefined, key: string): string | null {
   if (!labels) return null;
-  const hit = labels.split(',').find((l) => l.startsWith(`${key}=`));
+  const hit = labels.split(',').find((entry) => entry.startsWith(`${key}=`));
   return hit ? hit.slice(key.length + 1) : null;
 }
 
-function num(s: string | undefined): number | null {
-  if (!s) return null;
-  const n = Number.parseFloat(s.replace(/[^\d.]/g, ''));
-  return Number.isFinite(n) ? n : null;
+function parseNumber(text: string | undefined): number | null {
+  if (!text) return null;
+  const value = Number.parseFloat(text.replace(/[^\d.]/g, ''));
+  return Number.isFinite(value) ? value : null;
 }
 
-function mb(s: string | undefined): number | null {
-  if (!s) return null;
-  const m = /([\d.]+)\s*([KMGT]?i?B)/i.exec(s);
-  if (!m) return null;
-  const v = Number.parseFloat(m[1]);
-  const unit = m[2].toLowerCase();
+function megabytes(text: string | undefined): number | null {
+  if (!text) return null;
+  const match = /([\d.]+)\s*([KMGT]?i?B)/i.exec(text);
+  if (!match) return null;
+  const value = Number.parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
   const mult = unit.startsWith('k') ? 1 / 1024
     : unit.startsWith('g') ? 1024
     : unit.startsWith('t') ? 1024 * 1024
     : 1;
-  return Math.round(v * mult);
+  return Math.round(value * mult);
 }
 
 /** docker stats costs a daemon round trip per container and blocks for ~1s on
@@ -90,8 +90,8 @@ async function stats(): Promise<Map<string, StatRow>> {
     const out = await run('docker', ['stats', '--no-stream', '--format', '{{json .}}'], { timeout: 20_000 });
     for (const line of out.split('\n')) {
       if (!line.trim()) continue;
-      const r = JSON.parse(line) as StatRow;
-      rows.set(r.Name, r);
+      const statRow = JSON.parse(line) as StatRow;
+      rows.set(statRow.Name, statRow);
     }
   } catch {
     // A stopped daemon or a very large host is not an error worth failing the
@@ -113,60 +113,60 @@ export async function dockerAvailable(): Promise<boolean> {
 /** docker reports the literal "none" for a container that defines no
  *  healthcheck, and "" when it has never run one. Neither means healthy, so
  *  both collapse to null and the UI says nothing. */
-function healthOf(h: string | undefined): string | null {
-  if (!h || h === 'none') return null;
-  return h;
+function healthOf(health: string | undefined): string | null {
+  if (!health || health === 'none') return null;
+  return health;
 }
 
-function pidsOf(s: StatRow | undefined): number | null {
-  if (!s) return null;
-  const n = Number(s.PIDs);
-  return Number.isFinite(n) ? n : null;
+function pidsOf(statRow: StatRow | undefined): number | null {
+  if (!statRow) return null;
+  const pidCount = Number(statRow.PIDs);
+  return Number.isFinite(pidCount) ? pidCount : null;
 }
 
 /** Memory sample pair. 0B/0B means "no sample yet", not "uses no memory". */
-function memPair(s: StatRow | undefined): { used: number | null; limit: number | null } {
-  if (!s) return { used: null, limit: null };
-  return { used: mb(s.MemUsage.split('/')[0]), limit: mb(s.MemUsage.split('/')[1]) };
+function memPair(statRow: StatRow | undefined): { used: number | null; limit: number | null } {
+  if (!statRow) return { used: null, limit: null };
+  return { used: megabytes(statRow.MemUsage.split('/')[0]), limit: megabytes(statRow.MemUsage.split('/')[1]) };
 }
 
 /** One `docker ps` row plus its stats sample, as the console's shape. */
-function toContainer(r: PsRow, s: StatRow | undefined): Container {
-  const { used, limit } = memPair(s);
+function toContainer(psRow: PsRow, statRow: StatRow | undefined): Container {
+  const { used, limit } = memPair(statRow);
   return {
-    id: r.ID,
-    name: r.Names,
-    image: r.Image,
-    state: r.State,
-    status: r.Status,
-    health: healthOf(r.HealthStatus),
-    ports: r.Ports ?? '',
-    project: label(r.Labels, 'com.docker.compose.project'),
-    service: label(r.Labels, 'com.docker.compose.service'),
-    createdAt: r.CreatedAt,
-    cpuPct: s ? num(s.CPUPerc) : null,
+    id: psRow.ID,
+    name: psRow.Names,
+    image: psRow.Image,
+    state: psRow.State,
+    status: psRow.Status,
+    health: healthOf(psRow.HealthStatus),
+    ports: psRow.Ports ?? '',
+    project: label(psRow.Labels, 'com.docker.compose.project'),
+    service: label(psRow.Labels, 'com.docker.compose.service'),
+    createdAt: psRow.CreatedAt,
+    cpuPct: statRow ? parseNumber(statRow.CPUPerc) : null,
     memMb: used && limit ? used : null,
     memLimitMb: limit || null,
-    memPct: limit ? num(s?.MemPerc ?? '') : null,
-    pids: pidsOf(s),
-    managed: label(r.Labels, 'machina.managed') === '1',
+    memPct: limit ? parseNumber(statRow?.MemPerc ?? '') : null,
+    pids: pidsOf(statRow),
+    managed: label(psRow.Labels, 'machina.managed') === '1',
   };
 }
 
 export async function listContainers(): Promise<Container[]> {
   const out = await run('docker', ['ps', '-a', '--no-trunc', '--format', '{{json .}}'], { timeout: 20_000 });
-  const rows: PsRow[] = out.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as PsRow);
+  const rows: PsRow[] = out.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line) as PsRow);
   const live = await stats();
   return rows
-    .map((r) => toContainer(r, live.get(r.Names)))
-    .sort((a, b) => (a.project ?? '~').localeCompare(b.project ?? '~') || a.name.localeCompare(b.name));
+    .map((psRow) => toContainer(psRow, live.get(psRow.Names)))
+    .sort((left, right) => (left.project ?? '~').localeCompare(right.project ?? '~') || left.name.localeCompare(right.name));
 }
 
 const ACTIONS = ['start', 'stop', 'restart', 'pause', 'unpause'] as const;
 export type ContainerAction = (typeof ACTIONS)[number];
 
-export function isAction(a: unknown): a is ContainerAction {
-  return typeof a === 'string' && (ACTIONS as readonly string[]).includes(a);
+export function isAction(action: unknown): action is ContainerAction {
+  return typeof action === 'string' && (ACTIONS as readonly string[]).includes(action);
 }
 
 export async function containerAction(ref: string, action: ContainerAction): Promise<string> {
@@ -181,15 +181,15 @@ export async function containerAction(ref: string, action: ContainerAction): Pro
 
 export async function containerLogs(ref: string, tail = 200): Promise<string> {
   if (!validRef(ref)) throw new Error('invalid container reference');
-  const n = Math.min(2000, Math.max(10, Math.trunc(tail)));
+  const boundedTail = Math.min(2000, Math.max(10, Math.trunc(tail)));
   try {
     // stdout+stderr are separated by docker into two files; --timestamps keeps
     // them ordered when they are stitched back together.
-    return await run('docker', ['logs', '--timestamps', '--tail', String(n), ref], { timeout: 20_000 });
-  } catch (e) {
+    return await run('docker', ['logs', '--timestamps', '--tail', String(boundedTail), ref], { timeout: 20_000 });
+  } catch (caught) {
     // docker exits non-zero for some containers whose log driver is not json
     // or whose stream rotated; the message still carries the reason.
-    throw new Error((e as Error).message);
+    throw new Error((caught as Error).message);
   }
 }
 
@@ -214,11 +214,11 @@ export type CreateSpec = {
 
 /** Registry path with an explicit, immutable tag, or a message saying why not. */
 function parseImage(image: string): string {
-  const m = IMAGE_RE.exec(image);
-  if (!m) throw new Error('image must be a registry path with an explicit tag (e.g. ghcr.io/org/app:1.2.3)');
-  const registry = m[1] ?? 'docker.io';
+  const match = IMAGE_RE.exec(image);
+  if (!match) throw new Error('image must be a registry path with an explicit tag (e.g. ghcr.io/org/app:1.2.3)');
+  const registry = match[1] ?? 'docker.io';
   if (!REGISTRIES.includes(registry)) throw new Error(`registry ${registry} is not allowed`);
-  if (m[3] === 'latest' || m[3] === 'main' || m[3] === 'master') {
+  if (match[3] === 'latest' || match[3] === 'main' || match[3] === 'master') {
     throw new Error('pin a real version tag — latest/main would change under you on the next pull');
   }
   return image;
@@ -228,9 +228,9 @@ function parsePorts(rawPorts: unknown[]): { host: number; container: number }[] 
   if (rawPorts.length > 8) throw new Error('at most 8 published ports');
   const seen = new Set<number>();
   const ports: { host: number; container: number }[] = [];
-  for (const p of rawPorts) {
-    const host = Math.trunc(Number((p as { host?: unknown }).host));
-    const cont = Math.trunc(Number((p as { container?: unknown }).container));
+  for (const portPair of rawPorts) {
+    const host = Math.trunc(Number((portPair as { host?: unknown }).host));
+    const cont = Math.trunc(Number((portPair as { container?: unknown }).container));
     if (!Number.isInteger(host) || host < 1024 || host > 65535) throw new Error('host port must be 1024-65535');
     if (!Number.isInteger(cont) || cont < 1 || cont > 65535) throw new Error('container port must be 1-65535');
     if (seen.has(host)) throw new Error(`host port ${host} is listed twice`);
@@ -242,16 +242,16 @@ function parsePorts(rawPorts: unknown[]): { host: number; container: number }[] 
 
 /** Truncated whole number in [min, max], defaulting when absent. */
 function intField(v: unknown, def: number, min: number, max: number, message: string): number {
-  const n = v == null ? def : Math.trunc(Number(v));
-  if (!Number.isFinite(n) || n < min || n > max) throw new Error(message);
-  return n;
+  const value = v == null ? def : Math.trunc(Number(v));
+  if (!Number.isFinite(value) || value < min || value > max) throw new Error(message);
+  return value;
 }
 
 /** Number in (0, max], defaulting when absent. */
 function positiveField(v: unknown, def: number, max: number, message: string): number {
-  const n = v == null ? def : Number(v);
-  if (!Number.isFinite(n) || n <= 0 || n > max) throw new Error(message);
-  return n;
+  const value = v == null ? def : Number(v);
+  if (!Number.isFinite(value) || value <= 0 || value > max) throw new Error(message);
+  return value;
 }
 
 /** Validated and normalised. Anything not on this list never reaches argv. */
@@ -271,7 +271,7 @@ export async function createContainer(spec: CreateSpec): Promise<string> {
   // Refuse name collisions before Docker gets a chance to silently replace or
   // conflict with an unrelated service.
   const existing = await run('docker', ['ps', '-a', '--filter', `name=^/${spec.name}$`, '--format', '{{.Names}}'], { timeout: 10_000 });
-  if (existing.split('\n').some((n) => n.trim() === spec.name)) throw new Error('a container with that name already exists');
+  if (existing.split('\n').some((nameLine) => nameLine.trim() === spec.name)) throw new Error('a container with that name already exists');
   const args = [
     'run', '-d',
     '--name', spec.name,
@@ -282,7 +282,7 @@ export async function createContainer(spec: CreateSpec): Promise<string> {
     '--restart', 'unless-stopped',
   ];
   if (spec.cpus) args.push('--cpus', String(spec.cpus));
-  for (const p of spec.ports ?? []) args.push('-p', `${p.host}:${p.container}`);
+  for (const port of spec.ports ?? []) args.push('-p', `${port.host}:${port.container}`);
   args.push(spec.image);
   const out = await run('docker', args, { timeout: 300_000 });
   statCache.at = 0;
@@ -293,12 +293,12 @@ export async function removeContainer(ref: string): Promise<string> {
   if (!validRef(ref)) throw new Error('invalid container reference');
   // The label is the entire authorisation: without it this call would delete
   // any container on the host, including the platform's own dependencies.
-  const label = await run(
+  const managedLabel = await run(
     'docker',
     ['inspect', '--format', '{{index .Config.Labels "machina.managed"}}', ref],
     { timeout: 10_000 },
   );
-  if (label.trim() !== '1') throw new Error('refusing to remove: this container was not created by machina');
+  if (managedLabel.trim() !== '1') throw new Error('refusing to remove: this container was not created by machina');
   const out = await run('docker', ['rm', ref], { timeout: 60_000 });
   statCache.at = 0;
   return out.trim() || ref;

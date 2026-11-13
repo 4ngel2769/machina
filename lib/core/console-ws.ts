@@ -30,12 +30,12 @@ export function relayVnc(ws: WebSocket, socketPath: string): void {
   let sockReady = false;
 
   sock.on('connect', () => { sockReady = true; });
-  sock.on('data', (d: Buffer) => { if (ws.readyState === 1) ws.send(d); });
+  sock.on('data', (socketData: Buffer) => { if (ws.readyState === 1) ws.send(socketData); });
   sock.on('close', () => { try { ws.close(); } catch {} });
   sock.on('error', () => { try { ws.close(); } catch {} });
 
-  ws.on('message', (d) => {
-    if (sockReady) sock.write(d as Buffer);
+  ws.on('message', (message: Buffer) => {
+    if (sockReady) sock.write(message as Buffer);
   });
   ws.on('close', () => { sock.destroy(); });
   ws.on('error', () => { sock.destroy(); });

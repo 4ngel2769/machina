@@ -24,22 +24,22 @@ function reviewNote(body: ReviewBody) {
   return (body.note ?? '').trim().slice(0, 280) || null;
 }
 
-async function reject(r: RequestRow, admin: { id: string; name: string }, body: ReviewBody) {
+async function reject(requestRow: RequestRow, admin: { id: string; name: string }, body: ReviewBody) {
   rawDb().prepare(`update instance_requests set status='rejected', reviewed_by=?, reviewed_at=?, review_note=? where id=?`).run(
-    admin.id, now(), reviewNote(body), r.id);
-  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.reject', target: r.id });
+    admin.id, now(), reviewNote(body), requestRow.id);
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.reject', target: requestRow.id });
   return json({ ok: true, status: 'rejected' });
 }
 
-async function approve(r: RequestRow, id: string, admin: { id: string; name: string }, body: ReviewBody) {
+async function approve(requestRow: RequestRow, id: string, admin: { id: string; name: string }, body: ReviewBody) {
   // approve -> provision
-  const [u] = await getDb().select().from(users).where(eq(users.id, r.user_id));
-  if (!u) return err('user gone', 404);
+  const [userRow] = await getDb().select().from(users).where(eq(users.id, requestRow.user_id));
+  if (!userRow) return err('user gone', 404);
   try {
     const inst = await provisionInstance({
-      userId: r.user_id, name: r.name,
-      planId: body.planId ?? r.plan_id,
-      imageId: body.imageId ?? (r.image_id ?? undefined),
+      userId: requestRow.user_id, name: requestRow.name,
+      planId: body.planId ?? requestRow.plan_id,
+      imageId: body.imageId ?? (requestRow.image_id ?? undefined),
       actorName: admin.name, actorRole: 'admin',
       // Quota counts pending requests as reservations. Exclude THIS one or the
       // approval counts its own request against itself and refuses a request
@@ -50,25 +50,25 @@ async function approve(r: RequestRow, id: string, admin: { id: string; name: str
       admin.id, now(), inst.id, reviewNote(body), id);
     await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.approve', target: id, detail: { instanceId: inst.id } });
     return json({ ok: true, status: 'approved', instanceId: inst.id });
-  } catch (e) {
-    return err((e as Error).message || 'provision failed', 400);
+  } catch (error) {
+    return err((error as Error).message || 'provision failed', 400);
   }
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
   const { id } = await ctx.params;
-  const rd = rawDb();
-  const r = rd.prepare(`select * from instance_requests where id=?`).get(id) as RequestRow | undefined;
-  if (!r) return err('not found', 404);
-  if (r.status !== 'pending') return err('request already reviewed', 409);
+  const raw = rawDb();
+  const requestRow = raw.prepare(`select * from instance_requests where id=?`).get(id) as RequestRow | undefined;
+  if (!requestRow) return err('not found', 404);
+  if (requestRow.status !== 'pending') return err('request already reviewed', 409);
 
   const body = (await req.json().catch(() => ({}))) as ReviewBody;
-  if (body.op === 'reject') return reject(r, admin, body);
-  if (body.op === 'approve') return approve(r, id, admin, body);
+  if (body.op === 'reject') return reject(requestRow, admin, body);
+  if (body.op === 'approve') return approve(requestRow, id, admin, body);
   return err('op must be approve|reject');
 }
 

@@ -18,7 +18,7 @@ async function loadXml(name: string): Promise<string> {
 }
 
 function parseBoot(os: string): string[] {
-  const boot = [...os.matchAll(/<boot\b[^>]*dev='([^']*)'/g)].map((m) => m[1]);
+  const boot = [...os.matchAll(/<boot\b[^>]*dev='([^']*)'/g)].map((match) => match[1]);
   return boot.length ? boot : ['hd'];
 }
 
@@ -66,7 +66,7 @@ function parseVncPort(xml: string): string | null {
 
 /** SPICE ports when a spice graphics element is present and not auto-allocated. */
 function parseSpice(xml: string): VmDetail['spice'] {
-  const spiceBlock = elems(xml, 'graphics').find((g) => /type='spice'/.test(g)) ?? '';
+  const spiceBlock = elems(xml, 'graphics').find((graphicsXml) => /type='spice'/.test(graphicsXml)) ?? '';
   const spicePort = attr(spiceBlock, 'graphics', 'port');
   const spiceTlsPort = attr(spiceBlock, 'graphics', 'tlsPort') ?? attr(spiceBlock, 'graphics', 'tlsport');
   if (!spicePort || spicePort === '-1') return null;
@@ -79,34 +79,34 @@ function parseGraphics(xml: string): Pick<VmDetail, 'vnc' | 'spice'> {
 }
 
 function parseDisks(xml: string): VmDisk[] {
-  return elems(xml, 'disk').map((d) => ({
-    target: attr(d, 'target', 'dev') ?? '',
-    bus: attr(d, 'target', 'bus') ?? '',
-    device: attr(d, 'disk', 'device') ?? 'disk',
-    source: attr(d, 'source', 'file') ?? attr(d, 'source', 'dev') ?? '',
-    format: attr(d, 'driver', 'type') ?? '',
+  return elems(xml, 'disk').map((diskXml) => ({
+    target: attr(diskXml, 'target', 'dev') ?? '',
+    bus: attr(diskXml, 'target', 'bus') ?? '',
+    device: attr(diskXml, 'disk', 'device') ?? 'disk',
+    source: attr(diskXml, 'source', 'file') ?? attr(diskXml, 'source', 'dev') ?? '',
+    format: attr(diskXml, 'driver', 'type') ?? '',
     sizeGb: null,
   }));
 }
 
 /** Best-effort size, kept null when a foreign disk is unreadable for us. */
 async function withDiskSizes(disks: VmDisk[]): Promise<VmDisk[]> {
-  for (const d of disks) {
-    if (d.device !== 'disk' || !d.source || !d.source.startsWith('/')) continue;
+  for (const disk of disks) {
+    if (disk.device !== 'disk' || !disk.source || !disk.source.startsWith('/')) continue;
     try {
-      const info = JSON.parse(await run('qemu-img', ['info', '--output=json', '-U', d.source], { sudo: true }));
-      d.sizeGb = Math.round((Number(info['virtual-size']) || 0) / 10 ** 9);
+      const info = JSON.parse(await run('qemu-img', ['info', '--output=json', '-U', disk.source], { sudo: true }));
+      disk.sizeGb = Math.round((Number(info['virtual-size']) || 0) / 10 ** 9);
     } catch { /* keep null */ }
   }
   return disks;
 }
 
 function parseNics(xml: string): VmNic[] {
-  return elems(xml, 'interface').map((i) => ({
-    mac: attr(i, 'mac', 'address') ?? '',
-    type: attr(i, 'interface', 'type') ?? 'network',
-    source: attr(i, 'source', 'network') ?? attr(i, 'source', 'bridge') ?? attr(i, 'source', 'dev') ?? '',
-    model: attr(i, 'model', 'type') ?? '',
+  return elems(xml, 'interface').map((ifaceXml) => ({
+    mac: attr(ifaceXml, 'mac', 'address') ?? '',
+    type: attr(ifaceXml, 'interface', 'type') ?? 'network',
+    source: attr(ifaceXml, 'source', 'network') ?? attr(ifaceXml, 'source', 'bridge') ?? attr(ifaceXml, 'source', 'dev') ?? '',
+    model: attr(ifaceXml, 'model', 'type') ?? '',
   }));
 }
 
@@ -116,42 +116,42 @@ function hostdevLabel(kind: string, vendor: string, product: string, bus: string
 }
 
 function parseHostdevs(xml: string): VmHostdev[] {
-  return elems(xml, 'hostdev').map((h) => {
-    const vendor = attr(h, 'vendor', 'id') ?? '';
-    const product = attr(h, 'product', 'id') ?? '';
-    const bus = attr(h, 'address', 'bus') ?? '';
-    const slot = attr(h, 'address', 'slot') ?? '';
-    const kind = attr(h, 'hostdev', 'type') ?? 'pci';
-    return { kind, label: hostdevLabel(kind, vendor, product, bus, slot), xml: h };
+  return elems(xml, 'hostdev').map((hostdevXml) => {
+    const vendor = attr(hostdevXml, 'vendor', 'id') ?? '';
+    const product = attr(hostdevXml, 'product', 'id') ?? '';
+    const bus = attr(hostdevXml, 'address', 'bus') ?? '';
+    const slot = attr(hostdevXml, 'address', 'slot') ?? '';
+    const kind = attr(hostdevXml, 'hostdev', 'type') ?? 'pci';
+    return { kind, label: hostdevLabel(kind, vendor, product, bus, slot), xml: hostdevXml };
   });
 }
 
 function parseDirs(xml: string): VmDir[] {
-  return elems(xml, 'filesystem').map((f) => ({
-    source: attr(f, 'source', 'dir') ?? '',
-    target: attr(f, 'target', 'dir') ?? '',
-    readonly: /<readonly\/>/.test(f),
+  return elems(xml, 'filesystem').map((fsXml) => ({
+    source: attr(fsXml, 'source', 'dir') ?? '',
+    target: attr(fsXml, 'target', 'dir') ?? '',
+    readonly: /<readonly\/>/.test(fsXml),
   }));
 }
 
 function parseWatchdog(xml: string): VmDetail['watchdog'] {
-  const wd = elems(xml, 'watchdog')[0];
-  if (!wd) return null;
+  const watchdogXml = elems(xml, 'watchdog')[0];
+  if (!watchdogXml) return null;
   return {
-    model: attr(wd, 'watchdog', 'model') ?? 'i6300esb',
-    action: attr(wd, 'watchdog', 'action') ?? 'reset',
+    model: attr(watchdogXml, 'watchdog', 'model') ?? 'i6300esb',
+    action: attr(watchdogXml, 'watchdog', 'action') ?? 'reset',
   };
 }
 
 export async function vmDetail(name: string): Promise<VmDetail> {
   assertName(name);
-  const [summaryRow] = (await listVms()).filter((v) => v.name === name);
-  if (!summaryRow) throw new Error('domain not found');
+  const [summary] = (await listVms()).filter((vm) => vm.name === name);
+  if (!summary) throw new Error('domain not found');
   const xml = await loadXml(name);
   return {
-    ...summaryRow,
+    ...summary,
     ...parseOs(xml),
-    ...parseCpu(xml, summaryRow.vcpu),
+    ...parseCpu(xml, summary.vcpu),
     ...parseGraphics(xml),
     disks: await withDiskSizes(parseDisks(xml)),
     nics: parseNics(xml),

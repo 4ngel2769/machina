@@ -18,15 +18,15 @@ export function macFromId(id: string): string {
   // in systemd-networkd-wait-online until the SSH timeout killed provisioning.
   // Math.imul keeps the multiply in 32-bit; a plain `*` loses precision above
   // 2^53 and silently collides even sooner.
-  let h = 0x811c9dc5;
-  for (let i = 0; i < id.length; i++) {
-    h = Math.imul(h ^ id.charCodeAt(i), 0x01000193) >>> 0;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < id.length; index++) {
+    hash = Math.imul(hash ^ id.charCodeAt(index), 0x01000193) >>> 0;
   }
-  h = (h ^ (id.length * 31)) >>> 0;
-  const b2 = (h & 0xff).toString(16).padStart(2, '0');
-  const b1 = ((h >> 8) & 0xff).toString(16).padStart(2, '0');
-  const b0 = ((h >> 16) & 0xff).toString(16).padStart(2, '0');
-  return `52:54:00:${b0}:${b1}:${b2}`;
+  hash = (hash ^ (id.length * 31)) >>> 0;
+  const octet2 = (hash & 0xff).toString(16).padStart(2, '0');
+  const octet1 = ((hash >> 8) & 0xff).toString(16).padStart(2, '0');
+  const octet0 = ((hash >> 16) & 0xff).toString(16).padStart(2, '0');
+  return `52:54:00:${octet0}:${octet1}:${octet2}`;
 }
 
 /**
@@ -39,19 +39,19 @@ export class IpAllocator {
     this.taken = new Set(taken);
   }
   next(): string | null {
-    const [start, end] = config.ipRange.split('-').map((s) => s.trim());
-    const s4 = start.split('.').map((n) => parseInt(n, 10));
-    const e4 = end.split('.').map((n) => parseInt(n, 10));
-    const toInt = (a: number[]) => ((a[0] << 24) | (a[1] << 16) | (a[2] << 8) | a[3]) >>> 0;
-    let cur = toInt(s4);
-    const stop = toInt(e4);
-    const base = s4.slice(0, 3).join('.');
-    while (cur <= stop) {
-      const ip = `${base}.${cur & 0xff}`;
+    const [start, end] = config.ipRange.split('-').map((part) => part.trim());
+    const startOctets = start.split('.').map((octet) => parseInt(octet, 10));
+    const endOctets = end.split('.').map((octet) => parseInt(octet, 10));
+    const toInt = (octets: number[]) => ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
+    let current = toInt(startOctets);
+    const stop = toInt(endOctets);
+    const base = startOctets.slice(0, 3).join('.');
+    while (current <= stop) {
+      const ip = `${base}.${current & 0xff}`;
       if (!this.taken.has(ip)) return ip;
-      const last = cur & 0xff;
-      if (last === 255) return null;
-      cur++;
+      const lastOctet = current & 0xff;
+      if (lastOctet === 255) return null;
+      current++;
     }
     return null;
   }
@@ -65,13 +65,13 @@ export async function ensureIpLease(mac: string, ip: string): Promise<void> {
     // scary error even though the lease is exactly what we wanted.
     const xml = await virsh(['net-dumpxml', config.network, '--inactive']);
     const existing = new RegExp(`<host mac='${mac}'[^>]*ip='([^']+)'`);
-    const m = xml.match(existing);
-    if (m && m[1] === ip) return;
-    if (m) await removeIpLease(mac);
+    const match = xml.match(existing);
+    if (match && match[1] === ip) return;
+    if (match) await removeIpLease(mac);
     await virsh(['net-update', config.network, 'add', 'ip-dhcp-host', `<host mac='${mac}' ip='${ip}'/>`, '--config']);
-  } catch (e) {
+  } catch (leaseError) {
     // Not fatal: cloud-init sets a static IP anyway. DHCP entry is belt+braces.
-    console.log(`[driver] dhcp lease update failed (non-fatal): ${(e as Error).message}`);
+    console.log(`[driver] dhcp lease update failed (non-fatal): ${(leaseError as Error).message}`);
   }
 }
 

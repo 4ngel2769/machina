@@ -23,7 +23,7 @@ export function Terminal({ instanceId }: { instanceId: string }) {
         >{state === 'connecting' ? 'connecting…' : 'connect'}</button>
         <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}
           title="attach to a tmux/screen session in the guest — survives disconnects and reloads">
-          <input type="checkbox" checked={persist} onChange={(e) => setPersist(e.target.checked)} />
+          <input type="checkbox" checked={persist} onChange={(event) => setPersist(event.target.checked)} />
           persistent session
         </label>
         <span className="muted">{state}{err ? ` — ${err}` : ''}</span>

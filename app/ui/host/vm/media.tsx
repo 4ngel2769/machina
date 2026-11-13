@@ -13,16 +13,16 @@ function mediaName(source: string): string {
   return source ? source.split('/').pop() ?? source : '(empty)';
 }
 
-function MediaRow({ d, busy, op }: {
-  d: Detail['disks'][number]; busy: string; op: Op;
+function MediaRow({ disk, busy, op }: {
+  disk: Detail['disks'][number]; busy: string; op: Op;
 }) {
   const eject = () => {
-    if (confirm(`eject ${d.target}?`)) void op({ op: 'isoDetach', target: d.target }, 'eject media');
+    if (confirm(`eject ${disk.target}?`)) void op({ op: 'isoDetach', target: disk.target }, 'eject media');
   };
   return (
     <tr>
-      <td className="mono">{d.target}</td><td>{d.bus}</td>
-      <td className="mono muted" style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>{mediaName(d.source)}</td>
+      <td className="mono">{disk.target}</td><td>{disk.bus}</td>
+      <td className="mono muted" style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>{mediaName(disk.source)}</td>
       <td style={{ textAlign: 'right' }}>
         <button disabled={!!busy} onClick={eject}>eject</button>
       </td>
@@ -54,7 +54,7 @@ export function MediaCard({ vm, running, busy, op, isos, maxGb, uploadBusy, onUp
   vm: Detail; running: boolean; busy: string; op: Op; isos: IsoList['isos']; maxGb: number;
   uploadBusy: boolean; onUpload: (file: File | null) => void;
 }) {
-  const drives = vm.disks.filter((d) => d.device === 'cdrom');
+  const drives = vm.disks.filter((disk) => disk.device === 'cdrom');
   const insert = () => {
     const iso = fieldValue('iso-pick');
     if (iso) void op({ op: 'isoAttach', iso }, 'insert media');
@@ -66,7 +66,7 @@ export function MediaCard({ vm, running, busy, op, isos, maxGb, uploadBusy, onUp
       {drives.length === 0 ? <Empty text="no cdrom attached" /> : (
         <table>
           <thead><tr><th>target</th><th>bus</th><th>media</th><th /></tr></thead>
-          <tbody>{drives.map((d) => <MediaRow key={d.target + d.source} d={d} busy={busy} op={op} />)}</tbody>
+          <tbody>{drives.map((disk) => <MediaRow key={disk.target + disk.source} disk={disk} busy={busy} op={op} />)}</tbody>
         </table>
       )}
 
@@ -74,7 +74,7 @@ export function MediaCard({ vm, running, busy, op, isos, maxGb, uploadBusy, onUp
         <Field label="insert iso">
           <select id="iso-pick" defaultValue="" style={{ minWidth: 220 }}>
             <option value="">select…</option>
-            {isos.map((i) => <option key={i.name} value={i.name}>{i.name} · {i.sizeMb} MB</option>)}
+            {isos.map((iso) => <option key={iso.name} value={iso.name}>{iso.name} · {iso.sizeMb} MB</option>)}
           </select>
         </Field>
         <button disabled={!!busy || running || !isos.length} onClick={insert}>insert</button>

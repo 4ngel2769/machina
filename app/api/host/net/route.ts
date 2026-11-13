@@ -10,21 +10,21 @@ import {
 } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
 
-const prefixOk = (n: unknown, fam: 'ipv4' | 'ipv6'): number => {
-  const v = Number(n);
-  const max = fam === 'ipv6' ? 128 : 32;
-  if (!Number.isInteger(v) || v < 1 || v > max) throw new Error(`prefix must be 1-${max}`);
-  return v;
+const prefixOk = (raw: unknown, family: 'ipv4' | 'ipv6'): number => {
+  const prefix = Number(raw);
+  const max = family === 'ipv6' ? 128 : 32;
+  if (!Number.isInteger(prefix) || prefix < 1 || prefix > max) throw new Error(`prefix must be 1-${max}`);
+  return prefix;
 };
 
-function ipFrom(body: Record<string, unknown>, fam: 'ipv4' | 'ipv6'): NetIp | null {
+function ipFrom(body: Record<string, unknown>, family: 'ipv4' | 'ipv6'): NetIp | null {
   const address = String(body.address ?? '').trim();
   if (!address) return null;
-  const family = fam === 'ipv6' || address.includes(':') ? 'ipv6' : 'ipv4';
+  const ipFamily = family === 'ipv6' || address.includes(':') ? 'ipv6' : 'ipv4';
   return {
-    family,
+    family: ipFamily,
     address,
-    prefix: prefixOk(body.prefix ?? (family === 'ipv6' ? 64 : 24), family),
+    prefix: prefixOk(body.prefix ?? (ipFamily === 'ipv6' ? 64 : 24), ipFamily),
     dhcp: body.dhcpStart && body.dhcpEnd
       ? { start: String(body.dhcpStart), end: String(body.dhcpEnd) }
       : null,
@@ -33,12 +33,12 @@ function ipFrom(body: Record<string, unknown>, fam: 'ipv4' | 'ipv6'): NetIp | nu
 }
 
 export async function GET() {
-  const { response: e } = await requireAdmin();
-  if (e) return e;
+  const { response: denied } = await requireAdmin();
+  if (denied) return denied;
   try {
     return json({ networks: await listNetworks() });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
@@ -59,7 +59,7 @@ async function opCreate(body: Body, audit: Audit) {
     ipv4: ipFrom((body.ipv4 ?? {}) as Record<string, unknown>, 'ipv4'),
     ipv6: ipFrom((body.ipv6 ?? {}) as Record<string, unknown>, 'ipv6'),
   });
-  await audit('create', name, { forward, ipv4: net.ips.find((i) => i.family === 'ipv4') ?? null, ipv6: net.ips.find((i) => i.family === 'ipv6') ?? null });
+  await audit('create', name, { forward, ipv4: net.ips.find((ip) => ip.family === 'ipv4') ?? null, ipv6: net.ips.find((ip) => ip.family === 'ipv6') ?? null });
   return json({ ok: true, network: net });
 }
 
@@ -117,10 +117,10 @@ const OPS: Record<string, (body: Body, audit: Audit) => Promise<ReturnType<typeo
 };
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as Body;
   const op = String(body.op ?? '');
   const audit: Audit = async (action, target, detail) =>
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     const handler = OPS[op];
     if (!handler) return err('unknown operation');
     return await handler(body, audit);
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }

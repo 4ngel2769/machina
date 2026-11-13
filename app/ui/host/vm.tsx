@@ -19,48 +19,48 @@ import type { Live, NetList, Payload } from './vm/types';
 
 /** Live CPU% sample series, one point per poll. */
 function useCpuHist(live: Live | undefined, vcpu: number): number {
-  const [hist, setHist] = useState<{ t: number; v: number }[]>([]);
-  const prev = useRef<{ t: number; cpu: number } | null>(null);
+  const [history, setHistory] = useState<{ t: number; v: number }[]>([]);
+  const previousCpu = useRef<{ t: number; cpu: number } | null>(null);
   useEffect(() => {
     if (!live) return;
     const now = Date.now();
-    const p = prev.current;
-    const per = Math.max(1, vcpu);
-    const pct = p && now > p.t
-      ? Math.max(0, Math.min(100, ((live.cpuSec - p.cpu) / ((now - p.t) / 1000)) / per * 100))
+    const previous = previousCpu.current;
+    const perCore = Math.max(1, vcpu);
+    const pct = previous && now > previous.t
+      ? Math.max(0, Math.min(100, ((live.cpuSec - previous.cpu) / ((now - previous.t) / 1000)) / perCore * 100))
       : 0;
-    prev.current = { t: now, cpu: live.cpuSec };
-    if (p) setHist((h) => [...h.slice(-59), { t: now, v: pct }]);
+    previousCpu.current = { t: now, cpu: live.cpuSec };
+    if (previous) setHistory((points) => [...points.slice(-59), { t: now, v: pct }]);
   }, [live, vcpu]);
-  return hist.at(-1)?.v ?? 0;
+  return history.at(-1)?.v ?? 0;
 }
 
 /** Active network names, for the attach dropdown. */
-function netNames(data: NetList | null): string[] {
-  if (!data) return [];
-  return data.networks.filter((n) => n.active).map((n) => n.name);
+function netNames(netList: NetList | null): string[] {
+  if (!netList) return [];
+  return netList.networks.filter((network) => network.active).map((network) => network.name);
 }
 
-function snapsOf(data: Payload | null): Payload['snapshots'] {
-  return data ? data.snapshots : [];
+function snapsOf(payload: Payload | null): Payload['snapshots'] {
+  return payload ? payload.snapshots : [];
 }
 
 export function HostVm({ name }: { name: string }) {
-  const q = usePoll<Payload>(`/api/host/vm?name=${encodeURIComponent(name)}`, 5000);
+  const query = usePoll<Payload>(`/api/host/vm?name=${encodeURIComponent(name)}`, 5000);
   const nets = usePoll<NetList>('/api/host/net', 60_000);
   const isos = usePoll<{ isos: { name: string; sizeMb: number; sha256: string | null }[]; maxIsoGb: number }>('/api/isos', 60_000);
-  const { busy, op } = useVmOp(name, q.reload);
+  const { busy, op } = useVmOp(name, query.reload);
   const toast = useToast();
-  const { busy: uploadBusy, uploadIso } = useIsoUpload(q.reload, isos.reload);
-  const isoList = isos.data;
+  const { busy: uploadBusy, uploadIso } = useIsoUpload(query.reload, isos.reload);
+  const isoList = isos.payload;
   const isoRows = isosOf(isoList);
   const isoMaxGb = maxIsoGb(isoList);
 
-  const vm = q.data?.vm;
-  const live = q.data?.live;
+  const vm = query.payload?.vm;
+  const live = query.payload?.live;
   const cpuPct = useCpuHist(live, vm ? vm.vcpu : 1);
 
-  if (q.error) return <><h1>{name}</h1><div className="notice err" style={{ marginTop: 12 }}>{q.error}</div><Link href="/host">← host</Link></>;
+  if (query.error) return <><h1>{name}</h1><div className="notice err" style={{ marginTop: 12 }}>{query.error}</div><Link href="/host">← host</Link></>;
   if (!vm) return <><h1>{name}</h1><Empty text="reading the domain…" /></>;
 
   const running = vm.state === 'running';
@@ -78,10 +78,10 @@ export function HostVm({ name }: { name: string }) {
       <BootCard vm={vm} op={op} />
       <DisksCard vm={vm} busy={busy} op={op} />
       <MediaCard vm={vm} running={running} busy={busy} op={op} isos={isoRows} maxGb={isoMaxGb} uploadBusy={!!uploadBusy} onUpload={onUpload} />
-      <NicsCard vm={vm} busy={busy} op={op} netNames={netNames(nets.data)} />
+      <NicsCard vm={vm} busy={busy} op={op} netNames={netNames(nets.payload)} />
       <HostdevCard vm={vm} busy={busy} op={op} />
       <DirsCard vm={vm} busy={busy} op={op} />
-      <SnapshotsCard snaps={snapsOf(q.data)} busy={busy} op={op} />
+      <SnapshotsCard snaps={snapsOf(query.payload)} busy={busy} op={op} />
 
       {vm.system && (
         <div className="card" style={{ marginTop: 14 }}>

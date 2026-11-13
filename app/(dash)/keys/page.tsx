@@ -11,12 +11,12 @@ import { relTime } from '@/app/ui/time';
 
 type Key = { id: string; label: string; pubKey: string; createdAt: number };
 
-function keyAlgo(pk: string): string | null {
-  const t = pk.trim().split(/\s+/)[0];
-  if (!t || !pk.includes(' ')) return null;
-  if (/^ssh-(ed25519|rsa)$/.test(t)) return t.slice(4);
-  if (/^sk-ssh/.test(t)) return 'fido2';
-  if (/^ecdsa-sha2-\S+$/.test(t)) return 'ecdsa';
+function keyAlgo(keyLine: string): string | null {
+  const algorithm = keyLine.trim().split(/\s+/)[0];
+  if (!algorithm || !keyLine.includes(' ')) return null;
+  if (/^ssh-(ed25519|rsa)$/.test(algorithm)) return algorithm.slice(4);
+  if (/^sk-ssh/.test(algorithm)) return 'fido2';
+  if (/^ecdsa-sha2-\S+$/.test(algorithm)) return 'ecdsa';
   return null;
 }
 
@@ -28,30 +28,30 @@ export default function KeysPage() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch('/api/keys', { cache: 'no-store' });
-    if (r.ok) setKeys(await r.json());
+    const keysResponse = await fetch('/api/keys', { cache: 'no-store' });
+    if (keysResponse.ok) setKeys(await keysResponse.json());
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
+  async function add(event: React.FormEvent) {
+    event.preventDefault();
     setBusy(true);
-    const r = await fetch('/api/keys', {
+    const response = await fetch('/api/keys', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ label, pubKey }),
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) { toast.ok('key added'); setLabel(''); setPubKey(''); void load(); }
-    else toast.err(j.error ?? 'failed');
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) { toast.ok('key added'); setLabel(''); setPubKey(''); void load(); }
+    else toast.err(body.error ?? 'failed');
     setBusy(false);
   }
 
   async function del(id: string) {
-    const r = await fetch('/api/keys', {
+    const response = await fetch('/api/keys', {
       method: 'DELETE', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-    if (r.ok) toast.ok('key removed');
+    if (response.ok) toast.ok('key removed');
     else toast.err('remove failed');
     void load();
   }
@@ -67,11 +67,11 @@ export default function KeysPage() {
           <div className="row">
             <div style={{ flex: 1, minWidth: 160 }}>
               <label htmlFor="l">label</label>
-              <input id="l" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="laptop" />
+              <input id="l" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="laptop" />
             </div>
             <div style={{ flex: 3, minWidth: 260 }}>
               <label htmlFor="k">public key</label>
-              <input id="k" value={pubKey} onChange={(e) => setPubKey(e.target.value)} placeholder="ssh-ed25519 AAAA… me@host" className="mono"
+              <input id="k" value={pubKey} onChange={(event) => setPubKey(event.target.value)} placeholder="ssh-ed25519 AAAA… me@host" className="mono"
                 style={pubKey && !keyAlgo(pubKey) ? { borderColor: 'var(--warn)' } : undefined} />
               {pubKey && !keyAlgo(pubKey)
                 ? <div className="muted" style={{ marginTop: 4, color: 'var(--warn)' }}>doesn&apos;t look like an OpenSSH public key line</div>
@@ -94,18 +94,18 @@ export default function KeysPage() {
         <table>
           <thead><tr><th>label</th><th>algo</th><th>key</th><th>added</th><th /></tr></thead>
           <tbody>
-            {keys.map((k) => (
-              <tr key={k.id}>
-                <td>{k.label}</td>
-                <td>{keyAlgo(k.pubKey)
-                  ? <span className="badge" style={{ color: 'var(--accent)' }}>{keyAlgo(k.pubKey)}</span>
+            {keys.map((sshKey) => (
+              <tr key={sshKey.id}>
+                <td>{sshKey.label}</td>
+                <td>{keyAlgo(sshKey.pubKey)
+                  ? <span className="badge" style={{ color: 'var(--accent)' }}>{keyAlgo(sshKey.pubKey)}</span>
                   : <span className="copy">—</span>}</td>
-                <td className="mono" style={{ fontSize: 12 }}>{k.pubKey.slice(0, 42)}…</td>
-                <td title={new Date(k.createdAt).toLocaleString()}>{relTime(k.createdAt)}</td>
+                <td className="mono" style={{ fontSize: 12 }}>{sshKey.pubKey.slice(0, 42)}…</td>
+                <td title={new Date(sshKey.createdAt).toLocaleString()}>{relTime(sshKey.createdAt)}</td>
                 <td>
                   <div className="soundboard">
-                    <button onClick={() => void copyText(k.pubKey, toast.ok, 'key copied')}>copy</button>
-                    <button className="danger" onClick={() => del(k.id)}>remove</button>
+                    <button onClick={() => void copyText(sshKey.pubKey, toast.ok, 'key copied')}>copy</button>
+                    <button className="danger" onClick={() => del(sshKey.id)}>remove</button>
                   </div>
                 </td>
               </tr>

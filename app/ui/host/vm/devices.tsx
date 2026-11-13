@@ -21,10 +21,10 @@ export function HostdevCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op
         <table>
           <thead><tr><th>kind</th><th>device</th><th /></tr></thead>
           <tbody>
-            {vm.hostdevs.map((h, i) => (
-              <tr key={i}><td>{h.kind}</td><td className="mono">{h.label}</td>
+            {vm.hostdevs.map((hostdev, index) => (
+              <tr key={index}><td>{hostdev.kind}</td><td className="mono">{hostdev.label}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <button style={{ color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={() => detach(i, h.label)}>detach</button>
+                  <button style={{ color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={() => detach(index, hostdev.label)}>detach</button>
                 </td></tr>
             ))}
           </tbody>
@@ -53,11 +53,11 @@ export function DirsCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op })
         <table>
           <thead><tr><th>tag</th><th>source</th><th>mode</th><th /></tr></thead>
           <tbody>
-            {vm.dirs.map((d) => (
-              <tr key={d.target}><td className="mono">{d.target}</td><td className="mono muted">{d.source}</td>
-                <td>{d.readonly ? 'read-only' : 'read-write'}</td>
+            {vm.dirs.map((dir) => (
+              <tr key={dir.target}><td className="mono">{dir.target}</td><td className="mono muted">{dir.source}</td>
+                <td>{dir.readonly ? 'read-only' : 'read-write'}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <button style={{ color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={() => detach(d.target)}>remove</button>
+                  <button style={{ color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={() => detach(dir.target)}>remove</button>
                 </td></tr>
             ))}
           </tbody>

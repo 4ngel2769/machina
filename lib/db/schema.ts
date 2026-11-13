@@ -14,7 +14,7 @@ export const users = sqliteTable('users', {
   imagePickable: integer('image_pickable').default(1).notNull(),
   assignedImageId: text('assigned_image_id'),
   createdAt: integer('created_at').notNull(),
-}, (t) => [unique('uniq_user_name').on(t.name)]);
+}, (table) => [unique('uniq_user_name').on(table.name)]);
 
 export const plans = sqliteTable('plans', {
   id: text('id').primaryKey(),
@@ -59,7 +59,7 @@ export const sshKeys = sqliteTable('ssh_keys', {
   label: text('label').notNull(),
   pubKey: text('pub_key').notNull(),
   createdAt: integer('created_at').notNull(),
-}, (t) => [index('ssh_keys_user_idx').on(t.userId)]);
+}, (table) => [index('ssh_keys_user_idx').on(table.userId)]);
 
 export const instances = sqliteTable('instances', {
   id: text('id').primaryKey(), // vm_<16 hex>
@@ -88,10 +88,10 @@ export const instances = sqliteTable('instances', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   notes: text('notes'),
-}, (t) => [
-  unique('uniq_user_instname').on(t.userId, t.name),
-  index('idx_inst_domain').on(t.domainName),
-  index('idx_inst_user').on(t.userId),
+}, (table) => [
+  unique('uniq_user_instname').on(table.userId, table.name),
+  index('idx_inst_domain').on(table.domainName),
+  index('idx_inst_user').on(table.userId),
 ]);
 
 export const jobs = sqliteTable('jobs', {
@@ -110,7 +110,7 @@ export const jobs = sqliteTable('jobs', {
   createdAt: integer('created_at').notNull(),
   startedAt: integer('started_at'),
   finishedAt: integer('finished_at'),
-}, (t) => [index('jobs_status_idx').on(t.status)]);
+}, (table) => [index('jobs_status_idx').on(table.status)]);
 
 /** 15-min usage samples. weight = fractional HOURS the instance was up. */
 export const usage = sqliteTable('usage', {
@@ -119,7 +119,7 @@ export const usage = sqliteTable('usage', {
   running: integer('running').notNull(),
   weight: integer('weight').notNull(), // hours*4 => int basis he? plain float text later
   ts: integer('ts').notNull(),
-}, (t) => [index('usage_inst_ts_idx').on(t.instanceId, t.ts)]);
+}, (table) => [index('usage_inst_ts_idx').on(table.instanceId, table.ts)]);
 
 /** Running-balance movements. deltaCents signed. */
 export const ledger = sqliteTable('ledger', {
@@ -131,7 +131,7 @@ export const ledger = sqliteTable('ledger', {
   refId: text('ref_id'),
   note: text('note'),
   createdAt: integer('created_at').notNull(),
-}, (t) => [index('ledger_user_ts_idx').on(t.userId, t.createdAt)]);
+}, (table) => [index('ledger_user_ts_idx').on(table.userId, table.createdAt)]);
 
 export const audit = sqliteTable('audit', {
   id: text('id').primaryKey(),
@@ -141,7 +141,7 @@ export const audit = sqliteTable('audit', {
   action: text('action').notNull(),
   target: text('target'),
   detail: text('detail'),
-}, (t) => [index('audit_ts_idx').on(t.ts)]);
+}, (table) => [index('audit_ts_idx').on(table.ts)]);
 
 /** Monthly transfer accounting per instance. rx/tx are accumulated DELTAS
  *  (bytes actually moved this month); rxLast/txLast anchor the libvirt
@@ -156,7 +156,7 @@ export const netMonthly = sqliteTable('net_monthly', {
   txLast: integer('tx_last').default(0).notNull(),
   throttled: integer('throttled').default(0).notNull(),
   updatedAt: integer('updated_at').default(0).notNull(),
-}, (t) => [primaryKey({ columns: [t.instanceId, t.month] })]);
+}, (table) => [primaryKey({ columns: [table.instanceId, table.month] })]);
 
 /** Tenant-facing index of libvirt snapshots held inside an instance's qcow2. */
 export const snapshots = sqliteTable('snapshots', {
@@ -168,9 +168,9 @@ export const snapshots = sqliteTable('snapshots', {
   sizeBytes: integer('size_bytes').default(0).notNull(),
   current: integer('current').default(0).notNull(),
   createdAt: integer('created_at').notNull(),
-}, (t) => [
-  unique('uniq_snap_inst_name').on(t.instanceId, t.name),
-  index('snapshots_inst_idx').on(t.instanceId),
+}, (table) => [
+  unique('uniq_snap_inst_name').on(table.instanceId, table.name),
+  index('snapshots_inst_idx').on(table.instanceId),
 ]);
 
 /** Raw hypervisor counters. Cumulative, so rates are derived at read time. */
@@ -184,7 +184,7 @@ export const metrics = sqliteTable('metrics', {
   rdB: integer('rd_b').default(0).notNull(),
   wrB: integer('wr_b').default(0).notNull(),
   allocB: integer('alloc_b').default(0).notNull(),
-}, (t) => [primaryKey({ columns: [t.instanceId, t.ts] }), index('metrics_ts_idx').on(t.ts)]);
+}, (table) => [primaryKey({ columns: [table.instanceId, table.ts] }), index('metrics_ts_idx').on(table.ts)]);
 
 /** Per-user resource quota. NULL = unlimited, 0 = none allowed. */
 export const quotas = sqliteTable('quotas', {

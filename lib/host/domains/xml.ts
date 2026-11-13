@@ -20,23 +20,23 @@ export function assertName(name: string): string {
 }
 
 export function attr(xml: string, tag: string, name: string): string | null {
-  const m = new RegExp(`<${tag}\\b[^>]*\\b${name}='([^']*)'`).exec(xml);
-  return m?.[1] ?? null;
+  const match = new RegExp(`<${tag}\\b[^>]*\\b${name}='([^']*)'`).exec(xml);
+  return match?.[1] ?? null;
 }
 
 export function elems(xml: string, tag: string): string[] {
   const out: string[] = [];
   const re = new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>|<${tag}\\b[^>]*\\/>`, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) out.push(m[0]);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) out.push(match[0]);
   return out;
 }
 
 /** Whole number inside a range, or a message that says which field failed. */
 export const INT = (v: unknown, min: number, max: number, what: string): number => {
-  const n = Number(v);
-  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${what} must be a whole number ${min}-${max}`);
-  return n;
+  const value = Number(v);
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${what} must be a whole number ${min}-${max}`);
+  return value;
 };
 
 /**
@@ -57,13 +57,13 @@ export async function editXml(name: string, fn: (xml: string) => string): Promis
   const dir = path.join(storagePaths().root, 'xml-backups');
   await fs.mkdir(dir, { recursive: true }).catch(() => {});
   await fs.writeFile(path.join(dir, `dom-${name}-${Date.now()}.xml`), xml, 'utf8').catch(() => {});
-  const tmp = path.join(storagePaths().tmp, `dom-${Date.now()}.xml`);
-  await fs.mkdir(path.dirname(tmp), { recursive: true });
-  await fs.writeFile(tmp, next, 'utf8');
+  const tempFile = path.join(storagePaths().tmp, `dom-${Date.now()}.xml`);
+  await fs.mkdir(path.dirname(tempFile), { recursive: true });
+  await fs.writeFile(tempFile, next, 'utf8');
   try {
-    await virsh(['define', tmp]);
+    await virsh(['define', tempFile]);
   } finally {
-    await fs.rm(tmp, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(() => {});
   }
   return true;
 }

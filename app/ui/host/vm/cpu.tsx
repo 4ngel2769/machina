@@ -18,29 +18,29 @@ function CpuTopology({ vm, busy, op }: { vm: Detail; busy: string; op: Op }) {
   return (
     <div className="row">
       <Field label="vCPU count"><input style={{ width: 70 }} defaultValue={vm.vcpu} key={`c${vm.vcpu}`} className="mono"
-        onBlur={(e) => { const n = Number(e.target.value); if (n !== vm.vcpu) void op({ op: 'vcpu', count: n }, 'vCPU count'); }} /></Field>
+        onBlur={(event) => { const count = Number(event.target.value); if (count !== vm.vcpu) void op({ op: 'vcpu', count }, 'vCPU count'); }} /></Field>
       <Field label="vCPU maximum"><input style={{ width: 70 }} defaultValue={vm.vcpuMax} key={`m${vm.vcpuMax}`} className="mono"
-        onBlur={(e) => { const n = Number(e.target.value); if (n !== vm.vcpuMax) void op({ op: 'vcpu', count: vm.vcpu, max: n }, 'vCPU maximum'); }} /></Field>
+        onBlur={(event) => { const count = Number(event.target.value); if (count !== vm.vcpuMax) void op({ op: 'vcpu', count: vm.vcpu, max: count }, 'vCPU maximum'); }} /></Field>
       <Field label="sockets"><input style={{ width: 60 }} defaultValue={vm.sockets} key={`s${vm.sockets}`} className="mono"
-        onBlur={(e) => op({ op: 'topology', sockets: Number(e.target.value), cores: vm.cores, threads: vm.threads }, 'topology')} /></Field>
+        onBlur={(event) => op({ op: 'topology', sockets: Number(event.target.value), cores: vm.cores, threads: vm.threads }, 'topology')} /></Field>
       <Field label="cores"><input style={{ width: 60 }} defaultValue={vm.cores} key={`k${vm.cores}`} className="mono"
-        onBlur={(e) => op({ op: 'topology', sockets: vm.sockets, cores: Number(e.target.value), threads: vm.threads }, 'topology')} /></Field>
+        onBlur={(event) => op({ op: 'topology', sockets: vm.sockets, cores: Number(event.target.value), threads: vm.threads }, 'topology')} /></Field>
       <Field label="threads"><input style={{ width: 60 }} defaultValue={vm.threads} key={`t${vm.threads}`} className="mono"
-        onBlur={(e) => op({ op: 'topology', sockets: vm.sockets, cores: vm.cores, threads: Number(e.target.value) }, 'topology')} /></Field>
+        onBlur={(event) => op({ op: 'topology', sockets: vm.sockets, cores: vm.cores, threads: Number(event.target.value) }, 'topology')} /></Field>
       <Field label="mode">
-        <select defaultValue={vm.cpuMode} key={`cm${vm.cpuMode}`} onChange={(e) => op({ op: 'cpuMode', mode: e.target.value }, 'cpu mode')}>
-          {CPU_MODES.map((m) => <option key={m}>{m}</option>)}
+        <select defaultValue={vm.cpuMode} key={`cm${vm.cpuMode}`} onChange={(event) => op({ op: 'cpuMode', mode: event.target.value }, 'cpu mode')}>
+          {CPU_MODES.map((mode) => <option key={mode}>{mode}</option>)}
         </select>
       </Field>
       <Field label="memory (GB)"><input style={{ width: 80 }} defaultValue={(vm.memMaxMb / 1024).toFixed(1)} key={`mm${vm.memMaxMb}`} className="mono"
-        onBlur={(e) => { const gb = Number(e.target.value); if (gb > 0) void op({ op: 'memory', mb: Math.round(gb * 1024) }, 'memory'); }} /></Field>
+        onBlur={(event) => { const gigabytes = Number(event.target.value); if (gigabytes > 0) void op({ op: 'memory', mb: Math.round(gigabytes * 1024) }, 'memory'); }} /></Field>
     </div>
   );
 }
 
 /** Append the picked device to the end of the boot order. */
 function bootWith(vm: Detail, device: string): string[] {
-  return [...vm.boot.filter((b) => b !== device), device];
+  return [...vm.boot.filter((bootDevice) => bootDevice !== device), device];
 }
 
 export function CpuCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op }) {
@@ -70,22 +70,22 @@ export function BootCard({ vm, op }: { vm: Detail; op: Op }) {
       <h3>boot &amp; lifecycle</h3>
       <div className="row">
         <Field label="boot order">
-          <select value="" onChange={(e) => add(e.target.value)}>
+          <select value="" onChange={(event) => add(event.target.value)}>
             <option value="">add device…</option>
-            {BOOTS.filter((b) => !vm.boot.includes(b)).map((b) => <option key={b} value={b}>{b}</option>)}
+            {BOOTS.filter((bootDevice) => !vm.boot.includes(bootDevice)).map((bootDevice) => <option key={bootDevice} value={bootDevice}>{bootDevice}</option>)}
           </select>
         </Field>
         <span className="mono" style={{ fontSize: 13 }}>{vm.boot.join(' → ')}</span>
         {vm.boot.length > 1 && <button onClick={rotate}>rotate</button>}
         <Field label="autostart">
-          <select value={vm.autostart ? 'on' : 'off'} key={`as${vm.autostart}`} onChange={(e) => op({ op: 'autostart', on: e.target.value === 'on' }, 'autostart')}>
+          <select value={vm.autostart ? 'on' : 'off'} key={`as${vm.autostart}`} onChange={(event) => op({ op: 'autostart', on: event.target.value === 'on' }, 'autostart')}>
             <option value="on">on</option><option value="off">off</option>
           </select>
         </Field>
         <Field label="watchdog">
           <select value={vm.watchdog?.action ?? 'none'} key={`wd${vm.watchdog?.action}`}
-            onChange={(e) => op({ op: 'watchdog', action: e.target.value as WatchdogAction }, 'watchdog')}>
-            {WATCHDOG_ACTIONS.map((a) => <option key={a} value={a}>{WATCHDOG_LABELS[a]}</option>)}
+            onChange={(event) => op({ op: 'watchdog', action: event.target.value as WatchdogAction }, 'watchdog')}>
+            {WATCHDOG_ACTIONS.map((action) => <option key={action} value={action}>{WATCHDOG_LABELS[action]}</option>)}
           </select>
         </Field>
       </div>

@@ -5,8 +5,8 @@ import { requireUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function json(data: unknown, status = 200): NextResponse {
-  return NextResponse.json(data, { status });
+export function json(payload: unknown, status = 200): NextResponse {
+  return NextResponse.json(payload, { status });
 }
 
 export function err(message: string, status = 400): NextResponse {

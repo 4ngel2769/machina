@@ -16,7 +16,7 @@ import { friendlyError } from '../errors';
 import { healStuckProvisioning } from './heal';
 import { auditImageBootability } from './image-audit';
 
-let running = false;
+let tickInFlight = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 let healTimer: ReturnType<typeof setInterval> | null = null;
 let metricsTimer: ReturnType<typeof setInterval> | null = null;
@@ -26,8 +26,8 @@ let stopped = false;
 export function startWorker(): void {
   if (timer) return;
   timer = setInterval(() => { void tick(); }, config.workerPollMs);
-  healTimer = setInterval(() => { try { healStuckProvisioning(); } catch (e) {
-    console.log(`[worker] self-heal pass failed: ${(e as Error).message}`);
+  healTimer = setInterval(() => { try { healStuckProvisioning(); } catch (healError) {
+    console.log(`[worker] self-heal pass failed: ${(healError as Error).message}`);
   } }, 30_000);
   // Metrics ride their OWN timer. They must never share the job worker's loop:
   // a sweep that blocked on a wedged guest would stall provisioning behind a
@@ -38,8 +38,8 @@ export function startWorker(): void {
   pruneTimer = setInterval(() => { pruneMetrics(); }, 3600_000);
   // Boot-time recovery: jobs stranded in 'running' by a mid-job server death
   // are re-queued (a dead worker never marks them done).
-  const n = rawDb().prepare(`update jobs set status='queued', run_after=? where status='running'`).run(now());
-  if (n.changes > 0) console.log(`[worker] reclaimed ${n.changes} stranded running job(s)`);
+  const reclaimed = rawDb().prepare(`update jobs set status='queued', run_after=? where status='running'`).run(now());
+  if (reclaimed.changes > 0) console.log(`[worker] reclaimed ${reclaimed.changes} stranded running job(s)`);
   console.log(`[worker] poll ${config.workerPollMs}ms`);
   void auditImageBootability();
 }
@@ -57,8 +57,8 @@ export function wakingTick(): void {
 }
 
 async function tick(): Promise<void> {
-  if (running || stopped) return;
-  running = true;
+  if (tickInFlight || stopped) return;
+  tickInFlight = true;
   try {
     await reapProvisioning();
     const job = await claimNext();
@@ -70,18 +70,18 @@ async function tick(): Promise<void> {
       console.log(`[worker:${job.type}] ${m}`);
     };
     try {
-      const h = HANDLERS[job.type];
-      if (!h) throw new Error(`no handler for ${job.type}`);
-      await h({ id: job.id, instanceId: job.instanceId, payload: job.payload }, log);
+      const handler = HANDLERS[job.type];
+      if (!handler) throw new Error(`no handler for ${job.type}`);
+      await handler({ id: job.id, instanceId: job.instanceId, payload: job.payload }, log);
       await finishJob(job.id, true, logs.join('\n'));
-    } catch (e) {
-      const raw = String((e as Error).message || e);
-      log(`FAILED: ${raw}`);
+    } catch (jobError) {
+      const rawError = String((jobError as Error).message || jobError);
+      log(`FAILED: ${rawError}`);
       // raw tool output stays in the log; users get one readable sentence
-      await finishJob(job.id, false, logs.join('\n'), friendlyError(raw));
+      await finishJob(job.id, false, logs.join('\n'), friendlyError(rawError));
     }
   } finally {
-    running = false;
+    tickInFlight = false;
   }
 }
 
@@ -91,16 +91,16 @@ async function tick(): Promise<void> {
  * spinner. Non-fatal on error.
  */
 export async function reapProvisioning(): Promise<number> {
-  const rd = rawDb();
+  const raw = rawDb();
   const cutoff = now() - 30 * 60 * 1000;
-  const rows = rd.prepare(`
+  const rows = raw.prepare(`
     select i.id, i.status from instances i
     where i.status = 'provisioning' and i.created_at < ?
       and not exists (select 1 from jobs j where j.instance_id = i.id and j.status in ('queued','running'))
   `).all(cutoff) as { id: string }[];
-  for (const r of rows) {
-    rd.prepare(`update instances set status='error', updated_at=? where id=?`).run(now(), r.id);
-    console.log(`[worker] reaped stranded provisioning instance ${r.id}`);
+  for (const instanceRow of rows) {
+    raw.prepare(`update instances set status='error', updated_at=? where id=?`).run(now(), instanceRow.id);
+    console.log(`[worker] reaped stranded provisioning instance ${instanceRow.id}`);
   }
   return rows.length;
 }

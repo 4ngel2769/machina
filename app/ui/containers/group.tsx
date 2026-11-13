@@ -9,70 +9,70 @@ import { badge, type Container } from './types';
 
 type Actions = ReturnType<typeof useContainerActions>;
 
-function cpuCell(c: Container): string {
-  return c.cpuPct == null ? '—' : `${c.cpuPct.toFixed(1)}%`;
+function cpuCell(container: Container): string {
+  return container.cpuPct == null ? '—' : `${container.cpuPct.toFixed(1)}%`;
 }
 
-function memCell(c: Container): React.ReactNode {
-  if (c.memMb == null) return '—';
-  const pct = c.memPct == null ? '' : ` · ${c.memPct.toFixed(0)}%`;
-  return `${bytes(c.memMb * 1048576)}${pct}`;
+function memCell(container: Container): React.ReactNode {
+  if (container.memMb == null) return '—';
+  const pct = container.memPct == null ? '' : ` · ${container.memPct.toFixed(0)}%`;
+  return `${bytes(container.memMb * 1048576)}${pct}`;
 }
 
-function portsCell(c: Container): React.ReactNode {
-  return c.ports || '—';
+function portsCell(container: Container): React.ReactNode {
+  return container.ports || '—';
 }
 
 /** The badge plus a second "starting" chip while docker reports a healthcheck warmup. */
-function StateCell({ c }: { c: Container }) {
+function StateCell({ container }: { container: Container }) {
   return (
     <>
-      <span className={`badge ${badge(c)}`}>{c.health === 'unhealthy' ? 'unhealthy' : c.state}</span>
-      {c.health === 'starting' && <span className="badge queued" style={{ marginLeft: 6 }}>starting</span>}
+      <span className={`badge ${badge(container)}`}>{container.health === 'unhealthy' ? 'unhealthy' : container.state}</span>
+      {container.health === 'starting' && <span className="badge queued" style={{ marginLeft: 6 }}>starting</span>}
     </>
   );
 }
 
 /** Stop/start/restart/remove for the row; restart only while running. */
-function RowActions({ c, actions }: { c: Container; actions: Actions }) {
+function RowActions({ container, actions }: { container: Container; actions: Actions }) {
   const { busy, act, showLogs, remove, openId, logs } = actions;
-  const running = c.state === 'running';
+  const running = container.state === 'running';
   return (
     <>
-      <button disabled={!!busy} onClick={() => void showLogs(c)}>{openId === c.id ? 'hide' : 'logs'}</button>{' '}
-      {running && <button disabled={!!busy} onClick={() => void act(c, 'restart')}>restart</button>}{' '}
+      <button disabled={!!busy} onClick={() => void showLogs(container)}>{openId === container.id ? 'hide' : 'logs'}</button>{' '}
+      {running && <button disabled={!!busy} onClick={() => void act(container, 'restart')}>restart</button>}{' '}
       {running
-        ? <button className="danger" disabled={!!busy} onClick={() => void act(c, 'stop')}>stop</button>
-        : <button disabled={!!busy} onClick={() => void act(c, 'start')}>start</button>}{' '}
-      {c.managed && <button className="danger" disabled={!!busy} onClick={() => void remove(c)}>remove</button>}
+        ? <button className="danger" disabled={!!busy} onClick={() => void act(container, 'stop')}>stop</button>
+        : <button disabled={!!busy} onClick={() => void act(container, 'start')}>start</button>}{' '}
+      {container.managed && <button className="danger" disabled={!!busy} onClick={() => void remove(container)}>remove</button>}
     </>
   );
 }
 
-function LogsRow({ c, actions }: { c: Container; actions: Actions }) {
+function LogsRow({ container, actions }: { container: Container; actions: Actions }) {
   const { openId, logs } = actions;
-  if (openId !== c.id) return null;
+  if (openId !== container.id) return null;
   return (
     <tr>
       <td colSpan={7}>
         <pre
           className="mono"
           style={{ maxHeight: 280, overflow: 'auto', margin: 0, fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
-        >{logs[c.id] ?? 'reading logs…'}</pre>
+        >{logs[container.id] ?? 'reading logs…'}</pre>
       </td>
     </tr>
   );
 }
 
-export function ContainerGroup({ project, cs, actions }: {
-  project: string; cs: Container[]; actions: Actions;
+export function ContainerGroup({ project, containers, actions }: {
+  project: string; containers: Container[]; actions: Actions;
 }) {
-  const running = cs.filter((c) => c.state === 'running').length;
+  const running = containers.filter((container) => container.state === 'running').length;
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
         <h3 style={{ margin: 0 }}>{project}</h3>
-        <span className="muted mono" style={{ fontSize: 11 }}>{running}/{cs.length} up</span>
+        <span className="muted mono" style={{ fontSize: 11 }}>{running}/{containers.length} up</span>
       </div>
       <table>
         <thead>
@@ -81,24 +81,24 @@ export function ContainerGroup({ project, cs, actions }: {
           </tr>
         </thead>
         <tbody>
-          {cs.map((c) => (
-            <Fragment key={c.id}>
+          {containers.map((container) => (
+            <Fragment key={container.id}>
               <tr>
-                <td className="mono">{c.service ?? c.name}</td>
-                <td><StateCell c={c} /></td>
-                <td className="mono muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.image}>
-                  {c.image}
+                <td className="mono">{container.service ?? container.name}</td>
+                <td><StateCell container={container} /></td>
+                <td className="mono muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={container.image}>
+                  {container.image}
                 </td>
-                <td className="mono">{cpuCell(c)}</td>
-                <td className="mono" title={c.memLimitMb ? `of ${bytes(c.memLimitMb * 1048576)}` : undefined}>{memCell(c)}</td>
-                <td className="mono muted" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.ports}>
-                  {portsCell(c)}
+                <td className="mono">{cpuCell(container)}</td>
+                <td className="mono" title={container.memLimitMb ? `of ${bytes(container.memLimitMb * 1048576)}` : undefined}>{memCell(container)}</td>
+                <td className="mono muted" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={container.ports}>
+                  {portsCell(container)}
                 </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <RowActions c={c} actions={actions} />
+                  <RowActions container={container} actions={actions} />
                 </td>
               </tr>
-              <LogsRow c={c} actions={actions} />
+              <LogsRow container={container} actions={actions} />
             </Fragment>
           ))}
         </tbody>

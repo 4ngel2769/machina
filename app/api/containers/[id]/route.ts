@@ -16,14 +16,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const tail = Number(req.nextUrl.searchParams.get('tail') ?? 200);
   try {
     return json({ logs: await containerLogs(id, Number.isFinite(tail) ? tail : 200) });
-  } catch (e) {
-    return err(friendlyError(e), 502);
+  } catch (error) {
+    return err(friendlyError(error), 502);
   }
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
   const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -40,14 +40,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       detail: { result },
     });
     return json({ result });
-  } catch (e) {
-    return err(friendlyError(e), 409);
+  } catch (error) {
+    return err(friendlyError(error), 409);
   }
 }
 
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
   const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
   const { id } = await ctx.params;
@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     const result = await removeContainer(id);
     await logAudit({ actorId: user.id, actorName: user.name, action: 'container.remove', target: id, detail: { result } });
     return json({ result });
-  } catch (e) {
-    return err(friendlyError(e), 409);
+  } catch (error) {
+    return err(friendlyError(error), 409);
   }
 }

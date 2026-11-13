@@ -7,21 +7,21 @@ import { bytes, Field } from '../shared';
 import { fieldValue } from './form';
 import type { Op, Snap } from './types';
 
-function SnapRow({ s, busy, op }: { s: Snap; busy: string; op: Op }) {
+function SnapRow({ snap, busy, op }: { snap: Snap; busy: string; op: Op }) {
   const revert = () => {
-    if (confirm(`revert to ${s.name}? the current disk state is lost.`)) {
-      void op({ op: 'snapshotRevert', snapName: s.name }, 'revert');
+    if (confirm(`revert to ${snap.name}? the current disk state is lost.`)) {
+      void op({ op: 'snapshotRevert', snapName: snap.name }, 'revert');
     }
   };
   const del = () => {
-    if (confirm(`delete ${s.name}?`)) void op({ op: 'snapshotDelete', snapName: s.name }, 'delete snapshot');
+    if (confirm(`delete ${snap.name}?`)) void op({ op: 'snapshotDelete', snapName: snap.name }, 'delete snapshot');
   };
   return (
     <tr>
-      <td className="mono">{s.name}{s.isCurrent ? <span className="muted"> · current</span> : null}</td>
-      <td>{s.state}</td>
-      <td className="mono">{bytes(s.sizeBytes)}</td>
-      <td className="muted">{new Date(s.createdAt).toLocaleString()}</td>
+      <td className="mono">{snap.name}{snap.isCurrent ? <span className="muted"> · current</span> : null}</td>
+      <td>{snap.state}</td>
+      <td className="mono">{bytes(snap.sizeBytes)}</td>
+      <td className="muted">{new Date(snap.createdAt).toLocaleString()}</td>
       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button disabled={!!busy} onClick={revert}>revert</button>
         <button style={{ marginLeft: 6, color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={del}>delete</button>
@@ -42,7 +42,7 @@ export function SnapshotsCard({ snaps, busy, op }: {
       {snaps.length === 0 ? <Empty text="no snapshots" /> : (
         <table>
           <thead><tr><th>name</th><th>state</th><th>added</th><th>taken</th><th /></tr></thead>
-          <tbody>{snaps.map((s) => <SnapRow key={s.name} s={s} busy={busy} op={op} />)}</tbody>
+          <tbody>{snaps.map((snap) => <SnapRow key={snap.name} snap={snap} busy={busy} op={op} />)}</tbody>
         </table>
       )}
       <div className="row" style={{ marginTop: 10 }}>

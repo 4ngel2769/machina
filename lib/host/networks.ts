@@ -40,10 +40,10 @@ export function validateNetName(name: string): string {
 }
 
 function prefixFromNetmask(mask: string): number | null {
-  const p = mask.split('.').map(Number);
-  if (p.length !== 4 || p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  const octets = mask.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return null;
   let bits = 0;
-  for (const o of p) bits += (o >>> 0).toString(2).split('1').length - 1;
+  for (const octet of octets) bits += (octet >>> 0).toString(2).split('1').length - 1;
   return bits;
 }
 
@@ -51,12 +51,12 @@ function prefixFromNetmask(mask: string): number | null {
 function parseHosts(body: string): NetHost[] {
   const hosts: NetHost[] = [];
   const hre = /<host\b([^>]*)\/?>/g;
-  let h: RegExpExecArray | null;
-  while ((h = hre.exec(body))) {
-    const a = h[1];
-    const mac = /mac='([^']*)'/.exec(a)?.[1];
-    const ip = /ip='([^']*)'/.exec(a)?.[1];
-    if (mac && ip) hosts.push({ mac, ip, name: /name='([^']*)'/.exec(a)?.[1] });
+  let hostMatch: RegExpExecArray | null;
+  while ((hostMatch = hre.exec(body))) {
+    const attrs = hostMatch[1];
+    const mac = /mac='([^']*)'/.exec(attrs)?.[1];
+    const ip = /ip='([^']*)'/.exec(attrs)?.[1];
+    if (mac && ip) hosts.push({ mac, ip, name: /name='([^']*)'/.exec(attrs)?.[1] });
   }
   return hosts;
 }
@@ -81,7 +81,7 @@ function parseIp(attrs: string, body: string): NetIp | null {
     family,
     address,
     prefix: parsePrefix(attrs, family),
-    dhcp: range ? { start: range[1], end: range[2] } : null,
+    dhcp: range ? { start: range[1]!, end: range[2]! } : null,
     hosts: parseHosts(body),
   };
 }
@@ -102,9 +102,9 @@ function parseNet(name: string, xml: string, meta: { active: boolean; autostart:
   // Both <ip ...>...</ip> and self-closed <ip .../> must be handled; a network
   // with an address and no DHCP is normal (route/bridge mode without dnsmasq).
   const re = /<ip\b([^>]*?)(\/>|>([\s\S]*?)<\/ip>)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) {
-    const ip = parseIp(m[1], m[3] ?? '');
+  let ipMatch: RegExpExecArray | null;
+  while ((ipMatch = re.exec(xml))) {
+    const ip = parseIp(ipMatch[1], ipMatch[3] ?? '');
     if (ip) ips.push(ip);
   }
   return {
@@ -118,11 +118,11 @@ function parseNet(name: string, xml: string, meta: { active: boolean; autostart:
 
 export async function listNetworks(): Promise<Net[]> {
   const out = await virsh(['net-list', '--all']);
-  const rows = out.split('\n').slice(2).map((l) => l.trim()).filter(Boolean).map((l) => l.split(/\s+/));
+  const rows = out.split('\n').slice(2).map((line) => line.trim()).filter(Boolean).map((line) => line.split(/\s+/));
   const nets: Net[] = [];
-  for (const r of rows) {
-    if (r.length < 2) continue;
-    const [name, state, autostart, persistent] = r;
+  for (const cells of rows) {
+    if (cells.length < 2) continue;
+    const [name, state, autostart, persistent] = cells;
     const meta = {
       // "inactive" contains "active", so a substring test marks every stopped
       // network as running — which then makes delete try to destroy an already
@@ -143,12 +143,12 @@ export async function listNetworks(): Promise<Net[]> {
 }
 
 export function bridges(nets: Net[]): Set<string> {
-  return new Set(nets.map((n) => n.bridge).filter((b): b is string => Boolean(b)));
+  return new Set(nets.map((net) => net.bridge).filter((bridge): bridge is string => Boolean(bridge)));
 }
 
 function ipBlock(ip: NetIp): string {
   const fam = ip.family === 'ipv6' ? " family='ipv6'" : '';
-  const hosts = ip.hosts.map((h) => `    <host mac='${h.mac}'${h.name ? ` name='${h.name}'` : ''} ip='${h.ip}'/>`).join('\n');
+  const hosts = ip.hosts.map((host) => `    <host mac='${host.mac}'${host.name ? ` name='${host.name}'` : ''} ip='${host.ip}'/>`).join('\n');
   const room = ip.dhcp || hosts;
   if (!room) return `  <ip${fam} address='${ip.address}' prefix='${ip.prefix}'/>`;
   return `  <ip${fam} address='${ip.address}' prefix='${ip.prefix}'>
@@ -165,36 +165,36 @@ export type NetInput = {
   ipv6?: NetIp | null;
 };
 
-export function buildNetXml(n: NetInput): string {
-  const parts: string[] = [`<network>`, `  <name>${n.name}</name>`];
-  if (n.forward !== 'isolated') parts.push(`  <forward mode='${n.forward}'/>`);
-  if (n.bridge) parts.push(`  <bridge name='${n.bridge}' stp='on' delay='0'/>`);
-  if (n.ipv4) parts.push(ipBlock(n.ipv4));
-  if (n.ipv6) parts.push(ipBlock(n.ipv6));
-  if (n.domain) parts.push(`  <domain name='${n.domain}' localOnly='yes'/>`);
+export function buildNetXml(netInput: NetInput): string {
+  const parts: string[] = [`<network>`, `  <name>${netInput.name}</name>`];
+  if (netInput.forward !== 'isolated') parts.push(`  <forward mode='${netInput.forward}'/>`);
+  if (netInput.bridge) parts.push(`  <bridge name='${netInput.bridge}' stp='on' delay='0'/>`);
+  if (netInput.ipv4) parts.push(ipBlock(netInput.ipv4));
+  if (netInput.ipv6) parts.push(ipBlock(netInput.ipv6));
+  if (netInput.domain) parts.push(`  <domain name='${netInput.domain}' localOnly='yes'/>`);
   parts.push('</network>');
   return parts.join('\n') + '\n';
 }
 
 async function defineXml(xml: string): Promise<void> {
-  const p = path.join(storagePaths().tmp, `net-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xml`);
-  await fs.mkdir(path.dirname(p), { recursive: true });
-  await fs.writeFile(p, xml, 'utf8');
+  const tempFile = path.join(storagePaths().tmp, `net-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xml`);
+  await fs.mkdir(path.dirname(tempFile), { recursive: true });
+  await fs.writeFile(tempFile, xml, 'utf8');
   try {
-    await virsh(['net-define', p]);
+    await virsh(['net-define', tempFile]);
   } finally {
-    await fs.rm(p, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(() => {});
   }
 }
 
-export async function createNetwork(n: NetInput): Promise<Net> {
-  validateNetName(n.name);
+export async function createNetwork(netInput: NetInput): Promise<Net> {
+  validateNetName(netInput.name);
   const existing = await listNetworks().catch(() => []);
-  if (existing.some((x) => x.name === n.name)) throw new Error(`a network named ${n.name} already exists`);
-  await defineXml(buildNetXml(n));
-  await virsh(['net-start', n.name]);
-  await virsh(['net-autostart', n.name]);
-  return (await listNetworks()).find((x) => x.name === n.name)!;
+  if (existing.some((net) => net.name === netInput.name)) throw new Error(`a network named ${netInput.name} already exists`);
+  await defineXml(buildNetXml(netInput));
+  await virsh(['net-start', netInput.name]);
+  await virsh(['net-autostart', netInput.name]);
+  return (await listNetworks()).find((net) => net.name === netInput.name)!;
 }
 
 export async function setAutostart(name: string, on: boolean): Promise<void> {
@@ -206,7 +206,7 @@ export async function startStop(name: string, up: boolean): Promise<void> {
 }
 
 export async function deleteNetwork(name: string): Promise<void> {
-  const net = (await listNetworks()).find((n) => n.name === name);
+  const net = (await listNetworks()).find((candidate) => candidate.name === name);
   if (!net) throw new Error('network not found');
   if (name === 'default' || name === 'machina0') throw new Error('refusing to delete a network machina depends on');
   if (net.active) await virsh(['net-destroy', name]);
@@ -217,7 +217,7 @@ export async function deleteNetwork(name: string): Promise<void> {
 export async function setDhcpHost(
   netName: string, host: NetHost, action: 'add' | 'remove',
 ): Promise<void> {
-  const net = (await listNetworks()).find((n) => n.name === netName);
+  const net = (await listNetworks()).find((candidate) => candidate.name === netName);
   if (!net) throw new Error('network not found');
   if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(host.mac)) throw new Error('mac must be aa:bb:cc:dd:ee:ff');
   const xml = `<host mac='${host.mac}'${host.name ? ` name='${host.name}'` : ''} ip='${host.ip}'/>`;
@@ -232,30 +232,30 @@ export async function setDhcpHost(
 }
 
 /** Explicit DHCP setting wins; undefined means "keep what the network has". */
-function dhcpOf(p: Partial<NetIp>, current: NetIp | undefined): NetIp['dhcp'] {
-  if (p.dhcp !== undefined) return p.dhcp;
+function dhcpOf(ipPatch: Partial<NetIp>, current: NetIp | undefined): NetIp['dhcp'] {
+  if (ipPatch.dhcp !== undefined) return ipPatch.dhcp;
   return current?.dhcp ?? null;
 }
 
 /** One family's <ip> block, merged over whatever the network already has. */
-function mergeIp(net: Net, family: 'ipv4' | 'ipv6', p: Partial<NetIp>): NetIp {
-  const current = net.ips.find((i) => i.family === family);
+function mergeIp(net: Net, family: 'ipv4' | 'ipv6', ipPatch: Partial<NetIp>): NetIp {
+  const current = net.ips.find((ip) => ip.family === family);
   const prefixFallback = family === 'ipv6' ? 64 : 24;
   return {
     family,
-    address: p.address ?? current?.address ?? '',
-    prefix: p.prefix ?? current?.prefix ?? prefixFallback,
-    dhcp: dhcpOf(p, current),
+    address: ipPatch.address ?? current?.address ?? '',
+    prefix: ipPatch.prefix ?? current?.prefix ?? prefixFallback,
+    dhcp: dhcpOf(ipPatch, current),
     hosts: current?.hosts ?? [],
   };
 }
 
 /** Rewrite (or append) the one family's block, keeping everything we do not model. */
 function applyIpPatch(
-  next: string, meta: { name: string; xml: string }, family: 'ipv4' | 'ipv6', p: Partial<NetIp>,
+  next: string, meta: { name: string; xml: string }, family: 'ipv4' | 'ipv6', ipPatch: Partial<NetIp>,
 ): string {
   const block = new RegExp(`<ip\\b[^>]*${family === 'ipv6' ? "family='ipv6'" : "(?<!family='ipv6')"}[^>]*?(\\/>|>[\\s\\S]*?<\\/ip>)`);
-  const merged = mergeIp(parseNet(meta.name, meta.xml, { active: false, autostart: false, persistent: true }), family, p);
+  const merged = mergeIp(parseNet(meta.name, meta.xml, { active: false, autostart: false, persistent: true }), family, ipPatch);
   if (!merged.address) return next;
   if (block.test(next)) return next.replace(block, ipBlock(merged).trim());
   return next.replace('</network>', `${ipBlock(merged)}\n</network>`);
@@ -295,9 +295,9 @@ export async function updateNetwork(name: string, patch: {
   let next = xml;
 
   for (const family of ['ipv4', 'ipv6'] as const) {
-    const p = patch[family];
-    if (!p) continue;
-    next = applyIpPatch(next, { name, xml }, family, p);
+    const ipPatch = patch[family];
+    if (!ipPatch) continue;
+    next = applyIpPatch(next, { name, xml }, family, ipPatch);
   }
 
   if (patch.domain !== undefined) next = applyDomain(next, patch.domain);

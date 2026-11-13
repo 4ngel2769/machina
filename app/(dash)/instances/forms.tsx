@@ -13,19 +13,19 @@ export function CreateForm({ page }: { page: Page }) {
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <h3>new instance</h3>
-      <form onSubmit={async (e) => {
-        e.preventDefault();
+      <form onSubmit={async (event) => {
+        event.preventDefault();
         const err = await page.create(name, page.planId, page.imageId);
         if (err === null) setName('');
       }}>
         <div className="row">
-          <input placeholder="name (a-z0-9-)" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: 160 }} />
-          <select value={page.planId} onChange={(e) => page.setPlanId(e.target.value)}>
-            {page.plans.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.vcpu}v / {p.ramMb}MB / ${((p.hourlyRateCents ?? 0) / 100).toFixed(2)}/h</option>)}
+          <input placeholder="name (a-z0-9-)" value={name} onChange={(event) => setName(event.target.value)} style={{ minWidth: 160 }} />
+          <select value={page.planId} onChange={(event) => page.setPlanId(event.target.value)}>
+            {page.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} — {plan.vcpu}v / {plan.ramMb}MB / ${((plan.hourlyRateCents ?? 0) / 100).toFixed(2)}/h</option>)}
           </select>
           {page.imgPickable ? (
-            <select value={page.imageId} onChange={(e) => page.setImageId(e.target.value)}>
-              {page.imgs.filter((i) => i.status === 'ready').map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            <select value={page.imageId} onChange={(event) => page.setImageId(event.target.value)}>
+              {page.imgs.filter((image) => image.status === 'ready').map((image) => <option key={image.id} value={image.id}>{image.name}</option>)}
             </select>
           ) : (
             <span className="muted" style={{ fontSize: 12 }}>image: {page.assignedImage ?? 'admin-assigned'}</span>
@@ -52,9 +52,9 @@ function OsPicker({ page, value, onChange }: {
   return (
     <>
       <span className="muted" style={{ fontSize: 12, minWidth: 28 }}>OS</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={page.readyImgs.length === 0}>
+      <select value={value} onChange={(event) => onChange(event.target.value)} disabled={page.readyImgs.length === 0}>
         {page.readyImgs.length === 0 && <option value="">no OS images ready yet</option>}
-        {page.readyImgs.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+        {page.readyImgs.map((image) => <option key={image.id} value={image.id}>{image.name}</option>)}
       </select>
     </>
   );
@@ -79,7 +79,7 @@ export function RequestForm({ page, selectedImage, onImage }: {
   // configured for.
   useEffect(() => {
     if (selectedImage || page.readyImgs.length === 0) return;
-    const preferred = page.assignedImage && page.readyImgs.some((i) => i.id === page.assignedImage)
+    const preferred = page.assignedImage && page.readyImgs.some((image) => image.id === page.assignedImage)
       ? page.assignedImage
       : page.readyImgs[0].id;
     onImage(preferred);
@@ -88,15 +88,15 @@ export function RequestForm({ page, selectedImage, onImage }: {
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <h3>request a VM</h3>
-      <form onSubmit={async (e) => {
-        e.preventDefault();
+      <form onSubmit={async (event) => {
+        event.preventDefault();
         const ok = await page.requestInstance(reqName, reqPlan, selectedImage, reqNote);
         if (ok) { setReqName(''); setReqNote(''); onImage(''); }
       }}>
         <div className="row">
-          <input placeholder="name" value={reqName} onChange={(e) => setReqName(e.target.value)} style={{ minWidth: 160 }} />
-          <select value={reqPlan} onChange={(e) => setReqPlan(e.target.value)}>
-            {page.plans.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.vcpu}v / {p.ramMb}MB</option>)}
+          <input placeholder="name" value={reqName} onChange={(event) => setReqName(event.target.value)} style={{ minWidth: 160 }} />
+          <select value={reqPlan} onChange={(event) => setReqPlan(event.target.value)}>
+            {page.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} — {plan.vcpu}v / {plan.ramMb}MB</option>)}
           </select>
         </div>
         {/* OS picker. Only rendered for accounts allowed to choose; the
@@ -108,7 +108,7 @@ export function RequestForm({ page, selectedImage, onImage }: {
           <OsPicker page={page} value={selectedImage} onChange={onImage} />
         </div>
         <div style={{ marginTop: 10 }}>
-          <textarea placeholder="why you need it (optional)" value={reqNote} onChange={(e) => setReqNote(e.target.value)}
+          <textarea placeholder="why you need it (optional)" value={reqNote} onChange={(event) => setReqNote(event.target.value)}
             rows={2} style={{ width: '100%', resize: 'vertical' }} />
         </div>
         <div style={{ marginTop: 10 }}>

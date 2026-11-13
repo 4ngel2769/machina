@@ -5,7 +5,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useToast } from '@/app/ui/toast';
 import { StatusCue } from '@/app/ui/status';
 import { Skeleton, Empty } from '@/app/ui/loaders';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
@@ -15,7 +14,6 @@ type Plan = { id: string; name: string; vcpu: number; ramMb: number };
 type Sample = { ts: number; running: number; weight: number };
 
 export default function HomePage() {
-  const toast = useToast();
   const [insts, setInsts] = useState<Inst[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
@@ -24,40 +22,40 @@ export default function HomePage() {
   const [spark, setSpark] = useState<Record<string, Sample[]>>({});
 
   const load = useCallback(async () => {
-    const r = await fetch('/api/instances', { cache: 'no-store' });
-    if (r.ok) {
-      const j: Inst[] = await r.json();
-      setInsts(j);
-      for (const i of j) {
-        fetch(`/api/instances/${i.id}/usage`, { cache: 'no-store' })
-          .then((x) => x.ok ? x.json() : [])
-          .then((s) => setSpark((p) => ({ ...p, [i.id]: s })))
+    const instancesResponse = await fetch('/api/instances', { cache: 'no-store' });
+    if (instancesResponse.ok) {
+      const instances: Inst[] = await instancesResponse.json();
+      setInsts(instances);
+      for (const instance of instances) {
+        fetch(`/api/instances/${instance.id}/usage`, { cache: 'no-store' })
+          .then((usageResponse) => usageResponse.ok ? usageResponse.json() : [])
+          .then((samples) => setSpark((previous) => ({ ...previous, [instance.id]: samples })))
           .catch(() => {});
       }
     }
-    const b = await fetch('/api/billing', { cache: 'no-store' });
-    if (b.ok) {
-      const j = await b.json();
-      setBalance(j.balanceCents);
+    const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
+    if (billingResponse.ok) {
+      const billing = await billingResponse.json();
+      setBalance(billing.balanceCents);
     }
-    const rq = await fetch('/api/requests', { cache: 'no-store' });
-    if (rq.ok) {
-      const j = await rq.json();
-      setPendingReqs(j.filter((x: { status: string }) => x.status === 'pending').length);
+    const requestsResponse = await fetch('/api/requests', { cache: 'no-store' });
+    if (requestsResponse.ok) {
+      const requests = await requestsResponse.json();
+      setPendingReqs(requests.filter((request: { status: string }) => request.status === 'pending').length);
     }
-    const c = await fetch('/api/catalog', { cache: 'no-store' });
-    if (c.ok) {
-      const j = await c.json();
-      setPlans(j.plans);
+    const catalogResponse = await fetch('/api/catalog', { cache: 'no-store' });
+    if (catalogResponse.ok) {
+      const catalog = await catalogResponse.json();
+      setPlans(catalog.plans);
     }
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { const t = setInterval(() => void load(), 10000); return () => clearInterval(t); }, [load]);
 
-  const planById = (id: string) => plans.find((p) => p.id === id);
-  const running = insts.filter((i) => i.status === 'running').length;
-  const stopped = insts.filter((i) => i.status === 'stopped').length;
+  const planById = (id: string) => plans.find((plan) => plan.id === id);
+  const running = insts.filter((instance) => instance.status === 'running').length;
+  const stopped = insts.filter((instance) => instance.status === 'stopped').length;
 
   return (
     <>
@@ -83,31 +81,31 @@ export default function HomePage() {
           />
         )}
         {loading && insts.length === 0 && <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}
-        {insts.map((i) => {
-          const p = planById(i.planId);
-          const samples = spark[i.id] ?? [];
-          const data = samples.map((s) => ({ v: s.running ? s.weight * 100 : 0 }));
+        {insts.map((instance) => {
+          const plan = planById(instance.planId);
+          const samples = spark[instance.id] ?? [];
+          const chartData = samples.map((sample) => ({ v: sample.running ? sample.weight * 100 : 0 }));
           return (
-            <Link key={i.id} href={`/instances/${i.id}`} className="vmrow" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <StatusCue status={i.status} />
+            <Link key={instance.id} href={`/instances/${instance.id}`} className="vmrow" style={{ textDecoration: 'none', color: 'inherit' }}>
+                <StatusCue status={instance.status} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500 }}>{i.name}</div>
-                  <div className="muted mono" style={{ fontSize: 11 }}>{i.ip} · {p?.name} · {p?.vcpu}v {p?.ramMb}MB</div>
+                  <div style={{ fontWeight: 500 }}>{instance.name}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>{instance.ip} · {plan?.name} · {plan?.vcpu}v {plan?.ramMb}MB</div>
                 </div>
                 <div style={{ width: 90, height: 28 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
+                    <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
                       <defs>
-                        <linearGradient id={`g-${i.id}`} x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id={`g-${instance.id}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.45} />
                           <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <Area type="monotone" dataKey="v" stroke="var(--accent)" strokeWidth={1.5} fill={`url(#g-${i.id})`} isAnimationActive={false} />
+                      <Area type="monotone" dataKey="v" stroke="var(--accent)" strokeWidth={1.5} fill={`url(#g-${instance.id})`} isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <span className="muted mono" style={{ fontSize: 11, minWidth: 70, textAlign: 'right' }}>{i.status}</span>
+                <span className="muted mono" style={{ fontSize: 11, minWidth: 70, textAlign: 'right' }}>{instance.status}</span>
             </Link>
           );
         })}

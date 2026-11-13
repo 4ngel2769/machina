@@ -17,8 +17,8 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   if (!user) {
     // Preserve where the user was: middleware-style bounce carries the full
     // path+query so sign-in can return them there instead of /instances.
-    const h = await headers();
-    const path = h.get('x-pathname') ?? h.get('referer')?.replace(/^https?:\/\/[^/]+/, '') ?? '';
+    const headerList = await headers();
+    const path = headerList.get('x-pathname') ?? headerList.get('referer')?.replace(/^https?:\/\/[^/]+/, '') ?? '';
     const safe = path.startsWith('/') && !path.startsWith('//') ? path : '';
     redirect(safe ? `/signin?callbackUrl=${encodeURIComponent(safe)}` : '/signin');
   }

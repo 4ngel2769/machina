@@ -112,8 +112,8 @@ function ioFields(name: string): Pick<Iface, 'speedMbps' | 'rxBytes' | 'txBytes'
   };
 }
 
-function trafficFields(t: IfaceTraffic | undefined): Pick<Iface, 'rxBps' | 'txBps' | 'series'> {
-  return { rxBps: t?.rxBps ?? 0, txBps: t?.txBps ?? 0, series: t?.series ?? [] };
+function trafficFields(traffic: IfaceTraffic | undefined): Pick<Iface, 'rxBps' | 'txBps' | 'series'> {
+  return { rxBps: traffic?.rxBps ?? 0, txBps: traffic?.txBps ?? 0, series: traffic?.series ?? [] };
 }
 
 function toIface(
@@ -140,16 +140,16 @@ function toIface(
 
 export async function listIfaces(libvirtBridges: Set<string>): Promise<Iface[]> {
   const [addrs, links, conns, traffic] = await Promise.all([
-    run('ip', ['-j', 'addr', 'show']).then((s) => JSON.parse(s) as IpAddr[]),
-    run('ip', ['-j', 'link', 'show']).then((s) => JSON.parse(s) as IpLink[]),
+    run('ip', ['-j', 'addr', 'show']).then((stdout) => JSON.parse(stdout) as IpAddr[]),
+    run('ip', ['-j', 'link', 'show']).then((stdout) => JSON.parse(stdout) as IpLink[]),
     nmConnections(),
     Promise.resolve(ifaceTraffic()),
   ]);
-  const linkBy = new Map(links.map((l) => [l.ifname, l]));
+  const linkBy = new Map(links.map((link) => [link.ifname, link]));
 
   return addrs
-    .map((a) => toIface(a, linkBy.get(a.ifname), conns[a.ifname] ?? null, traffic, libvirtBridges))
-    .sort((x, y) => (x.driver === 'unmanaged' ? 1 : 0) - (y.driver === 'unmanaged' ? 1 : 0) || x.name.localeCompare(y.name));
+    .map((addr) => toIface(addr, linkBy.get(addr.ifname), conns[addr.ifname] ?? null, traffic, libvirtBridges))
+    .sort((left, right) => (left.driver === 'unmanaged' ? 1 : 0) - (right.driver === 'unmanaged' ? 1 : 0) || left.name.localeCompare(right.name));
 }
 
 export type AddIface = {
@@ -175,12 +175,12 @@ const SAFE_NAME = /^[a-zA-Z0-9_.-]{2,15}$/;
 
 /** Every port exists and is not the live uplink we are talking over. */
 async function assertPortsFree(ports: string[]): Promise<void> {
-  for (const p of ports) {
-    if (!fs.existsSync(`/sys/class/net/${p}`)) throw new Error(`port ${p} does not exist`);
-    if (!/^(enp|eno|eth)/.test(p)) continue;
-    const hasAddr = (await run('ip', ['-j', 'addr', 'show', 'dev', p])
-      .then((s) => (JSON.parse(s) as IpAddr[])[0]?.addr_info ?? [])) as unknown[];
-    if (hasAddr.length > 0) throw new Error(`port ${p} carries an IP address — refusing to enslave an active uplink`);
+  for (const port of ports) {
+    if (!fs.existsSync(`/sys/class/net/${port}`)) throw new Error(`port ${port} does not exist`);
+    if (!/^(enp|eno|eth)/.test(port)) continue;
+    const hasAddr = (await run('ip', ['-j', 'addr', 'show', 'dev', port])
+      .then((stdout) => (JSON.parse(stdout) as IpAddr[])[0]?.addr_info ?? [])) as unknown[];
+    if (hasAddr.length > 0) throw new Error(`port ${port} carries an IP address — refusing to enslave an active uplink`);
   }
 }
 
@@ -193,48 +193,48 @@ function addressArgs(address: string | undefined): string[] {
 }
 
 /** One ethernet connection enslaved to `master`. */
-function enslave(con: string, port: string, master: string, slaveType: string): Promise<string> {
-  return run('nmcli', ['connection', 'add', 'type', 'ethernet', 'con-name', `${con}-port-${port}`,
-    'ifname', port, 'master', con, 'slave-type', slaveType], { sudo: true });
+function enslave(connectionName: string, port: string, master: string, slaveType: string): Promise<string> {
+  return run('nmcli', ['connection', 'add', 'type', 'ethernet', 'con-name', `${connectionName}-port-${port}`,
+    'ifname', port, 'master', connectionName, 'slave-type', slaveType], { sudo: true });
 }
 
-async function addBridge(con: string, name: string, ipArgs: string[], ports: string[]): Promise<void> {
-  await run('nmcli', ['connection', 'add', 'type', 'bridge', 'con-name', con, 'ifname', name,
+async function addBridge(connectionName: string, name: string, ipArgs: string[], ports: string[]): Promise<void> {
+  await run('nmcli', ['connection', 'add', 'type', 'bridge', 'con-name', connectionName, 'ifname', name,
     'bridge.stp', 'no', ...ipArgs], { sudo: true });
-  for (const p of ports) await enslave(con, p, con, 'bridge');
+  for (const port of ports) await enslave(connectionName, port, connectionName, 'bridge');
 }
 
-async function addVlan(a: AddIface, con: string, ipArgs: string[]): Promise<void> {
-  if (!a.parent) throw new Error('parent device required');
-  if (!a.vlanId || a.vlanId < 1 || a.vlanId > 4094) throw new Error('vlan id must be 1-4094');
-  await run('nmcli', ['connection', 'add', 'type', 'vlan', 'con-name', con, 'ifname', a.name,
-    'dev', a.parent, 'id', String(a.vlanId), ...ipArgs], { sudo: true });
+async function addVlan(iface: AddIface, connectionName: string, ipArgs: string[]): Promise<void> {
+  if (!iface.parent) throw new Error('parent device required');
+  if (!iface.vlanId || iface.vlanId < 1 || iface.vlanId > 4094) throw new Error('vlan id must be 1-4094');
+  await run('nmcli', ['connection', 'add', 'type', 'vlan', 'con-name', connectionName, 'ifname', iface.name,
+    'dev', iface.parent, 'id', String(iface.vlanId), ...ipArgs], { sudo: true });
 }
 
-async function addBond(a: AddIface, con: string, ipArgs: string[], ports: string[]): Promise<void> {
-  await run('nmcli', ['connection', 'add', 'type', 'bond', 'con-name', con, 'ifname', a.name,
-    'bond.options', `mode=${a.bondMode || 'active-backup'},miimon=100`, ...ipArgs], { sudo: true });
-  for (const p of ports) await enslave(con, p, con, 'bond');
+async function addBond(iface: AddIface, connectionName: string, ipArgs: string[], ports: string[]): Promise<void> {
+  await run('nmcli', ['connection', 'add', 'type', 'bond', 'con-name', connectionName, 'ifname', iface.name,
+    'bond.options', `mode=${iface.bondMode || 'active-backup'},miimon=100`, ...ipArgs], { sudo: true });
+  for (const port of ports) await enslave(connectionName, port, connectionName, 'bond');
 }
 
-async function addTeam(a: AddIface, con: string, ipArgs: string[], ports: string[]): Promise<void> {
+async function addTeam(iface: AddIface, connectionName: string, ipArgs: string[], ports: string[]): Promise<void> {
   if (!(await has('teamd'))) throw new Error('teamd is not installed on the host, so NetworkManager cannot create a team. Use a bond instead.');
-  await run('nmcli', ['connection', 'add', 'type', 'team', 'con-name', con, 'ifname', a.name,
+  await run('nmcli', ['connection', 'add', 'type', 'team', 'con-name', connectionName, 'ifname', iface.name,
     'team.config', '{"runner":{"name":"activebackup"}}', ...ipArgs], { sudo: true });
-  for (const p of ports) await enslave(con, p, con, 'team');
+  for (const port of ports) await enslave(connectionName, port, connectionName, 'team');
 }
 
-async function addVpn(a: AddIface, con: string, ipArgs: string[]): Promise<void> {
+async function addVpn(iface: AddIface, connectionName: string, ipArgs: string[]): Promise<void> {
   // WireGuard: the one VPN NetworkManager can provision without a server config
   // to import. A peer is optional — an interface with only a private key is a
   // valid listening end for a site-to-site you configure later.
   const key = (await run('openssl', ['rand', '-base64', '32'])).trim();
-  await run('nmcli', ['connection', 'add', 'type', 'wireguard', 'con-name', con, 'ifname', a.name,
-    'wireguard.private-key', key, 'wireguard.listen-port', String(a.listenPort ?? 51820), ...ipArgs], { sudo: true });
-  if (!a.peerPublicKey || !a.peerEndpoint || !a.peerAllowedIps) return;
-  await run('nmcli', ['connection', 'modify', con,
-    'wireguard-peer.' + a.peerPublicKey + '.endpoint', a.peerEndpoint,
-    'wireguard-peer.' + a.peerPublicKey + '.allowed-ips', a.peerAllowedIps], { sudo: true });
+  await run('nmcli', ['connection', 'add', 'type', 'wireguard', 'con-name', connectionName, 'ifname', iface.name,
+    'wireguard.private-key', key, 'wireguard.listen-port', String(iface.listenPort ?? 51820), ...ipArgs], { sudo: true });
+  if (!iface.peerPublicKey || !iface.peerEndpoint || !iface.peerAllowedIps) return;
+  await run('nmcli', ['connection', 'modify', connectionName,
+    'wireguard-peer.' + iface.peerPublicKey + '.endpoint', iface.peerEndpoint,
+    'wireguard-peer.' + iface.peerPublicKey + '.allowed-ips', iface.peerAllowedIps], { sudo: true });
 }
 
 /** Bring the new connection up and report the state it settled in. */
@@ -251,32 +251,32 @@ async function bringUp(name: string): Promise<string> {
  * limited to interfaces that are down or unmanaged, and the primary uplink is
  * refused by name.
  */
-export async function addIface(a: AddIface): Promise<{ name: string; detail: string }> {
-  if (!SAFE_NAME.test(a.name)) throw new Error('name: 2-15 chars of letters, digits, . _ -');
-  if (fs.existsSync(`/sys/class/net/${a.name}`)) throw new Error(`${a.name} already exists on the host`);
+export async function addIface(iface: AddIface): Promise<{ name: string; detail: string }> {
+  if (!SAFE_NAME.test(iface.name)) throw new Error('name: 2-15 chars of letters, digits, . _ -');
+  if (fs.existsSync(`/sys/class/net/${iface.name}`)) throw new Error(`${iface.name} already exists on the host`);
 
-  const ports = (a.ports ?? []).filter(Boolean);
+  const ports = (iface.ports ?? []).filter(Boolean);
   await assertPortsFree(ports);
-  const ipArgs = addressArgs(a.address);
-  const con = a.name;
+  const ipArgs = addressArgs(iface.address);
+  const connectionName = iface.name;
 
-  switch (a.kind) {
-    case 'bridge': await addBridge(con, a.name, ipArgs, ports); break;
-    case 'vlan': await addVlan(a, con, ipArgs); break;
-    case 'bond': await addBond(a, con, ipArgs, ports); break;
-    case 'team': await addTeam(a, con, ipArgs, ports); break;
-    case 'vpn': await addVpn(a, con, ipArgs); break;
+  switch (iface.kind) {
+    case 'bridge': await addBridge(connectionName, iface.name, ipArgs, ports); break;
+    case 'vlan': await addVlan(iface, connectionName, ipArgs); break;
+    case 'bond': await addBond(iface, connectionName, ipArgs, ports); break;
+    case 'team': await addTeam(iface, connectionName, ipArgs, ports); break;
+    case 'vpn': await addVpn(iface, connectionName, ipArgs); break;
   }
 
-  const detail = await bringUp(a.name).catch((e) => `created, but did not come up: ${(e as Error).message}`);
-  return { name: a.name, detail };
+  const detail = await bringUp(iface.name).catch((caught) => `created, but did not come up: ${(caught as Error).message}`);
+  return { name: iface.name, detail };
 }
 
 /** Delete a NetworkManager connection we plausibly own. Refuses anything else. */
 export async function deleteIface(name: string): Promise<void> {
   if (!SAFE_NAME.test(name)) throw new Error('bad interface name');
   const txt = await run('nmcli', ['-t', '-f', 'NAME,TYPE', 'connection', 'show']).catch(() => '');
-  const row = txt.split('\n').map((l) => l.split(':')).find(([n]) => n === name);
+  const row = txt.split('\n').map((line) => line.split(':')).find(([deviceName]) => deviceName === name);
   if (!row) throw new Error(`${name} is not a NetworkManager connection — only those can be removed here`);
   const type = row[1] ?? '';
   if (!/bridge|vlan|bond|team|wireguard/.test(type)) {

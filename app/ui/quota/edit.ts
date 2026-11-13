@@ -9,13 +9,13 @@ import { asInput, FIELDS, type Row } from './types';
 export function useQuotaEdit(onSaved: () => void): {
   open: string | null;
   draft: Record<string, string>;
-  setDraft: (v: Record<string, string>) => void;
+  setDraft: (value: Record<string, string>) => void;
   suspended: boolean;
-  setSuspended: (v: boolean) => void;
+  setSuspended: (value: boolean) => void;
   busy: boolean;
   msg: string;
-  toggle: (r: Row) => void;
-  save: (r: Row) => Promise<void>;
+  toggle: (row: Row) => void;
+  save: (row: Row) => Promise<void>;
 } {
   const [open, setOpen] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -23,39 +23,39 @@ export function useQuotaEdit(onSaved: () => void): {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  const startEdit = (r: Row) => {
-    setOpen(r.userId);
-    const d: Record<string, string> = {};
-    for (const f of FIELDS) d[f.key] = asInput(r.quota[f.key] as number | null);
-    setDraft(d);
-    setSuspended(r.quota.suspended);
+  const startEdit = (row: Row) => {
+    setOpen(row.userId);
+    const draftMap: Record<string, string> = {};
+    for (const field of FIELDS) draftMap[field.key] = asInput(row.quota[field.key] as number | null);
+    setDraft(draftMap);
+    setSuspended(row.quota.suspended);
     setMsg('');
   };
 
-  const toggle = (r: Row) => {
-    if (open === r.userId) setOpen(null);
-    else startEdit(r);
+  const toggle = (row: Row) => {
+    if (open === row.userId) setOpen(null);
+    else startEdit(row);
   };
 
-  const save = async (r: Row) => {
+  const save = async (row: Row) => {
     setBusy(true);
     setMsg('');
     try {
       const body: Record<string, unknown> = { suspended };
-      for (const f of FIELDS) {
-        const v = draft[f.key] ?? '';
+      for (const field of FIELDS) {
+        const raw = draft[field.key] ?? '';
         // Blank string -> null (unlimited). Must be explicit, not undefined, or
         // the API's "leave as-is" branch would silently keep the old bound.
-        body[f.key] = v === '' ? null : Number(v);
+        body[field.key] = raw === '' ? null : Number(raw);
       }
-      const res = await fetch(`/api/quotas/${r.userId}`, {
+      const response = await fetch(`/api/quotas/${row.userId}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMsg(j.error ?? 'could not save');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMsg(payload.error ?? 'could not save');
       } else {
         setOpen(null);
         onSaved();

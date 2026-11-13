@@ -43,7 +43,7 @@ export async function samplePass(): Promise<number> {
     `insert into usage (id, instance_id, running, weight, ts) values (?,?,1,?,?)`,
   );
   const tx = db.transaction(() => {
-    for (const r of rows) ins.run(newId('use_'), r.id, SAMPLE_MIN / 60, ts);
+    for (const instanceRow of rows) ins.run(newId('use_'), instanceRow.id, SAMPLE_MIN / 60, ts);
   });
   tx();
   if (rows.length) console.log(`[metering] sampled ${rows.length} running instance(s)`);
@@ -53,9 +53,9 @@ export async function samplePass(): Promise<number> {
 export async function settleAll(): Promise<number> {
   const db = rawDb();
   const rows = db.prepare(`select distinct user_id from instances`).all() as { user_id: string }[];
-  for (const r of rows) {
-    try { void settleUser(r.user_id); } catch (e) {
-      console.log(`[metering] settle ${r.user_id} failed:`, (e as Error).message);
+  for (const userRow of rows) {
+    try { void settleUser(userRow.user_id); } catch (e) {
+      console.log(`[metering] settle ${userRow.user_id} failed:`, (e as Error).message);
     }
   }
   return rows.length;
@@ -80,24 +80,24 @@ export async function settleUser(userId: string): Promise<number> {
   `).all(cutoff, userId) as { inst: string; uid: string; rate: number; cap: number; last: number; hours: number }[];
 
   let total = 0;
-  for (const r of rows) {
+  for (const usageRow of rows) {
     // Monthly cap: hours already accrued this month (settled + unsettled).
     const monthStart = startOfMonthTs();
     const billed = (db.prepare(`
       select coalesce(sum(u.weight),0) as h from usage u
       where u.instance_id = ? and u.ts >= ? and u.running = 1
-    `).get(r.inst, monthStart) as { h: number } | undefined)?.h ?? r.hours;
-    const leftHours = Math.max(0, r.cap / 60 - billed);
-    const chargeable = Math.min(r.hours, leftHours);
-    const cents = Math.round(chargeable * r.rate);
+    `).get(usageRow.inst, monthStart) as { h: number } | undefined)?.h ?? usageRow.hours;
+    const leftHours = Math.max(0, usageRow.cap / 60 - billed);
+    const chargeable = Math.min(usageRow.hours, leftHours);
+    const cents = Math.round(chargeable * usageRow.rate);
     db.transaction(() => {
       db.prepare(`update users set balance_cents = balance_cents - ? where id = ?`).run(cents, userId);
       db.prepare(`insert into ledger (id, user_id, delta_cents, reason, ref_type, ref_id, note, created_at)
         values (?,?,?,?,?,?,?,?)`).run(
-        newId('led_'), userId, -cents, 'meter', 'instance', r.inst,
-        `${chargeable.toFixed(2)}h @ ${(r.rate / 100).toFixed(2)}/h`, now(),
+        newId('led_'), userId, -cents, 'meter', 'instance', usageRow.inst,
+        `${chargeable.toFixed(2)}h @ ${(usageRow.rate / 100).toFixed(2)}/h`, now(),
       );
-      db.prepare(`update instances set last_settle_at = ?, updated_at = ? where id = ?`).run(now(), now(), r.inst);
+      db.prepare(`update instances set last_settle_at = ?, updated_at = ? where id = ?`).run(now(), now(), usageRow.inst);
     })();
     total += cents;
   }
@@ -118,6 +118,6 @@ export function grantCents(userId: string, deltaCents: number, note: string): vo
 }
 
 function startOfMonthTs(): number {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth(), 1).getTime();
 }

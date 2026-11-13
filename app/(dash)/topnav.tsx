@@ -30,15 +30,15 @@ export function TopNav({ name, role }: { name: string; role: string }) {
     <>
       <div className="brand">machina</div>
       <nav>
-        {links.map((l) => (
-          <Link key={l.href} href={l.href} className={pathname.startsWith(l.href) ? 'active' : ''}>
-            {l.label}
+        {links.map((link) => (
+          <Link key={link.href} href={link.href} className={pathname.startsWith(link.href) ? 'active' : ''}>
+            {link.label}
           </Link>
         ))}
       </nav>
       <div className="spacer" />
       <div style={{ position: 'relative' }}>
-        <button className="profilebtn" onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>
+        <button className="profilebtn" onClick={() => setOpen((prev) => !prev)} aria-haspopup="menu" aria-expanded={open}>
           <Blobatar name={name} size={22} animate="hover" />
           <span>{name}</span>
           <span style={{ fontSize: 10, color: 'var(--text-3)' }}>▾</span>

@@ -28,18 +28,18 @@ export function UserAdmin({
   allocations: Allocation[];
   onChanged: () => void;
 }) {
-  const s = useUserAdmin(onChanged);
+  const admin = useUserAdmin(onChanged);
 
   return (
     <>
-      <CreateForm send={s.send} busy={s.busy} />
+      <CreateForm send={admin.send} busy={admin.busy} />
 
       <div className="muted" style={{ fontSize: 11, marginBottom: 12 }}>
         New accounts start with the credit above (default $0.00) and a zero allocation,
         so they cannot provision anything until you set their quota in the panel above.
       </div>
 
-      <UserTable users={users} allocations={allocations} s={s} />
+      <UserTable users={users} allocations={allocations} state={admin} />
     </>
   );
 }

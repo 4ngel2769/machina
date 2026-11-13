@@ -17,12 +17,12 @@ export const NAME_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
  *  refusal, so offer the obvious ones rather than making them type. */
 export const PRESETS = ['clean', 'before-upgrade', 'pre-deploy'];
 
-export function fmtBytes(b: number): string {
-  if (!b) return '—';
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 / 1024).toFixed(1)} MB`;
-  return `${(b / 1024 ** 3).toFixed(2)} GB`;
+export function fmtBytes(byteCount: number): string {
+  if (!byteCount) return '—';
+  if (byteCount < 1024) return `${byteCount} B`;
+  if (byteCount < 1024 * 1024) return `${(byteCount / 1024).toFixed(0)} KB`;
+  if (byteCount < 1024 ** 3) return `${(byteCount / 1024 / 1024).toFixed(1)} MB`;
+  return `${(byteCount / 1024 ** 3).toFixed(2)} GB`;
 }
 
 export type DiskInfo = { actualBytes: number; freeMb: number };

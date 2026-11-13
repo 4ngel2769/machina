@@ -19,16 +19,16 @@ export function UsersCard({ users, instances, onView }: {
       <table>
         <thead><tr><th>account</th><th>role</th><th>machines</th><th>balance</th><th /></tr></thead>
         <tbody>
-          {users.map((u) => {
-            const mine = instances.filter((i) => i.uid === u.id);
+          {users.map((user) => {
+            const mine = instances.filter((instance) => instance.uid === user.id);
             return (
-              <tr key={u.id}>
-                <td className="mono">{u.name}</td>
-                <td>{u.role}</td>
+              <tr key={user.id}>
+                <td className="mono">{user.name}</td>
+                <td>{user.role}</td>
                 <td className="mono">{mine.length}</td>
-                <td className="mono">${(u.balance_cents / 100).toFixed(2)}</td>
+                <td className="mono">${(user.balance_cents / 100).toFixed(2)}</td>
                 <td style={{ textAlign: 'right' }}>
-                  {mine.length > 0 && <button onClick={() => onView(u.id)}>view {mine.length}</button>}
+                  {mine.length > 0 && <button onClick={() => onView(user.id)}>view {mine.length}</button>}
                 </td>
               </tr>
             );
@@ -47,14 +47,14 @@ export function LogCard({ log }: { log: LogPayload | null }) {
       <table>
         <thead><tr><th>when</th><th>admin</th><th>action</th><th>target</th><th>detail</th></tr></thead>
         <tbody>
-          {(log?.rows ?? []).map((r) => (
-            <tr key={r.id}>
-              <td className="muted mono">{new Date(r.ts).toLocaleString()}</td>
-              <td>{r.actor_name}</td>
-              <td className="mono">{r.action}</td>
-              <td className="mono">{r.target}</td>
+          {(log?.rows ?? []).map((row) => (
+            <tr key={row.id}>
+              <td className="muted mono">{new Date(row.ts).toLocaleString()}</td>
+              <td>{row.actor_name}</td>
+              <td className="mono">{row.action}</td>
+              <td className="mono">{row.target}</td>
               <td style={{ maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis' }} className="muted">
-                {r.detail ?? ''}
+                {row.detail ?? ''}
               </td>
             </tr>
           ))}

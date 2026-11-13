@@ -20,75 +20,75 @@ export async function shutdownAndWait(
   log: (m: string) => void,
 ): Promise<void> {
   await shutdownDomain(domainName);
-  const until = Date.now() + opts.graceSec * 1000;
+  const deadline = Date.now() + opts.graceSec * 1000;
   for (;;) {
-    const st = await domState(domainName);
-    if (st && /shut/i.test(st)) return;
-    if (Date.now() >= until) {
+    const state = await domState(domainName);
+    if (state && /shut/i.test(state)) return;
+    if (Date.now() >= deadline) {
       log(opts.forceMessage);
       await destroyDomain(domainName);
       return;
     }
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 }
 
 export async function start(job: JobCtx, log: (m: string) => void): Promise<void> {
-  const rd = rawDb();
-  const row = rd.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string } | undefined;
-  if (!row) throw new Error('instance row missing');
+  const raw = rawDb();
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string } | undefined;
+  if (!instanceRow) throw new Error('instance row missing');
   log('starting');
-  await startDomain(row.domain_name);
-  await ensureThrottleState(row.id, row.domain_name).catch(() => {});
+  await startDomain(instanceRow.domain_name);
+  await ensureThrottleState(instanceRow.id, instanceRow.domain_name).catch(() => {});
   log('running');
   // heal_count is a provisioning self-heal counter, not a lifecycle one. Leaving
   // it set meant a box that started cleanly still advertised "auto-recovery
   // attempt 1 of 3" on its page long after it was fine.
-  rd.prepare(`update instances set status='running', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
-    .run(now(), row.id);
+  raw.prepare(`update instances set status='running', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
+    .run(now(), instanceRow.id);
 }
 
 export async function stop(job: JobCtx, log: (m: string) => void): Promise<void> {
-  const rd = rawDb();
-  const row = rd.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string } | undefined;
-  if (!row) throw new Error('instance row missing');
+  const raw = rawDb();
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string } | undefined;
+  if (!instanceRow) throw new Error('instance row missing');
   const payload = JSON.parse(job.payload || '{}') as { force?: boolean; graceSec?: number };
   log('settle before stop');
-  await settleUser(row.user_id).catch(() => {});
+  await settleUser(instanceRow.user_id).catch(() => {});
   if (payload.force) {
     log('force destroy');
-    await destroyDomain(row.domain_name);
+    await destroyDomain(instanceRow.domain_name);
   } else {
     log('acpi shutdown');
     await shutdownAndWait(
-      row.domain_name,
+      instanceRow.domain_name,
       { graceSec: payload.graceSec ?? config.limits.shutdownGraceSec, forceMessage: 'grace expired; forcing' },
       log,
     );
   }
   log('stopped');
-  rd.prepare(`update instances set status='stopped', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
-    .run(now(), row.id);
+  raw.prepare(`update instances set status='stopped', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
+    .run(now(), instanceRow.id);
 }
 
 export async function del(job: JobCtx, log: (m: string) => void): Promise<void> {
-  const rd = rawDb();
-  const row = rd.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string } | undefined;
-  if (!row) throw new Error('instance row missing');
+  const raw = rawDb();
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string } | undefined;
+  if (!instanceRow) throw new Error('instance row missing');
   log('settle before delete');
-  await settleUser(row.user_id).catch(() => {});
+  await settleUser(instanceRow.user_id).catch(() => {});
   log('destroy+undefine');
-  await destroyDomain(row.domain_name);
-  await undefineDomain(row.domain_name);
-  await removeIpLease(row.mac).catch(() => {});
+  await destroyDomain(instanceRow.domain_name);
+  await undefineDomain(instanceRow.domain_name);
+  await removeIpLease(instanceRow.mac).catch(() => {});
   log('delete disk');
-  await deleteVolume(diskVolFromId(row.id));
+  await deleteVolume(diskVolFromId(instanceRow.id));
   log('rm seed + vnc socket');
   const fsp = await import('fs/promises');
-  await fsp.rm(`${config.storageDir}/seeds/${row.id}`, { recursive: true, force: true }).catch(() => {});
-  await fsp.rm(`${config.storageDir}/vnc/${row.id}.vnc`, { force: true }).catch(() => {});
+  await fsp.rm(`${config.storageDir}/seeds/${instanceRow.id}`, { recursive: true, force: true }).catch(() => {});
+  await fsp.rm(`${config.storageDir}/vnc/${instanceRow.id}.vnc`, { force: true }).catch(() => {});
   log('delete rows');
-  rd.prepare(`delete from snapshots where instance_id=?`).run(row.id);
-  rd.prepare(`delete from instances where id=?`).run(row.id);
+  raw.prepare(`delete from snapshots where instance_id=?`).run(instanceRow.id);
+  raw.prepare(`delete from instances where id=?`).run(instanceRow.id);
   log('deleted');
 }

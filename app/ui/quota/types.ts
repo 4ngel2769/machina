@@ -21,4 +21,4 @@ export const FIELDS: Field[] = [
 /** "blank" is unlimited. The input holds a string precisely so an empty field
  *  is distinguishable from the literal 0 — 0 is a real answer (may not create)
  *  and coercing it to null would silently turn a denial into unlimited. */
-export const asInput = (v: number | null) => (v === null ? '' : String(v));
+export const asInput = (value: number | null) => (value === null ? '' : String(value));

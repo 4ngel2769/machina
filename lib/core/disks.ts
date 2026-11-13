@@ -84,31 +84,31 @@ export async function copyDisk(
   // The source always arrives from an instance row, never from a request body,
   // but a path that escaped the pools would still be a read of arbitrary files.
   const pools = [path.resolve(sp.vms), path.resolve(sp.images)];
-  if (!pools.some((d) => src.startsWith(`${d}${path.sep}`))) {
+  if (!pools.some((pool) => src.startsWith(`${pool}${path.sep}`))) {
     throw new Error('clone source is outside the storage pools');
   }
   const st = await fs.stat(src).catch(() => null);
   if (!st?.isFile()) throw new Error('clone source disk is missing');
 
-  const info = JSON.parse(await qemu(['info', '--output=json', '-U', src])) as { 'virtual-size'?: number };
-  const sourceGb = Number(info['virtual-size'] ?? 0) / 1e9;
+  const diskInfo = JSON.parse(await qemu(['info', '--output=json', '-U', src])) as { 'virtual-size'?: number };
+  const sourceGb = Number(diskInfo['virtual-size'] ?? 0) / 1e9;
   if (sourceGb > diskGb + 0.5) {
     throw new Error(`source disk is ${Math.ceil(sourceGb)} GB, larger than the ${diskGb} GB target plan`);
   }
 
   const volName = diskVolFromId(instanceId);
   const volPath = `${sp.vms}/${volName}.qcow2`;
-  const tmp = `${volPath}.part`;
-  await fs.rm(tmp, { force: true }).catch(() => {});
+  const partPath = `${volPath}.part`;
+  await fs.rm(partPath, { force: true }).catch(() => {});
   await fs.rm(volPath, { force: true }).catch(() => {});
   try {
-    await qemu(['convert', '-U', '-O', 'qcow2', src, tmp], 30 * 60_000);
+    await qemu(['convert', '-U', '-O', 'qcow2', src, partPath], 30 * 60_000);
     // Grow to the target plan so the guest's cloud-init growpart has room; a
     // clone into the same plan is a no-op.
-    if (diskGb > sourceGb + 0.5) await qemu(['resize', tmp, `${diskGb}G`], 120_000);
-    await fs.rename(tmp, volPath);
+    if (diskGb > sourceGb + 0.5) await qemu(['resize', partPath, `${diskGb}G`], 120_000);
+    await fs.rename(partPath, volPath);
   } catch (e) {
-    await fs.rm(tmp, { force: true }).catch(() => {});
+    await fs.rm(partPath, { force: true }).catch(() => {});
     throw e;
   }
 

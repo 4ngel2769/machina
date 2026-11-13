@@ -16,17 +16,17 @@ export function useHostActions(reload: () => void): {
   const post = useCallback(async (url: string, body: Record<string, unknown>, label: string) => {
     setBusy(label);
     try {
-      const r = await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        toast.err(j.error ?? `${label} failed`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.err(payload.error ?? `${label} failed`);
         return false;
       }
-      toast.ok(j.result ? `${label}: ${j.result}` : `${label} done`);
+      toast.ok(payload.result ? `${label}: ${payload.result}` : `${label} done`);
       reload();
       return true;
     } catch {

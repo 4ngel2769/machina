@@ -15,9 +15,9 @@ import { TAB_LABEL, TABS, type Inst, type Job, type Tab } from './types';
 export function TabBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   return (
     <div className="tabs">
-      {TABS.map((t) => (
-        <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>
-          {TAB_LABEL[t]}
+      {TABS.map((tabKey) => (
+        <button key={tabKey} onClick={() => setTab(tabKey)} className={tab === tabKey ? 'active' : ''}>
+          {TAB_LABEL[tabKey]}
         </button>
       ))}
     </div>
@@ -25,7 +25,7 @@ export function TabBar({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
 }
 
 /** Password reveal + recent jobs, the 'info' tab. */
-function InfoTab({ inst, jobs }: { inst: Inst; jobs: Job[] }) {
+function InfoTab({ instance, jobs }: { instance: Inst; jobs: Job[] }) {
   const [showPw, setShowPw] = useState(false);
   return (
     <div>
@@ -34,28 +34,28 @@ function InfoTab({ inst, jobs }: { inst: Inst; jobs: Job[] }) {
         <dd className="mono" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {showPw ? (
             <>
-              <span>{inst.rootPassword ?? '(hidden)'}</span>
-              {inst.rootPassword
-                ? <button onClick={() => void copyText(inst.rootPassword!, null)} style={{ padding: '2px 8px' }}>copy</button>
+              <span>{instance.rootPassword ?? '(hidden)'}</span>
+              {instance.rootPassword
+                ? <button onClick={() => void copyText(instance.rootPassword!, null)} style={{ padding: '2px 8px' }}>copy</button>
                 : null}
             </>
           ) : (
             <button onClick={() => setShowPw(true)} style={{ padding: '2px 8px' }}>reveal</button>
           )}
         </dd>
-        <dt>mac</dt><dd className="mono">{inst.mac}</dd>
-        <dt>created</dt><dd title={new Date(inst.createdAt).toLocaleString()}>{relTime(inst.createdAt)}</dd>
+        <dt>mac</dt><dd className="mono">{instance.mac}</dd>
+        <dt>created</dt><dd title={new Date(instance.createdAt).toLocaleString()}>{relTime(instance.createdAt)}</dd>
       </dl>
       <h3 style={{ marginTop: 18 }}>recent jobs</h3>
       <table>
         <thead><tr><th>type</th><th>status</th><th>error</th><th>at</th></tr></thead>
         <tbody>
-          {jobs.map((j) => (
-            <tr key={j.id}>
-              <td>{j.type}</td>
-              <td><span className={`badge ${j.status}`}>{j.status}</span></td>
-              <td className="copy">{j.error || '—'}</td>
-              <td title={new Date(j.createdAt).toLocaleString()}>{relTime(j.createdAt)}</td>
+          {jobs.map((job) => (
+            <tr key={job.id}>
+              <td>{job.type}</td>
+              <td><span className={`badge ${job.status}`}>{job.status}</span></td>
+              <td className="copy">{job.error || '—'}</td>
+              <td title={new Date(job.createdAt).toLocaleString()}>{relTime(job.createdAt)}</td>
             </tr>
           ))}
           {jobs.length === 0 && <tr><td colSpan={4} className="empty">no jobs yet</td></tr>}
@@ -66,20 +66,20 @@ function InfoTab({ inst, jobs }: { inst: Inst; jobs: Job[] }) {
 }
 
 /** The card body for whichever tab is selected. */
-export function TabBody({ tab, inst, jobs }: { tab: Tab; inst: Inst; jobs: Job[] }) {
-  const running = inst.status === 'running';
+export function TabBody({ tab, instance, jobs }: { tab: Tab; instance: Inst; jobs: Job[] }) {
+  const isRunning = instance.status === 'running';
   switch (tab) {
     case 'term':
-      return running ? <Terminal instanceId={inst.id} /> : <div className="muted">terminal available when running</div>;
+      return isRunning ? <Terminal instanceId={instance.id} /> : <div className="muted">terminal available when running</div>;
     case 'vnc':
-      return running ? <Console instanceId={inst.id} /> : <div className="muted">console available when running</div>;
+      return isRunning ? <Console instanceId={instance.id} /> : <div className="muted">console available when running</div>;
     case 'snapshots':
-      return <SnapshotsPanel instanceId={inst.id} instanceStatus={inst.status} />;
+      return <SnapshotsPanel instanceId={instance.id} instanceStatus={instance.status} />;
     case 'metrics':
-      return <MetricsPanel instanceId={inst.id} instanceStatus={inst.status} />;
+      return <MetricsPanel instanceId={instance.id} instanceStatus={instance.status} />;
     case 'logs':
-      return <LogStream lines={inst.logLines ?? []} live={inst.status === 'provisioning'} height={340} />;
+      return <LogStream lines={instance.logLines ?? []} live={instance.status === 'provisioning'} height={340} />;
     case 'info':
-      return <InfoTab inst={inst} jobs={jobs} />;
+      return <InfoTab instance={instance} jobs={jobs} />;
   }
 }

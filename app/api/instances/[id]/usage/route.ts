@@ -18,8 +18,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const [inst] = await getDb().select().from(instances).where(eq(instances.id, id));
   if (!inst) return err('not found', 404);
   if (inst.userId !== user.id && user.role !== 'admin') return err('forbidden', 403);
-  const rd = rawDb();
-  const rows = rd.prepare(`select ts, running, weight from usage where instance_id=? order by ts desc limit 48`).all(id) as { ts: number; running: number; weight: number }[];
+  const raw = rawDb();
+  const rows = raw.prepare(`select ts, running, weight from usage where instance_id=? order by ts desc limit 48`).all(id) as { ts: number; running: number; weight: number }[];
   return json(rows.reverse());
 }
 
