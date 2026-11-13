@@ -34,28 +34,52 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
   };
 
   conn = new Client();
+  // The client sends its size (and can send keystrokes) the moment the socket
+  // opens, which is usually BEFORE the ssh handshake finishes. Those frames
+  // used to hit no listener at all and were dropped, leaving the guest PTY
+  // at sshd's default (typically 80x24) until the user resized the browser
+  // window — which is why TUIs came up small. Attach the message handler
+  // immediately and buffer the newest size until the stream exists.
+  let stream: import('ssh2').ClientChannel | null = null;
+  let pendingSize: { cols: number; rows: number } | null = null;
+
+  ws.on('message', (raw, isBinary) => {
+    if (closed) return;
+    try {
+      if (isBinary) {
+        // stdin can arrive before the shell stream exists; drop it rather
+        // than buffer arbitrary amounts of typed input.
+        if (stream) stream.write(raw as Buffer);
+        return;
+      }
+      const msg = JSON.parse(String(raw)) as { t: string; d?: string; c?: number; r?: number };
+      if (msg.t === 'i' && typeof msg.d === 'string') {
+        if (stream) stream.write(Buffer.from(msg.d, 'base64'));
+      } else if (msg.t === 'r') {
+        const cols = Math.min(Math.max(msg.c ?? 80, 1), 500);
+        const rows = Math.min(Math.max(msg.r ?? 24, 1), 200);
+        pendingSize = { cols, rows };
+        if (stream) { stream.setWindow(rows, cols, 0, 0); pendingSize = null; }
+      } else if (msg.t === 'c') close('client close');
+    } catch { /* frame-level tolerance: malformed envelope is dropped */ }
+  });
+  ws.on('close', () => close('socket close'));
+  ws.on('error', () => close('socket error'));
+
   conn.on('ready', () => {
     if (closed) return;
-    conn!.shell({ term: 'xterm-256color' }, (err, stream) => {
+    conn!.shell({ term: 'xterm-256color' }, (err, s) => {
       if (err || closed) return fail(`shell: ${err?.message ?? 'closed'}`);
+      stream = s;
       ws.send(JSON.stringify({ t: 'ready' }));
-      stream.on('data', (d: Buffer) => {
+      if (pendingSize) {
+        s.setWindow(pendingSize.rows, pendingSize.cols, 0, 0);
+        pendingSize = null;
+      }
+      s.on('data', (d: Buffer) => {
         if (ws.readyState === 1 && !closed) ws.send(d);
       });
-      stream.on('close', () => close('stream end'));
-
-      ws.on('message', (raw, isBinary) => {
-        if (closed) return;
-        try {
-          if (isBinary) { stream.write(raw as Buffer); return; }
-          const msg = JSON.parse(String(raw)) as { t: string; d?: string; c?: number; r?: number };
-          if (msg.t === 'i' && typeof msg.d === 'string') stream.write(Buffer.from(msg.d, 'base64'));
-          else if (msg.t === 'r') stream.setWindow(msg.r ?? 24, msg.c ?? 80, 0, 0);
-          else if (msg.t === 'c') close('client close');
-        } catch { /* frame-level tolerance: malformed envelope is dropped */ }
-      });
-      ws.on('close', () => close('socket close'));
-      ws.on('error', () => close('socket error'));
+      s.on('close', () => close('stream end'));
     });
   });
   conn.on('error', (e) => fail(`ssh: ${e.message}`));
