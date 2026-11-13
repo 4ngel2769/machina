@@ -161,9 +161,10 @@ function SnapRow({ snap, state, canAct, setConfirm }: {
 export function SnapTable({ snapshots, canAct }: { snapshots: SnapshotsState; canAct: boolean }) {
   if (!snapshots.loaded) return <div className="muted" style={{ padding: '18px 0' }}>loading snapshots…</div>;
   if (snapshots.snaps.length === 0) {
-    return <Empty text="No snapshots yet. Take one before a risky upgrade so you can come back to it." />;
+    return <Empty icon="layers" text="No snapshots yet. Take one before a risky upgrade so you can come back to it." />;
   }
   return (
+    <div className="tablewrap">
     <table className="snaptable">
       <thead>
         <tr>
@@ -176,5 +177,6 @@ export function SnapTable({ snapshots, canAct }: { snapshots: SnapshotsState; ca
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

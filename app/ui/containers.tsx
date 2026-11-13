@@ -72,9 +72,9 @@ function ListBody({ list, allCount, shownCount, groups, actions }: {
     <>
       {list.error && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{list.error}</span><button onClick={list.reload} style={{ fontSize: 12 }}>retry</button></div>}
       {list.payload?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.payload.error}</div>}
-      {!list.payload && <Empty text="reading docker…" />}
+      {!list.payload && <Empty icon="activity" text="reading docker…" />}
       {empty && (
-        <Empty text={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'} />
+        <Empty icon={allCount === 0 ? 'package' : 'search'} text={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'} />
       )}
       {groups.map(([project, containers]) => <ContainerGroup key={project} project={project} containers={containers} actions={actions} />)}
     </>

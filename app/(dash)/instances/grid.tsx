@@ -25,7 +25,7 @@ export function InstancesGrid({ page, isAdmin, onRequest, insts, selected, onTog
       ))}
       {!page.loading && insts.length === 0 && page.insts.length > 0 && (
         <div style={{ gridColumn: '1 / -1' }}>
-          <Empty text="no instances match the current filter" />
+          <Empty icon="search" text="no instances match the current filter" />
         </div>
       )}
       {!page.loading && page.insts.length === 0 && (

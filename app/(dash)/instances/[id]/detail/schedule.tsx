@@ -127,7 +127,7 @@ export function SchedulePanel({ instanceId, instanceStatus }: { instanceId: stri
       )}
 
       {!schedules && <Skeleton h={80} />}
-      {schedules && schedules.length === 0 && <Empty text="nothing scheduled" />}
+      {schedules && schedules.length === 0 && <Empty icon="clock" text="nothing scheduled" />}
       {schedules && schedules.length > 0 && <ScheduleTable schedules={schedules} onCancel={(id) => void cancel(id)} />}
     </div>
   );

@@ -17,7 +17,7 @@ export function HostdevCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <h3>host devices</h3>
-      {vm.hostdevs.length === 0 ? <Empty text="no passthrough devices" /> : (
+      {vm.hostdevs.length === 0 ? <Empty icon="cpu" text="no passthrough devices" /> : (
         <table>
           <thead><tr><th>kind</th><th>device</th><th /></tr></thead>
           <tbody>
@@ -49,7 +49,7 @@ export function DirsCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op })
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <h3>shared dirs</h3>
-      {vm.dirs.length === 0 ? <Empty text="none" /> : (
+      {vm.dirs.length === 0 ? <Empty icon="inbox" text="none" /> : (
         <table>
           <thead><tr><th>tag</th><th>source</th><th>mode</th><th /></tr></thead>
           <tbody>

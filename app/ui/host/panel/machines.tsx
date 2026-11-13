@@ -81,7 +81,7 @@ export function Machines({ vms, users, instances, owner, setOwner, busy, vmPost 
         <h3 style={{ margin: 0 }}>{vms.length} machine{vms.length === 1 ? '' : 's'}</h3>
         <OwnerSelect owner={owner} setOwner={setOwner} users={users} instances={instances} />
       </div>
-      {vms.length === 0 ? <Empty text="no machines in this view" /> : (
+      {vms.length === 0 ? <Empty icon="server" text="no machines in this view" /> : (
         <table>
           <thead><tr>
             <th>name</th><th>state</th><th>owner</th><th>vCPU</th><th>RAM</th><th>boot</th><th>autostart</th><th />
