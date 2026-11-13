@@ -15,7 +15,19 @@ export async function GET() {
   const raw = rawDb();
   const balanceRow = raw.prepare(`select balance_cents from users where id=?`).get(user.id) as { balance_cents: number } | undefined;
   if (!balanceRow) return err('no user', 404);
-  const ledger = raw.prepare(`select * from ledger where user_id=? order by created_at desc limit 50`).all(user.id);
+  const rawLedger = raw.prepare(`select * from ledger where user_id=? order by created_at desc limit 50`).all(user.id) as {
+    id: string; user_id: string; delta_cents: number; reason: string;
+    ref_type: string | null; ref_id: string | null; note: string | null; created_at: number;
+  }[];
+  const ledger = rawLedger.map((row) => ({
+    id: row.id,
+    deltaCents: row.delta_cents,
+    reason: row.reason,
+    refType: row.ref_type,
+    refId: row.ref_id,
+    note: row.note,
+    createdAt: row.created_at,
+  }));
   const runningCount = (raw.prepare(`select count(*) c from instances where status='running'`).get() as { c: number }).c;
   return json({
     balanceCents: balanceRow.balance_cents,
