@@ -19,7 +19,7 @@ sudo mkdir -p "$DATA_DIR" "$STORAGE_DIR"
 sudo chown "$USER":"$USER" "$DATA_DIR" "$STORAGE_DIR"
 # serial/ is not optional despite looking like it: the domain XML writes each
 # guest's console to it, so a missing dir is a failed define, not a lost log.
-for d in images vms seeds vnc tmp ssh serial; do mkdir -p "$STORAGE_DIR/$d"; done
+for d in images vms seeds vnc tmp ssh serial iso; do mkdir -p "$STORAGE_DIR/$d"; done
 chmod 1777 "$STORAGE_DIR/vnc"
 chmod 700 "$DATA_DIR"
 
@@ -117,6 +117,25 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now "$SERVICE_NAME"
 sleep 2
 sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -12 || true
+
+# --- nightly backup timer --------------------------------------------------------
+BACKUP_DIR="${MACHINA_BACKUP_DIR:-/mnt/backups/machina}"
+if [[ -f "$SCRIPT_DIR/machina-backup.sh" ]]; then
+  sudo mkdir -p "$BACKUP_DIR"
+  sudo install -m 0755 "$SCRIPT_DIR/../scripts/machina-backup.sh" /usr/local/bin/machina-backup.sh
+  sed -e "s|/home/angel/machina/scripts/machina-backup.sh|/usr/local/bin/machina-backup.sh|" \
+      -e "s|MACHINA_BACKUP_DIR=/mnt/8tbv1/backups/machina|MACHINA_BACKUP_DIR=$BACKUP_DIR|" \
+      -e "s|MACHINA_DB_PATH=/var/lib/machina/machina.db|MACHINA_DB_PATH=$DATA_DIR/machina.db|" \
+      -e "s|MACHINA_STORAGE_DIR=/mnt/8tbv1/machina|MACHINA_STORAGE_DIR=$STORAGE_DIR|" \
+      "$SCRIPT_DIR/machina-backup.service" > /tmp/machina-backup.service
+  sudo install -m 0644 /tmp/machina-backup.service /etc/systemd/system/machina-backup.service
+  sudo install -m 0644 "$SCRIPT_DIR/machina-backup.timer" /etc/systemd/system/machina-backup.timer
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now machina-backup.timer
+  echo "==> nightly backup timer installed (03:15 + up to 20m jitter -> $BACKUP_DIR)"
+else
+  echo "NOTE: scripts/machina-backup.sh missing; backup timer skipped"
+fi
 
 echo
 echo "Done. Admin credentials in $DATA_DIR/machina.env (ADMIN_PASSWORD)."
