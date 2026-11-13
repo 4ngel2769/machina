@@ -241,6 +241,8 @@ export default function InstanceDetail() {
 function Terminal({ instanceId }: { instanceId: string }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const connRef = useRef<WebSocket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const sizePushRef = useRef<(() => void) | null>(null);
   const termRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const fitRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const aliveRef = useRef(true);
@@ -294,6 +296,26 @@ function Terminal({ instanceId }: { instanceId: string }) {
         t.loadAddon(f);
         termRef.current = t;
         fitRef.current = f;
+
+        // Handlers bind ONCE, against wsRef — never per socket. Per-connect
+        // bindings stacked a listener per reconnect and sent resizes to dead
+        // sockets. xterm also only emits onResize when the grid actually
+        // changes, so the initial size must be pushed explicitly.
+        t.onData((d) => {
+          const w = wsRef.current;
+          if (w && w.readyState === WebSocket.OPEN) {
+            w.send(JSON.stringify({ t: 'i', d: btoa(unescape(encodeURIComponent(d))) }));
+          }
+        });
+        const pushSize = () => {
+          const w = wsRef.current;
+          const term = termRef.current;
+          if (w && w.readyState === WebSocket.OPEN && term && term.element) {
+            w.send(JSON.stringify({ t: 'r', c: term.cols, r: term.rows }));
+          }
+        };
+        t.onResize(() => pushSize());
+        sizePushRef.current = pushSize;
       }
       const term = termRef.current;
 
@@ -307,26 +329,23 @@ function Terminal({ instanceId }: { instanceId: string }) {
       const ws = new WebSocket(`${proto}://${location.host}/api/instances/${instanceId}/terminal?token=${tok.token}`);
       ws.binaryType = 'arraybuffer'; // server streams stdout as binary frames
       connRef.current = ws;
+      wsRef.current = ws;
 
-      // Input and resize are bound once against the CURRENT socket. Rebinding
-      // these per connect would stack listeners and duplicate every keystroke.
-      term.onData((d) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ t: 'i', d: btoa(unescape(encodeURIComponent(d))) }));
-        }
-      });
-      term.onResize(({ cols, rows }) => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'r', c: cols, r: rows }));
-      });
-      const fitLater = () => { try { fitRef.current?.fit(); } catch { /* not laid out yet */ } };
-      window.addEventListener('resize', fitLater);
+      // Re-fit after layout settles, then push the real size. fit() called
+      // synchronously after open() can measure a not-yet-laid-out box and
+      // leave xterm at its 80x24 default — that default is what used to
+      // reach the guest PTY.
+      const fitAndPush = () => {
+        try { fitRef.current?.fit(); } catch { /* hidden or mid-layout */ }
+        requestAnimationFrame(() => { try { fitRef.current?.fit(); } catch { /* retry on next trigger */ } });
+        sizePushRef.current?.();
+      };
 
       ws.onopen = () => {
         const box = boxRef.current;
         if (!box) return;
         if (!term.element?.parentElement) { box.innerHTML = ''; term.open(box); }
-        fitLater();
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'r', c: term.cols, r: term.rows }));
+        fitAndPush();
         triesRef.current = 0;
         setState('open');
         setErr('');
@@ -345,7 +364,7 @@ function Terminal({ instanceId }: { instanceId: string }) {
       };
       ws.onclose = () => {
         if (connRef.current === ws) connRef.current = null;
-        window.removeEventListener('resize', fitLater);
+        if (wsRef.current === ws) wsRef.current = null;
         scheduleReconnect();
       };
       ws.onerror = () => { setErr('websocket error'); };
@@ -363,23 +382,34 @@ function Terminal({ instanceId }: { instanceId: string }) {
     // Returning to a backgrounded tab is exactly when a dropped socket must be
     // repaired, and it is also the one moment the browser is not throttling
     // timers — so reconnect at once instead of waiting out the backoff.
+    // Browser resizes and tab wakes both change what fit() should measure;
+    // push the new grid to the guest either way.
+    const onResize = () => {
+      try { fitRef.current?.fit(); } catch { /* hidden */ }
+      sizePushRef.current?.();
+    };
     const onWake = () => {
       if (document.visibilityState === 'hidden') return;
+      onResize();
       const c = connRef.current;
       if (c && (c.readyState === WebSocket.OPEN || c.readyState === WebSocket.CONNECTING)) return;
       if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
       triesRef.current = 0;
       void connectRef.current?.();
     };
+    window.addEventListener('resize', onResize);
     document.addEventListener('visibilitychange', onWake);
     window.addEventListener('online', onWake);
     return () => {
       aliveRef.current = false;
+      window.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onWake);
       window.removeEventListener('online', onWake);
       if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
       try { connRef.current?.close(); } catch { /* already gone */ }
       connRef.current = null;
+      wsRef.current = null;
+      sizePushRef.current = null;
       try { termRef.current?.dispose(); } catch { /* already gone */ }
       termRef.current = null;
       fitRef.current = null;
