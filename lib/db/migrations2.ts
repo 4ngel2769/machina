@@ -112,4 +112,84 @@ export const MIGRATIONS_2: { version: string; sql: string }[] = [
       create index if not exists schedue_user_idx on scheduled_ops(user_id);
     `,
   },
+  {
+    version: '20261113_0012',
+    sql: `
+      -- Admin-editable runtime settings (JSON values). Today only the ISO
+      -- library caps live here; the config.ts defaults remain the fallback so
+      -- a missing row never changes behaviour.
+      create table if not exists settings (
+        key text primary key,
+        value text not null
+      );
+
+      -- One private libvirt NAT network per user. VMs of the same user share
+      -- it (they can reach each other); different users land on different
+      -- /24s and the host firewall drops all cross-bridge forwarding, so a
+      -- guest cannot route to another tenant's VM, the host, or the LAN.
+      create table if not exists user_nets (
+        user_id text primary key,
+        name text not null unique,
+        idx integer not null,
+        subnet text not null,      -- e.g. 10.231.7.0/24
+        gateway text not null,     -- e.g. 10.231.7.1
+        created_at integer not null
+      );
+
+      -- Which network an instance's NIC is attached to. Defaults to the
+      -- legacy shared machina0 net so pre-migration rows keep working; new
+      -- provisions always write their user net here.
+      alter table instances add column net_name text not null default 'machina0';
+      create index if not exists inst_net_idx on instances(net_name);
+    `,
+  },
+  {
+    version: '20261113_0013',
+    sql: `
+      -- Per-user ISO library tiers: same "NULL = unlimited, 0 = none"
+      -- semantics as the VM columns. The global caps in iso.limits remain
+      -- the hard ceiling every upload must also fit inside.
+      alter table quotas add column max_iso_count integer;
+      alter table quotas add column max_iso_total_gb integer;
+      alter table quotas add column max_containers integer;
+      alter table quotas add column max_container_mem_mb integer;
+      alter table quotas add column max_container_cpus real;
+
+      -- Ownership registry for ISO uploads. The files live in one shared
+      -- directory; this table is what makes a library per-user. One row per
+      -- filename, so rename and quota accounting stay simple.
+      create table if not exists iso_uploads (
+        name text primary key,
+        owner_id text not null,
+        size_bytes integer not null default 0,
+        created_at integer not null
+      );
+      create index if not exists isou_owner_idx on iso_uploads(owner_id);
+
+      -- One private docker bridge per user for tenant containers. idx picks
+      -- the 10.240.<idx>.0/24 subnet; the machina_vnets-style isolation comes
+      -- free because docker bridges never route to each other.
+      create table if not exists user_dockernets (
+        user_id text primary key,
+        name text not null unique,
+        idx integer not null,
+        subnet text not null,
+        created_at integer not null
+      );
+
+      -- Registry of containers a user created through the console. Docker is
+      -- the source of truth for state; this table answers "who owns it" for
+      -- listing, quotas and cleanup after the container is gone.
+      create table if not exists user_containers (
+        id text primary key,          -- docker container id
+        user_id text not null,
+        name text not null,
+        net_name text,
+        memory_mb integer default 0,
+        cpus real default 0,
+        created_at integer not null
+      );
+      create index if not exists uct_user_idx on user_containers(user_id);
+    `,
+  },
 ];

@@ -15,6 +15,7 @@ import {
 } from '../driver';
 import { createBackedDisk, deleteVolume, copyDisk } from '../disks';
 import { now } from '../util';
+import { gatewayForNet } from '@/lib/core/usernet';
 import { eq } from 'drizzle-orm';
 import type { JobCtx } from '../handlers';
 import { ignore } from '@/lib/core/ignore';
@@ -22,7 +23,7 @@ import { notifyInstance } from '@/lib/services/notify';
 
 type InstanceRow = {
   id: string; user_id: string; plan_id: string; image_id: string; name: string;
-  mac: string; ip: string; root_pass_enc: string; vnc_pass: string;
+  mac: string; ip: string; net_name: string; root_pass_enc: string; vnc_pass: string;
   domain_name: string; status: string;
 };
 
@@ -74,7 +75,7 @@ async function writeSeed(
     sshPublicKeys,
     mac: instanceRow.mac,
     ip: instanceRow.ip,
-    gateway: config.gateway,
+    gateway: gatewayForNet(instanceRow.net_name || config.network),
     netmask: '255.255.255.0',
     dns: ['1.1.1.1', '9.9.9.9'],
     seedIsoPath,
@@ -106,6 +107,7 @@ async function defineInstanceDomain(
     vncPass,
     serialPath,
     spice: config.spice.enabled,
+    network: instanceRow.net_name || config.network,
   });
   log('defining domain');
   // a previous attempt may have left the domain defined (or even running);
@@ -114,7 +116,7 @@ async function defineInstanceDomain(
   await undefineDomain(instanceRow.domain_name).catch(ignore('domain may already be undefined'));
   await defineDomain(xml);
   log('dhcp lease entry');
-  await ensureIpLease(instanceRow.mac, instanceRow.ip);
+  await ensureIpLease(instanceRow.mac, instanceRow.ip, instanceRow.net_name || config.network);
   return { vncSocket, vncPass };
 }
 

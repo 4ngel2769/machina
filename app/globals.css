@@ -42,44 +42,59 @@ button, input, select, a, tr {
 
 .layout { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
-/* ------------------------------------------------------------- sidebar */
+/* ------------------------------------------------------------- dock */
 .shell { display: flex; min-height: 100dvh; }
 .main { flex: 1; min-width: 0; }
+/* the floating dock overlays content; --dock-pad reserves its gutter and is
+   driven by the dock component per state (0 when hidden) */
+.layout { padding-left: calc(24px + var(--dock-pad, 0px)); transition: padding-left .3s ease; }
 
-.sidebar {
-  position: sticky; top: 0; height: 100dvh; z-index: 40;
-  width: 232px; flex: none;
+.dock {
+  position: fixed; z-index: 40;
   display: flex; flex-direction: column;
-  border-right: 1px solid var(--line);
-  background: var(--bg);
-  transition: width .22s cubic-bezier(.4,0,.2,1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
   overflow: hidden;
+  will-change: left, top, bottom, width, border-radius, transform, opacity;
 }
-.sidebar:not(.open) { width: 60px; }
+.dock.open { border-radius: 0; border-left: none; box-shadow: none; }
 
-.sidebar-head {
+.dock-head {
   display: flex; align-items: center; justify-content: space-between;
   height: 52px; padding: 0 10px 0 16px; flex: none;
   border-bottom: 1px solid var(--line);
 }
-.sidebar-brand {
+.dock:not(.open) .dock-head { flex-direction: column; justify-content: center; gap: 8px; height: auto; padding: 10px 0; }
+.dock-brand {
   font-weight: 600; font-size: 15px; letter-spacing: .02em;
   white-space: nowrap; overflow: hidden;
-  opacity: 1; transition: opacity .15s ease;
 }
-.sidebar:not(.open) .sidebar-brand { opacity: 0; }
-.sidebar-collapse {
+.dock:not(.open) .dock-brand { display: none; }
+.dock-collapse {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; padding: 0; flex: none;
   background: transparent; border: none; border-radius: 6px;
   color: var(--text-3); cursor: pointer;
 }
-.sidebar-collapse:hover { color: var(--text); background: var(--surface); }
+.dock-collapse:hover { color: var(--text); background: var(--surface-2); }
 
-.sidebar-nav {
+.dock-nav {
   flex: 1; overflow-y: auto; overflow-x: hidden;
   padding: 10px 8px; display: flex; flex-direction: column; gap: 2px;
 }
+.dock:not(.open) .dock-nav { padding: 4px 6px; align-items: center; }
+
+.dock-icons { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dock-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px;
+  color: var(--text-3); transition: color .15s ease, background .15s ease;
+}
+.dock-icon:hover { color: var(--text); background: var(--surface-2); }
+.dock-icon.active { color: var(--accent); background: var(--accent-dim); }
+
+/* open-state group tree (same classes the old sidebar used) */
 .snav-group { display: flex; flex-direction: column; }
 .snav-group-head {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -88,7 +103,7 @@ button, input, select, a, tr {
   color: var(--text-2); font-size: 12px; font-weight: 500;
   letter-spacing: .04em; text-transform: uppercase;
 }
-.snav-group-head:hover { color: var(--text); background: var(--surface); }
+.snav-group-head:hover { color: var(--text); background: var(--surface-2); }
 .snav-group.active > .snav-group-head { color: var(--text); }
 .snav-icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -98,15 +113,8 @@ button, input, select, a, tr {
 .snav-link.active .snav-icon { color: var(--accent); }
 .snav-label {
   flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
-  opacity: 1; max-width: 140px;
-  transition: opacity .15s ease, max-width .2s ease;
 }
 .snav-chev { display: inline-flex; color: var(--text-3); flex: none; }
-.sidebar:not(.open) .snav-label,
-.sidebar:not(.open) .snav-chev,
-.sidebar:not(.open) .sidebar-brand { opacity: 0; max-width: 0; pointer-events: none; }
-.snav-group-head { position: relative; }
-.sidebar:not(.open) .snav-group-head { justify-content: center; padding: 8px 0; }
 
 .snav-items {
   display: flex; flex-direction: column; gap: 1px;
@@ -118,43 +126,45 @@ button, input, select, a, tr {
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: none; }
 }
-.sidebar:not(.open) .snav-items { padding-left: 0; align-items: center; }
 
 .snav-link {
   display: flex; align-items: center; gap: 10px;
   padding: 6px 8px; border-radius: 6px;
   color: var(--text-2); font-size: 13px;
 }
-.snav-link:hover { color: var(--text); background: var(--surface); }
+.snav-link:hover { color: var(--text); background: var(--surface-2); }
 .snav-link.active { color: var(--text); background: var(--surface-2); }
-.sidebar:not(.open) .snav-link { justify-content: center; padding: 7px 0; }
 
-.sidebar-foot {
+.dock-foot {
   flex: none; border-top: 1px solid var(--line);
-  padding: 10px; display: flex; align-items: center; gap: 8px;
+  padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
-.sidebar-user { position: relative; flex: 1; min-width: 0; display: flex; }
-.sidebar-profile {
-  flex: 1; min-width: 0; justify-content: flex-start;
+.dock.open .dock-foot { flex-direction: row; }
+.dock-user { position: relative; flex: 1; min-width: 0; display: flex; }
+.dock-profile {
+  flex: 1; min-width: 0; justify-content: center;
   background: transparent; border: none; padding: 4px 6px;
   border-radius: 8px; color: var(--text); font-size: 13px;
 }
-.sidebar-profile:hover { background: var(--surface); }
-.sidebar-profile > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-menu { left: 0; right: auto; bottom: calc(100% + 6px); top: auto; }
-.sidebar-bell { flex: none; display: flex; }
+.dock.open .dock-profile { justify-content: flex-start; }
+.dock-profile > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-menu { left: 0; right: auto; bottom: calc(100% + 6px); top: auto; }
+.dock-bell { flex: none; display: flex; }
+.dock:not(.open) .dock-bell { display: none; }
 
-.sidebar-peek {
+/* pull-tab: the way back when the dock is hidden */
+.dock-tab {
   position: fixed; left: 0; top: 50%; transform: translateY(-50%);
-  z-index: 45; width: 22px; height: 56px;
+  z-index: 45; width: 26px; height: 64px;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface); border: 1px solid var(--line);
-  border-left: none; border-radius: 0 8px 8px 0;
+  border-left: none; border-radius: 0 10px 10px 0;
   color: var(--text-3); cursor: pointer; padding: 0;
+  transition: color .15s ease, background .15s ease, width .15s ease;
 }
-.sidebar-peek:hover { color: var(--text); background: var(--surface-2); }
-.sidebar-backdrop {
-  position: fixed; inset: 0; z-index: 35;
+.dock-tab:hover { color: var(--text); background: var(--surface-2); width: 30px; }
+.dock-backdrop {
+  position: fixed; inset: 0; z-index: 35; display: none;
   background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
   animation: fade-in .18s ease-out;
 }
@@ -179,17 +189,135 @@ h1 { font-size: 22px; font-weight: 600; margin: 28px 0 4px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 
 label { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
-input, select {
+
+/* ---- custom form controls -------------------------------------------
+   One skin for every text-like field, select, checkbox and file picker.
+   appearance:none + drawn chrome keeps them consistent with the hairline
+   dark theme instead of falling back to native widgets. */
+input:not([type]),
+input[type="text"], input[type="password"], input[type="email"],
+input[type="search"], input[type="url"], input[type="number"],
+input[type="time"], input[type="date"], input[type="datetime-local"],
+textarea {
   width: 100%;
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text);
-  padding: 8px 10px;
+  padding: 9px 12px;
   font-size: 14px;
   font-family: inherit;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
-input:focus, select:focus { outline: 1px solid var(--accent); }
+textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+input:not([type]):hover, input[type="text"]:hover, input[type="password"]:hover,
+input[type="email"]:hover, input[type="search"]:hover, input[type="url"]:hover,
+input[type="number"]:hover, input[type="time"]:hover, input[type="date"]:hover,
+input[type="datetime-local"]:hover, textarea:hover { border-color: var(--text-3); }
+input:not([type]):focus, input[type="text"]:focus, input[type="password"]:focus,
+input[type="email"]:focus, input[type="search"]:focus, input[type="url"]:focus,
+input[type="number"]:focus, input[type="time"]:focus, input[type="date"]:focus,
+input[type="datetime-local"]:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+input::placeholder, textarea::placeholder { color: var(--text-3); opacity: .8; }
+input.bad, textarea.bad { border-color: var(--danger); }
+input.bad:focus, textarea.bad:focus { box-shadow: 0 0 0 3px rgba(248,113,113,.15); }
+
+/* native number spinners clash with the theme — keep them but quiet */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { opacity: .5; }
+
+/* select: same box, custom chevron drawn as an svg data-uri */
+select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236e6e77' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat right 12px center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 34px 9px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+select:hover { border-color: var(--text-3); }
+select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+select option { background: var(--surface-2); color: var(--text); }
+
+/* checkbox: drawn box + check, no native widget */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 16px; height: 16px;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  cursor: pointer;
+  position: relative;
+  transition: background .12s ease, border-color .12s ease;
+  vertical-align: -3px;
+}
+input[type="checkbox"]:hover { border-color: var(--text-3); }
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4.5px; top: 1.5px;
+  width: 4px; height: 8px;
+  border: solid #062622;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
+
+/* file picker: quiet field, button-styled selector */
+input[type="file"] {
+  width: 100%;
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--text-2);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+input[type="file"]:hover { border-color: var(--text-3); }
+input[type="file"]::file-selector-button {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: border-color .15s ease;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--text-3); }
+
+input[type="submit"] {
+  background: var(--accent); color: #062622; border-color: var(--accent);
+  font-weight: 600; width: auto; cursor: pointer;
+}
+input[type="submit"]:hover { filter: brightness(1.1); }
 
 button {
   background: var(--surface-2);
@@ -469,24 +597,16 @@ kbd {
 
 /* ------------------------------------------------------------- responsive */
 @media (max-width: 860px) {
-  .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0;
-    width: min(260px, 84vw);
-    transform: translateX(-105%);
-    transition: transform .22s cubic-bezier(.4,0,.2,1), width .22s cubic-bezier(.4,0,.2,1);
-    box-shadow: 0 0 40px rgba(0,0,0,.5);
-  }
-  .sidebar.open { transform: none; }
-  .sidebar:not(.open) { width: min(260px, 84vw); }
-  .sidebar .snav-label, .sidebar .snav-chev, .sidebar .sidebar-brand { opacity: 1; max-width: 140px; pointer-events: auto; }
-  .sidebar .snav-group-head { justify-content: flex-start; padding: 7px 8px; }
-  .sidebar .snav-items { padding-left: 26px; align-items: stretch; }
-  .sidebar .snav-link { justify-content: flex-start; padding: 6px 8px; }
-  .sidebar-peek { display: flex; }
-  .sidebar-backdrop { display: block; }
+  /* the dock becomes a full-height overlay panel; the icon rail only shows
+     in dock mode on desktop, so force the open geometry via width */
+  .dock { border-radius: 0; border-left: none; box-shadow: none; }
+  .dock-tab { display: flex; }
+  .dock-backdrop { display: block; }
+  /* mobile: content never reserves dock gutter */
+  .layout { padding-left: 14px; }
 }
 @media (min-width: 861px) {
-  .sidebar-backdrop { display: none; }
+  .dock-backdrop { display: none; }
 }
 @media (max-width: 720px) {
   .layout { padding: 0 14px; }

@@ -1,5 +1,5 @@
 /**
- * Admin-only view of the Docker daemon on this host.
+ * Admin view of the Docker daemon on this host.
  */
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
@@ -11,6 +11,6 @@ export const dynamic = 'force-dynamic';
 export default async function ContainersPage() {
   const user = await requireUser();
   if (!user) redirect('/signin');
-  if (user.role !== 'admin') redirect('/home');
-  return <ContainersPanel />;
+  if (user.role !== 'admin') redirect('/my-containers');
+  return <ContainersPanel apiBase="/api/containers" admin />;
 }

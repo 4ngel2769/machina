@@ -4,36 +4,43 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { StatusCue } from '@/app/ui/status';
-import { ignore } from '@/lib/core/ignore';
+import { Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; bandwidthGb: number; monthlyCapMin: number };
 
 export default function SpecsPage() {
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const ready = useMinVisible(400);
 
   useEffect(() => {
     fetch('/api/catalog', { cache: 'no-store' })
       .then((catalogResponse) => (catalogResponse.ok ? catalogResponse.json() : null))
-      .then((catalog) => catalog && setPlans(catalog.plans))
-      .catch(ignore('catalog fetch failure leaves the page empty'));
+      .then((catalog) => setPlans(catalog?.plans ?? []))
+      .catch(() => setPlans([]));
   }, []);
 
   const formatGigabytes = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`);
+  const loading = !ready || plans === null;
 
   return (
     <>
       <h1>specs</h1>
       <div className="sub">what you get on every plan, smallest to largest</div>
 
-      {plans.length === 0 && <div className="empty">loading plans…</div>}
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
         <table>
           <thead>
             <tr><th>plan</th><th>vCPU</th><th>RAM</th><th>disk</th><th>network</th><th>rate</th><th>monthly cap</th></tr>
           </thead>
           <tbody>
-            {plans.map((plan) => (
+            {loading && Array.from({ length: 4 }).map((_, n) => (
+              <tr key={n}>
+                {Array.from({ length: 7 }).map((__, cell) => (
+                  <td key={cell} style={{ padding: '12px 10px' }}><Skeleton w={cell === 0 ? '60%' : '70%'} h={10} /></td>
+                ))}
+              </tr>
+            ))}
+            {!loading && (plans ?? []).map((plan) => (
               <tr key={plan.id}>
                 <td style={{ color: 'var(--text)', fontWeight: 500 }}>{plan.name}</td>
                 <td className="mono">{plan.vcpu}</td>

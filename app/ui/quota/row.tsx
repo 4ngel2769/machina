@@ -15,13 +15,14 @@ export function Meter({ used, max, label }: { used: number; max: number | null; 
   const percent = Math.min(100, Math.round((used / Math.max(1, max)) * 100));
   // Over the line is the only state that needs a colour; everything else is calm.
   const over = used > max;
+  const fmt = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
   return (
-    <span className="meter" title={`${label}: ${used} of ${max}`}>
+    <span className="meter" title={`${label}: ${fmt(used)} of ${fmt(max)}`}>
       <span className="muted" style={{ fontSize: 11 }}>{label}</span>
       <span className={`bar${over ? ' over' : ''}`}>
         <span className="fill" style={{ width: `${percent}%` }} />
       </span>
-      <span className="mono" style={{ fontSize: 11 }}>{used}/{max}</span>
+      <span className="mono" style={{ fontSize: 11 }}>{fmt(used)}/{fmt(max)}</span>
     </span>
   );
 }
@@ -34,6 +35,11 @@ export function UsageMeters({ quota, usage }: { quota: Row['quota']; usage: Row[
       <Meter used={usage.vcpus} max={quota.maxVcpus} label="vCPU" />
       <Meter used={usage.memoryMb} max={quota.maxMemoryMb} label="RAM" />
       <Meter used={usage.diskGb} max={quota.maxDiskGb} label="disk" />
+      <Meter used={usage.isos} max={quota.maxIsoCount} label="ISOs" />
+      <Meter used={usage.isoGb} max={quota.maxIsoTotalGb} label="ISO GB" />
+      <Meter used={usage.containers} max={quota.maxContainers} label="containers" />
+      <Meter used={usage.containerMemMb} max={quota.maxContainerMemMb} label="ctr RAM" />
+      <Meter used={usage.containerCpus} max={quota.maxContainerCpus} label="ctr vCPU" />
     </div>
   );
 }

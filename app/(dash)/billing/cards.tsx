@@ -3,6 +3,7 @@
 'use client';
 
 import { relTime } from '@/app/ui/time';
+import { Skeleton } from '@/app/ui/loaders';
 import type { BillingState } from './use';
 
 export function BalanceCard({ billing }: { billing: BillingState }) {
@@ -12,7 +13,7 @@ export function BalanceCard({ billing }: { billing: BillingState }) {
         <div>
           <div className="muted">balance</div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 600 }}>
-            {billing.balance === null ? '…' : `$${(billing.balance / 100).toFixed(2)}`}
+            {!billing.loaded ? <Skeleton w={110} h={30} r={6} /> : billing.balance === null ? '—' : `$${(billing.balance / 100).toFixed(2)}`}
           </div>
           {billing.balance !== null && billing.balance < 100
             ? <span className="badge suspended" title="auto-suspends when it hits zero">low balance</span>
@@ -87,7 +88,12 @@ export function LedgerCard({ billing }: { billing: BillingState }) {
       <table>
         <thead><tr><th>when</th><th>reason</th><th>delta</th><th>note</th></tr></thead>
         <tbody>
-          {billing.ledger.map((entry) => (
+          {!billing.loaded && Array.from({ length: 4 }).map((_, n) => (
+            <tr key={n}>{Array.from({ length: 4 }).map((__, cell) => (
+              <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 3 ? '50%' : '75%'} h={10} /></td>
+            ))}</tr>
+          ))}
+          {billing.loaded && billing.ledger.map((entry) => (
             <tr key={entry.id}>
               <td title={new Date(entry.createdAt).toLocaleString()}>{relTime(entry.createdAt)}</td>
               <td>{entry.reason}</td>
@@ -97,7 +103,7 @@ export function LedgerCard({ billing }: { billing: BillingState }) {
               <td className="copy">{entry.note ?? '—'}</td>
             </tr>
           ))}
-          {billing.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
+          {billing.loaded && billing.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
         </tbody>
       </table>
     </div>

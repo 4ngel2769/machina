@@ -76,6 +76,9 @@ export const instances = sqliteTable('instances', {
   status: text('status').default('provisioning').notNull(),
   mac: text('mac').notNull(),
   ip: text('ip').notNull(),
+  // libvirt network this instance's NIC attaches to. 'machina0' is the legacy
+  // shared net; new provisions get a per-user net from user_nets.
+  netName: text('net_name').notNull().default('machina0'),
   vncSocket: text('vnc_socket'),
   vncPass: text('vnc_pass'),
   rootPassEnc: text('root_pass_enc'), // AES-256-GCM blob
@@ -194,10 +197,46 @@ export const quotas = sqliteTable('quotas', {
   maxMemoryMb: integer('max_memory_mb'),
   maxDiskGb: integer('max_disk_gb'),
   maxRunning: integer('max_running'),
+  // ISO library tier: how many uploads, and their combined size. The global
+  // iso.limits caps still apply on top — these are the per-user tier.
+  maxIsoCount: integer('max_iso_count'),
+  maxIsoTotalGb: integer('max_iso_total_gb'),
+  // Tenant containers: count plus summed memory/vCPU across all of them.
+  maxContainers: integer('max_containers'),
+  maxContainerMemMb: integer('max_container_mem_mb'),
+  maxContainerCpus: real('max_container_cpus'),
   suspended: integer('suspended').default(0).notNull(),
   note: text('note'),
   updatedAt: integer('updated_at').notNull(),
 });
+
+/** ISO upload ownership: one row per file in the shared library. */
+export const isoUploads = sqliteTable('iso_uploads', {
+  name: text('name').primaryKey(),
+  ownerId: text('owner_id').notNull(),
+  sizeBytes: integer('size_bytes').default(0).notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [index('isou_owner_idx').on(table.ownerId)]);
+
+/** One private docker bridge per user for tenant containers (10.240.x.0/24). */
+export const userDockernets = sqliteTable('user_dockernets', {
+  userId: text('user_id').primaryKey(),
+  name: text('name').notNull().unique(),
+  idx: integer('idx').notNull(),
+  subnet: text('subnet').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** Containers a user created through the console; docker holds the state. */
+export const userContainers = sqliteTable('user_containers', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  netName: text('net_name'),
+  memoryMb: integer('memory_mb').default(0).notNull(),
+  cpus: real('cpus').default(0).notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [index('uct_user_idx').on(table.userId)]);
 
 /** In-app notification feed: one row per event worth telling a user about. */
 export const notifications = sqliteTable('notifications', {
@@ -265,3 +304,6 @@ export type Plan = typeof plans.$inferSelect;
 export type Image = typeof images.$inferSelect;
 export type SshKey = typeof sshKeys.$inferSelect;
 export type Snapshot = typeof snapshots.$inferSelect;
+export type IsoUpload = typeof isoUploads.$inferSelect;
+export type UserDockernet = typeof userDockernets.$inferSelect;
+export type UserContainer = typeof userContainers.$inferSelect;

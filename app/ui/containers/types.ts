@@ -5,6 +5,7 @@ export type Container = {
   health: string | null; ports: string; project: string | null; service: string | null;
   createdAt: string; cpuPct: number | null; memMb: number | null; memLimitMb: number | null;
   memPct: number | null; pids: number | null; managed: boolean;
+  ownerId?: string | null; ownerName?: string | null; netName?: string | null;
 };
 export type Payload = { available: boolean; containers: Container[]; error: string | null };
 

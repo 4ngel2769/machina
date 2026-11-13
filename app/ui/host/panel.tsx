@@ -3,6 +3,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Skeleton } from '@/app/ui/loaders';
 import { usePoll } from './shared';
 import { useHostActions } from './panel/actions';
 import { EMPTY_INV, TABS, type Inv, type LogPayload, type Tab, type Vm } from './panel/types';
@@ -58,6 +59,20 @@ function TabBody({ tab, inv, busy, post, netPost, log, onViewOwner }: {
   return <LogCard log={log} />;
 }
 
+function panelError(pollError: string, inv: Inv): string {
+  return pollError || inv.vmsError || inv.networksError || '';
+}
+
+function HostSkeleton() {
+  return (
+    <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+      <Skeleton h={40} />
+      <Skeleton h={200} />
+      <Skeleton h={200} />
+    </div>
+  );
+}
+
 export function HostPanel() {
   const [tab, setTab] = useState<Tab>('machines');
   const [owner, setOwner] = useState<string>('visible');
@@ -68,7 +83,7 @@ export function HostPanel() {
 
   const invPayload = inv.payload ?? EMPTY_INV;
   const roles = useMemo(() => new Map(invPayload.users.map((user) => [user.id, user.role])), [invPayload.users]);
-  const err = inv.error || invPayload.vmsError || invPayload.networksError;
+  const err = panelError(inv.error, invPayload);
   const viewOwner = (id: string) => { setOwner(id); setTab('machines'); };
 
   return (
@@ -84,14 +99,16 @@ export function HostPanel() {
 
       {err && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{err}</span><button onClick={inv.reload} style={{ fontSize: 12 }}>retry</button></div>}
 
-      {tab === 'machines' && (
+      {!inv.payload && <HostSkeleton />}
+
+      {inv.payload && tab === 'machines' && (
         <Machines
           vms={filterVms(invPayload.vms, owner, roles)}
           users={invPayload.users} instances={invPayload.instances}
           owner={owner} setOwner={setOwner} busy={busy} vmPost={vmPost}
         />
       )}
-      {tab !== 'machines' && (
+      {inv.payload && tab !== 'machines' && (
         <TabBody
           tab={tab} inv={invPayload} busy={busy} post={post} netPost={netPost}
           log={log.payload} onViewOwner={viewOwner}

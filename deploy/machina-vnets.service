@@ -1,0 +1,15 @@
+[Unit]
+Description=machina tenant-network isolation firewall (virbr-mu*)
+Documentation=file:///etc/nftables.d/machina-vnets.nft
+After=network-online.target libvirtd.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Destroy first so a re-run replaces the table instead of appending duplicates.
+ExecStartPre=-/usr/sbin/nft destroy table inet machina_vnets
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/machina-vnets.nft
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

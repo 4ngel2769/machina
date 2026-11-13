@@ -77,14 +77,14 @@ export async function stop(job: JobCtx, log: (m: string) => void): Promise<void>
 
 export async function del(job: JobCtx, log: (m: string) => void): Promise<void> {
   const raw = rawDb();
-  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string; name: string } | undefined;
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string; net_name: string; name: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
   log('settle before delete');
   await settleUser(instanceRow.user_id).catch(ignore('settle retries on the next tick'));
   log('destroy+undefine');
   await destroyDomain(instanceRow.domain_name);
   await undefineDomain(instanceRow.domain_name);
-  await removeIpLease(instanceRow.mac).catch(ignore('lease may already be gone'));
+  await removeIpLease(instanceRow.mac, instanceRow.net_name || undefined).catch(ignore('lease may already be gone'));
   log('delete disk');
   await deleteVolume(diskVolFromId(instanceRow.id));
   log('rm seed + vnc socket');

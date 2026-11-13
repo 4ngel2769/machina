@@ -35,6 +35,12 @@ export async function POST(req: NextRequest) {
   const body = await jsonBody(req, z.object({}).passthrough());
   try {
     const spec = parseCreate(body);
+    // Admin 'user' network needs an owner: the admin's own id. 'bridge' is
+    // the shared default and needs none.
+    if (spec.network === 'user') {
+      spec.ownerId = user.id;
+      spec.ownerName = user.name;
+    }
     const id = await createContainer(spec);
     await logAudit({
       actorId: user.id, actorName: user.name,

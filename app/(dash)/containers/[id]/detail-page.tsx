@@ -6,6 +6,7 @@
 
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@/app/ui/icons';
+import { Skeleton } from '@/app/ui/loaders';
 import { TabBar, TabBody } from './detail/tabs';
 import { containerIdFromPath, type ContainerDetail } from './detail/types';
 import { useContainerDetail } from './detail/use';
@@ -53,7 +54,9 @@ export default function ContainerDetailPage() {
   const { detail, err, busy, act, tab, setTab, stats, statsErr } = useContainerDetail(id);
 
   if (!detail) {
-    return <h1>{err || 'loading…'}</h1>;
+    return err
+      ? <h1>{err}</h1>
+      : <div><Skeleton w="40%" h={26} style={{ marginBottom: 8 }} /><Skeleton w="60%" h={12} /><div className="card" style={{ marginTop: 14 }}><Skeleton h={220} /></div></div>;
   }
 
   const stateTone = detail.state === 'running' ? 'running' : detail.state === 'paused' ? 'suspended' : 'stopped';

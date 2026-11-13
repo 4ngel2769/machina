@@ -10,6 +10,7 @@
 
 import { virsh } from '@/lib/core/driver';
 import { config, storagePaths } from '@/lib/config';
+import { rawDb } from '@/lib/db';
 import fs from 'fs/promises';
 import path from 'path';
 import { ignore } from '@/lib/core/ignore';
@@ -210,8 +211,14 @@ export async function deleteNetwork(name: string): Promise<void> {
   const net = (await listNetworks()).find((candidate) => candidate.name === name);
   if (!net) throw new Error('network not found');
   if (name === 'default' || name === 'machina0') throw new Error('refusing to delete a network machina depends on');
+  // A per-user net with live instances is load-bearing: deleting it strands
+  // every VM on it. Empty user nets are safe to remove — ensureUserNet
+  // recreates one lazily on the next provision.
+  const inUse = rawDb().prepare(`select 1 from instances where net_name=? limit 1`).get(name);
+  if (inUse) throw new Error(`network ${name} still has instances attached`);
   if (net.active) await virsh(['net-destroy', name]);
   await virsh(['net-undefine', name]);
+  rawDb().prepare(`delete from user_nets where name=?`).run(name);
 }
 
 /** Live DHCP reservation. net-update applies without restarting the network. */

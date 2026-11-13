@@ -9,6 +9,7 @@ import { newInstanceId, now } from '@/lib/core/util';
 import { encrypt, randToken, randPassword } from '@/lib/core/crypto';
 import { config } from '@/lib/config';
 import { macFromId, IpAllocator } from '@/lib/core/driver';
+import { ensureUserNet, type UserNet } from '@/lib/core/usernet';
 import { checkQuota } from '@/lib/core/quota';
 import { logAudit } from '@/lib/services/audit';
 
@@ -55,9 +56,11 @@ function assertNameFree(raw: ReturnType<typeof rawDb>, userId: string, name: str
   if (dupe) throw new Error('name already used');
 }
 
-function allocateIp(raw: ReturnType<typeof rawDb>): string {
-  const taken = (raw.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((row) => row.ip);
-  const ip = new IpAllocator(taken).next();
+function allocateIp(raw: ReturnType<typeof rawDb>, net: UserNet): string {
+  // IPs are only unique inside one network — the same address legitimately
+  // exists on every tenant /24, so `taken` is scoped to this net alone.
+  const taken = (raw.prepare(`select ip from instances where net_name=? and ip is not null`).all(net.name) as { ip: string }[]).map((row) => row.ip);
+  const ip = new IpAllocator(taken, net.ipRange).next();
   if (!ip) throw new Error('no free IP in range');
   return ip;
 }
@@ -79,6 +82,7 @@ function instanceValues(
   id: string,
   mac: string,
   ip: string,
+  net: UserNet,
   rootPassword: string,
   vncPass: string,
 ) {
@@ -92,6 +96,7 @@ function instanceValues(
     status: 'provisioning',
     mac,
     ip,
+    netName: net.name,
     vncSocket: `${config.storageDir}/vnc/${id}.vnc`,
     vncPass,
     rootPassEnc: encrypt(rootPassword),
@@ -133,14 +138,17 @@ export async function provisionInstance(args: ProvisionArgs): Promise<{ id: stri
 
   const raw = rawDb();
   assertNameFree(raw, args.userId, args.name);
-  const ip = allocateIp(raw);
+  // The user's private network is provisioned lazily here — after quota passed,
+  // before the row exists — so a refused create never leaves an empty net.
+  const net = await ensureUserNet(args.userId);
+  const ip = allocateIp(raw, net);
   const instanceId = newInstanceId();
   const mac = macFromId(instanceId);
   assertMacFree(raw, mac, instanceId);
 
   const rootPassword = randPassword();
   const vncPassword = randToken(4).slice(0, 8).replace(/[^a-zA-Z0-9]/g, 'x');
-  await db.insert(instances).values(instanceValues(args, plan, image.id, instanceId, mac, ip, rootPassword, vncPassword));
+  await db.insert(instances).values(instanceValues(args, plan, image.id, instanceId, mac, ip, net, rootPassword, vncPassword));
   await logAudit({ actorId: args.userId, actorName: args.actorName ?? args.userId, action: 'instance.create',
     target: instanceId, detail: { name: args.name, planId: plan.id, imageId: image.id, clone: Boolean(args.copyFromPath) } });
 

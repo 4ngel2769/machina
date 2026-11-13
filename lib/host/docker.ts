@@ -38,6 +38,11 @@ export type Container = {
   pids: number | null;
   /** True only for containers this console created (label machina.managed=1). */
   managed: boolean;
+  /** Tenant owner id/name for machina.user containers; null for admin/shelf. */
+  ownerId: string | null;
+  ownerName: string | null;
+  /** Docker network the container is attached to (first one). */
+  netName: string | null;
 };
 
 /** docker ps emits one JSON object per line; the field names are docker's. */
@@ -139,6 +144,16 @@ function memPair(statRow: StatRow | undefined): { used: number | null; limit: nu
   return { used: megabytes(statRow.MemUsage.split('/')[0]), limit: megabytes(statRow.MemUsage.split('/')[1]) };
 }
 
+/** Tenant identity + network off the labels/network field, one helper so
+ *  toContainer stays under the complexity cap. */
+function tenancy(psRow: PsRow): Pick<Container, 'ownerId' | 'ownerName' | 'netName'> {
+  return {
+    ownerId: label(psRow.Labels, 'machina.owner'),
+    ownerName: label(psRow.Labels, 'machina.owner_name'),
+    netName: psRow.Networks?.split(',')[0]?.trim() || null,
+  };
+}
+
 /** One `docker ps` row plus its stats sample, as the console's shape. */
 function toContainer(psRow: PsRow, statRow: StatRow | undefined): Container {
   const { used, limit } = memPair(statRow);
@@ -159,6 +174,7 @@ function toContainer(psRow: PsRow, statRow: StatRow | undefined): Container {
     memPct: limit ? parseNumber(statRow?.MemPerc ?? '') : null,
     pids: pidsOf(statRow),
     managed: label(psRow.Labels, 'machina.managed') === '1',
+    ...tenancy(psRow),
   };
 }
 

@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { openPalette } from './palette';
-import { toggleSidebar } from './sidebar';
+import { toggleSidebar, showDock } from './sidebar';
 
 const GO: Record<string, string> = {
   h: '/home', i: '/instances', k: '/keys', b: '/billing', s: '/specs', a: '/admin',
@@ -50,6 +50,7 @@ function specialKey(
   if (event.key === '?') { event.preventDefault(); openPalette(true); return true; }
   if (event.key === '/') { focusSearch(event); return true; }
   if (event.key === '[') { event.preventDefault(); toggleSidebar(); return true; }
+  if (event.key === 'D' && event.shiftKey) { event.preventDefault(); showDock(); return true; }
   if (event.key === 'g' || event.key === 'G') { armGoTimer(timer, setPending); return true; }
   return false;
 }

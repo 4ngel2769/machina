@@ -9,6 +9,7 @@
  */
 
 import { run } from './exec';
+import { ignore } from '@/lib/core/ignore';
 import { validRef, bustStatCache } from './docker';
 
 const REGISTRIES = ['docker.io', 'ghcr.io', 'quay.io', 'lscr.io', 'registry.k8s.io', 'gcr.io', 'mcr.microsoft.com'];
@@ -33,6 +34,13 @@ export type CreateSpec = {
   memoryMb?: number;
   cpus?: number;
   ports?: { host: number; container: number }[];
+  /** Docker network to join. 'bridge' = shared default; 'user' = the
+   *  caller's private machina-cu<idx> bridge. */
+  network?: 'bridge' | 'user';
+  /** Tenant owner for machina.user containers; admins pass null. */
+  ownerId?: string | null;
+  /** Human-readable owner name for the admin table. */
+  ownerName?: string | null;
 };
 
 function parsePorts(rawPorts: unknown[]): { host: number; container: number }[] {
@@ -75,7 +83,57 @@ export function parseCreate(body: Record<string, unknown>): CreateSpec {
   const memoryMb = intField(body.memoryMb, 512, 128, 8192, 'memory must be 128-8192 MB');
   const cpus = positiveField(body.cpus, 1, 8, 'cpus must be greater than 0 and at most 8');
   const rawPorts = Array.isArray(body.ports) ? body.ports : [];
-  return { name, image, memoryMb, cpus, ports: parsePorts(rawPorts) };
+  const network = body.network === 'user' ? 'user' : 'bridge';
+  return { name, image, memoryMb, cpus, ports: parsePorts(rawPorts), network };
+}
+
+/** Which docker network a create lands on: the owner's private bridge for
+ *  tenant containers, the shared default otherwise. */
+async function networkFor(spec: CreateSpec): Promise<string> {
+  if (spec.network !== 'user' || !spec.ownerId) return 'bridge';
+  const { ensureUserDockernet } = await import('@/lib/core/userdockernet');
+  const net = await ensureUserDockernet(spec.ownerId);
+  return net.name;
+}
+
+/** docker run argv for one create. Every conditional piece of spec lands here
+ *  so createContainer itself stays a straight line. */
+function runArgs(spec: CreateSpec, netName: string): string[] {
+  const args = [
+    'run', '-d',
+    '--name', spec.name,
+    '--label', 'machina.managed=1',
+    '--label', `machina.network=${netName}`,
+    '--memory', `${spec.memoryMb}m`,
+    '--pids-limit', '256',
+    // no auto-restart loop on a container that crashes on boot
+    '--restart', 'unless-stopped',
+    '--network', netName,
+  ];
+  if (spec.cpus) args.push('--cpus', String(spec.cpus));
+  if (spec.ownerId) {
+    args.push('--label', `machina.owner=${spec.ownerId}`);
+    if (spec.ownerName) args.push('--label', `machina.owner_name=${spec.ownerName.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 64)}`);
+  }
+  // Tenant containers never publish host ports — the private bridge is the
+  // only way in, and only from the host itself.
+  if (spec.network !== 'user') {
+    for (const port of spec.ports ?? []) args.push('-p', `${port.host}:${port.container}`);
+  }
+  args.push(spec.image);
+  return args;
+}
+
+/** Registry row: quota accounting and the "who owns it" answer both read
+ *  this table, not docker inspect. */
+async function registerContainer(id: string, spec: CreateSpec, netName: string): Promise<void> {
+  if (!spec.ownerId) return;
+  const { rawDb } = await import('@/lib/db');
+  rawDb().prepare(
+    `insert into user_containers (id, user_id, name, net_name, memory_mb, cpus, created_at)
+     values (?,?,?,?,?,?,?)
+     on conflict(id) do update set name=excluded.name, net_name=excluded.net_name`,
+  ).run(id, spec.ownerId, spec.name, netName === 'bridge' ? null : netName, spec.memoryMb ?? 0, spec.cpus ?? 0, Date.now());
 }
 
 export async function createContainer(spec: CreateSpec): Promise<string> {
@@ -83,21 +141,14 @@ export async function createContainer(spec: CreateSpec): Promise<string> {
   // conflict with an unrelated service.
   const existing = await run('docker', ['ps', '-a', '--filter', `name=^/${spec.name}$`, '--format', '{{.Names}}'], { timeout: 10_000 });
   if (existing.split('\n').some((nameLine) => nameLine.trim() === spec.name)) throw new Error('a container with that name already exists');
-  const args = [
-    'run', '-d',
-    '--name', spec.name,
-    '--label', 'machina.managed=1',
-    '--memory', `${spec.memoryMb}m`,
-    '--pids-limit', '256',
-    // no auto-restart loop on a container that crashes on boot
-    '--restart', 'unless-stopped',
-  ];
-  if (spec.cpus) args.push('--cpus', String(spec.cpus));
-  for (const port of spec.ports ?? []) args.push('-p', `${port.host}:${port.container}`);
-  args.push(spec.image);
-  const out = await run('docker', args, { timeout: 300_000 });
+
+  const netName = await networkFor(spec);
+  const out = await run('docker', runArgs(spec, netName), { timeout: 300_000 });
   bustStatCache();
-  return out.trim().slice(0, 64) || spec.name;
+
+  const id = out.trim().slice(0, 64) || spec.name;
+  await registerContainer(id, spec, netName);
+  return id;
 }
 
 export async function removeContainer(ref: string): Promise<string> {
@@ -110,7 +161,22 @@ export async function removeContainer(ref: string): Promise<string> {
     { timeout: 10_000 },
   );
   if (managedLabel.trim() !== '1') throw new Error('refusing to remove: this container was not created by machina');
+  // Capture the registry row BEFORE rm: quota accounting and per-user
+  // network cleanup both key off it.
+  const ownerRow = await run(
+    'docker',
+    ['inspect', '--format', '{{index .Config.Labels "machina.owner"}}', ref],
+    { timeout: 10_000 },
+  ).catch(() => '');
+  const ownerId = ownerRow.trim() || null;
   const out = await run('docker', ['rm', ref], { timeout: 60_000 });
   bustStatCache();
+  if (ownerId) {
+    const { rawDb } = await import('@/lib/db');
+    const removedId = out.trim().slice(0, 64);
+    rawDb().prepare(`delete from user_containers where id=? or name=?`).run(removedId, ref);
+    const { maybeRemoveUserDockernet } = await import('@/lib/core/userdockernet');
+    await maybeRemoveUserDockernet(ownerId).catch(ignore('net cleanup is best-effort'));
+  }
   return out.trim() || ref;
 }

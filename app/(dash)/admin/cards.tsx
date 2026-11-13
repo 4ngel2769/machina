@@ -9,6 +9,7 @@ import { CustomBox } from '@/app/ui/custombox';
 import { ThinkingOrb } from 'thinking-orbs';
 import { BorderBeam } from 'border-beam';
 import { useToast } from '@/app/ui/toast';
+import { Skeleton } from '@/app/ui/loaders';
 import type { AdminState } from './use';
 import type { DelReq, Img, InstReq, Plan } from './types';
 
@@ -36,7 +37,7 @@ export function QuotasCard({ admin }: { admin: AdminState }) {
         </div>
       )}
       {admin.quotas ? <QuotaEditor data={admin.quotas} onSaved={() => void admin.load()} />
-        : <div className="muted">loading quotas…</div>}
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}><Skeleton h={34} /><Skeleton h={34} /><Skeleton h={34} /></div>}
     </div>
   );
 }

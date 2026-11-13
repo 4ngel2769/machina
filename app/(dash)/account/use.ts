@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
+import { useMinVisible } from '@/app/ui/loaders';
 import type { DelReq, Req } from './types';
 
 /** Requests + deletion requests, fetched together. */
@@ -21,7 +22,7 @@ async function loadLists(
 
 export function useAccount(): {
   name: string; role: string; balance: number | null;
-  reqs: Req[]; delReqs: DelReq[];
+  reqs: Req[]; delReqs: DelReq[]; loaded: boolean;
   currentPw: string; setCurrentPw: (v: string) => void;
   newPw: string; setNewPw: (v: string) => void;
   pwBusy: boolean;
@@ -41,6 +42,8 @@ export function useAccount(): {
   const [reqs, setReqs] = useState<Req[]>([]);
   const [delReqs, setDelReqs] = useState<DelReq[]>([]);
   const [delBusy, setDelBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const ready = useMinVisible(400);
 
   const load = useCallback(async () => {
     const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
@@ -52,6 +55,7 @@ export function useAccount(): {
     const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
     if (billingResponse.ok) { const billing = await billingResponse.json(); setBalance(billing.balanceCents); }
     await loadLists(setReqs, setDelReqs);
+    setLoaded(true);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -90,7 +94,7 @@ export function useAccount(): {
   }
 
   return {
-    name, role, balance, reqs, delReqs,
+    name, role, balance, reqs, delReqs, loaded: loaded && ready,
     currentPw, setCurrentPw, newPw, setNewPw, pwBusy, delBusy,
     changePw, requestDeletion, exportData, load,
   };
