@@ -250,6 +250,7 @@ function Terminal({ instanceId }: { instanceId: string }) {
   const triesRef = useRef(0);
   const [state, setState] = useState<WsState>('idle');
   const [err, setErr] = useState('');
+  const [persist, setPersist] = useState(true);
 
   /**
    * Reconnect on an unexpected close. The server heartbeat stops the routine
@@ -326,7 +327,12 @@ function Terminal({ instanceId }: { instanceId: string }) {
       if (!tok?.token) throw new Error(tok?.error ?? 'could not get a terminal token');
 
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/api/instances/${instanceId}/terminal?token=${tok.token}`);
+      // Fit first when possible so the multiplexer spawns at the real grid
+      // size; the 'r' push right after open corrects any drift anyway.
+      try { fitRef.current?.fit(); } catch { /* not laid out */ }
+      const cols = term.cols || 80;
+      const rows = term.rows || 24;
+      const ws = new WebSocket(`${proto}://${location.host}/api/instances/${instanceId}/terminal?token=${tok.token}&persist=${persist ? 1 : 0}&cols=${cols}&rows=${rows}`);
       ws.binaryType = 'arraybuffer'; // server streams stdout as binary frames
       connRef.current = ws;
       wsRef.current = ws;
@@ -373,7 +379,7 @@ function Terminal({ instanceId }: { instanceId: string }) {
       connRef.current = null;
       scheduleReconnect();
     }
-  }, [instanceId, scheduleReconnect]);
+  }, [instanceId, persist, scheduleReconnect]);
   connectRef.current = connect;
 
   useEffect(() => {
@@ -423,6 +429,11 @@ function Terminal({ instanceId }: { instanceId: string }) {
           onClick={() => void connect()}
           disabled={state === 'connecting' || state === 'open'}
         >{state === 'connecting' ? 'connecting…' : 'connect'}</button>
+        <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}
+          title="attach to a tmux/screen session in the guest — survives disconnects and reloads">
+          <input type="checkbox" checked={persist} onChange={(e) => setPersist(e.target.checked)} />
+          persistent session
+        </label>
         <span className="muted">{state}{err ? ` — ${err}` : ''}</span>
       </div>
       <div style={{ position: 'relative' }}>
