@@ -8,6 +8,7 @@
  * once at boot and refuse to serve an image that cannot possibly boot.
  */
 import { rawDb } from '@/lib/db';
+import { ignore } from '@/lib/core/ignore';
 
 /** MBR signature present and not a GPT disk with no BIOS boot code. */
 function hasBiosBootloader(buf: Buffer): boolean {
@@ -29,7 +30,7 @@ async function readMbr(file: string, imageId: string, pid: number): Promise<Buff
   const mbrPath = path.join(os.tmpdir(), `machina-mbr-${pid}-${imageId}.bin`);
   await pexec('qemu-img', ['dd', `if=${file}`, `of=${mbrPath}`, 'bs=512', 'count=1'], { maxBuffer: 4096 });
   const mbr = await fsp.readFile(mbrPath);
-  await fsp.rm(mbrPath, { force: true }).catch(() => {});
+  await fsp.rm(mbrPath, { force: true }).catch(ignore('temp file may not exist'));
   return mbr;
 }
 

@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import { mkdirSync, existsSync } from 'fs';
 import { storagePaths, config } from '@/lib/config';
 import { virsh, runBinary } from './exec';
+import { ignore } from '@/lib/core/ignore';
 
 async function poolExists(name: string): Promise<boolean> {
   try { await virsh(['pool-info', name]); return true; } catch { return false; }
@@ -25,7 +26,7 @@ async function ensureSetup(): Promise<void> {
   for (const dirPath of [sp.root, sp.images, sp.vms, sp.seeds, sp.vnc, sp.tmp, sp.ssh, sp.serial]) {
     if (!existsSync(dirPath)) mkdirSync(dirPath, { recursive: true });
   }
-  await runBinary('chmod', ['1777', sp.vnc]).catch(() => {});
+  await runBinary('chmod', ['1777', sp.vnc]).catch(ignore('dir may already be permissive'));
 
   // Pools: two dir-type pools over the layout dirs.
   for (const [poolName, poolDir] of [
@@ -34,7 +35,7 @@ async function ensureSetup(): Promise<void> {
   ] as const) {
     try {
       if (!(await poolExists(poolName))) await poolDefineDir(poolName, poolDir);
-      await virsh(['pool-start', poolName]).catch(() => {});
+      await virsh(['pool-start', poolName]).catch(ignore('pool may already be active'));
     } catch (poolError) {
       console.log(`[driver] pool ${poolName} ensure failed (non-fatal): ${(poolError as Error).message}`);
     }
@@ -49,10 +50,10 @@ async function ensureSetup(): Promise<void> {
       try {
         await virsh(['net-define', netXmlPath]);
       } finally {
-        await fs.rm(netXmlPath, { force: true }).catch(() => {});
+        await fs.rm(netXmlPath, { force: true }).catch(ignore('temp XML may not exist'));
       }
     }
-    await virsh(['net-start', config.network]).catch(() => {});
+    await virsh(['net-start', config.network]).catch(ignore('net may already be active'));
   } catch (netError) {
     console.log(`[driver] network ${config.network} ensure failed (non-fatal): ${(netError as Error).message}`);
   }

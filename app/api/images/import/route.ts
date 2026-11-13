@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm';
 import { storagePaths, config } from '@/lib/config';
 import { logAudit } from '@/lib/services/audit';
 import { now } from '@/lib/core/util';
+import { ignore } from '@/lib/core/ignore';
 
 const pexec = promisify(execFile);
 const MAX_IMPORT_BYTES = 200 * 1024 ** 3;
@@ -46,7 +47,7 @@ async function writeUpload(body: ReadableStream<Uint8Array>, tmp: string) {
     });
   } catch (error) {
     ws.destroy();
-    await fs.rm(tmp, { force: true }).catch(() => {});
+    await fs.rm(tmp, { force: true }).catch(ignore('best-effort temp cleanup'));
     throw error;
   }
   return { sha256: hash.digest('hex'), size };
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
   try {
     await validateImage(tmp);
     await fs.rename(tmp, final);
-    await fs.chmod(final, 0o644).catch(() => {});
+    await fs.chmod(final, 0o644).catch(ignore('chmod is cosmetic; the file is already readable'));
     await getDb().insert(images).values({
       id,
       name,
@@ -117,12 +118,12 @@ export async function POST(req: NextRequest) {
       sizeBytes: size,
       updatedAt: now(),
     });
-    await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.imagePool]).catch(() => {});
+    await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.imagePool]).catch(ignore('pool refresh is best-effort; libvirt rescans anyway'));
     await logAudit({ actorId: user.id, actorName: user.name, action: 'image.import', target: id, detail: { name, size, sha256 } });
     return json({ ok: true, id, name, sizeBytes: size, sha256 });
   } catch (error) {
-    await fs.rm(tmp, { force: true }).catch(() => {});
-    await fs.rm(final, { force: true }).catch(() => {});
+    await fs.rm(tmp, { force: true }).catch(ignore('best-effort temp cleanup'));
+    await fs.rm(final, { force: true }).catch(ignore('best-effort partial-file cleanup'));
     return err((error as Error).message || 'import validation failed', 400);
   }
 }

@@ -5,6 +5,7 @@
  */
 import { virsh } from './exec';
 import { isDomainRunning } from './domains';
+import { ok, fail, unwrap, type Result } from '@/lib/core/result';
 
 /**
  * Snapshot names reach libvirt as an XML attribute and end up on a command
@@ -25,15 +26,19 @@ export type DomSnapshot = {
   createdAt: number;
 };
 
-/** Reject anything that is not a plain label, before it reaches libvirt. */
-export function assertSnapshotName(name: string): string {
+/** Reject anything that is not a plain label, before it reaches libvirt.
+ *  The Result form is the real validator; assertSnapshotName keeps the throw
+ *  for the job handlers that treat a bad name as a job failure. */
+export function checkSnapshotName(name: string): Result<string> {
   const normalized = String(name ?? '').trim().toLowerCase();
   if (!SNAPSHOT_NAME_RE.test(normalized)) {
-    throw new Error(
-      'snapshot names must be 1-40 characters of lowercase letters, digits and dashes',
-    );
+    return fail('snapshot names must be 1-40 characters of lowercase letters, digits and dashes');
   }
-  return normalized;
+  return ok(normalized);
+}
+
+export function assertSnapshotName(name: string): string {
+  return unwrap(checkSnapshotName(name));
 }
 
 /** Table header, the dashes rule, and blank lines are not snapshots. */

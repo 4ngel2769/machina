@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { now } from '@/lib/core/util';
 import { enqueue } from '@/lib/core/jobs';
 import { logAudit } from '@/lib/services/audit';
+import { ignore } from '@/lib/core/ignore';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // fulfill: destroy all user's VMs, wipe personal data, delete the account
   const insts = raw.prepare(`select id from instances where user_id=?`).all(requestRow.user_id) as { id: string }[];
   for (const inst of insts) {
-    await enqueue({ type: 'instance.delete', instanceId: inst.id, userId: requestRow.user_id, payload: {} }).catch(() => {});
+    await enqueue({ type: 'instance.delete', instanceId: inst.id, userId: requestRow.user_id, payload: {} }).catch(ignore('enqueue failure is logged by the worker path'));
   }
   // wipe personal data immediately (VM rows remain until destroy jobs finish)
   raw.prepare(`delete from ssh_keys where user_id=?`).run(requestRow.user_id);

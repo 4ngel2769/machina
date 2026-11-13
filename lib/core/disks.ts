@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { storagePaths, config } from '@/lib/config';
+import { ignore } from '@/lib/core/ignore';
 
 const pexec = promisify(execFile);
 
@@ -47,7 +48,7 @@ export async function createBackedDisk(
   // qemu-img create refuses to touch an existing path, and a leftover file
   // from an interrupted attempt then fails every retry with "Permission
   // denied" (libvirt may have chowned it). Clear it first, idempotently.
-  await fs.rm(volPath, { force: true }).catch(() => {});
+  await fs.rm(volPath, { force: true }).catch(ignore('volume may not exist'));
 
   // The overlay records the absolute base path + explicit backing format
   // (avoids probing, and survives pool-relative path assumptions).
@@ -99,8 +100,8 @@ export async function copyDisk(
   const volName = diskVolFromId(instanceId);
   const volPath = `${sp.vms}/${volName}.qcow2`;
   const partPath = `${volPath}.part`;
-  await fs.rm(partPath, { force: true }).catch(() => {});
-  await fs.rm(volPath, { force: true }).catch(() => {});
+  await fs.rm(partPath, { force: true }).catch(ignore('partial download may not exist'));
+  await fs.rm(volPath, { force: true }).catch(ignore('volume may not exist'));
   try {
     await qemu(['convert', '-U', '-O', 'qcow2', src, partPath], 30 * 60_000);
     // Grow to the target plan so the guest's cloud-init growpart has room; a
@@ -108,7 +109,7 @@ export async function copyDisk(
     if (diskGb > sourceGb + 0.5) await qemu(['resize', partPath, `${diskGb}G`], 120_000);
     await fs.rename(partPath, volPath);
   } catch (e) {
-    await fs.rm(partPath, { force: true }).catch(() => {});
+    await fs.rm(partPath, { force: true }).catch(ignore('partial download may not exist'));
     throw e;
   }
 
@@ -128,7 +129,7 @@ export async function deleteVolume(volName: string): Promise<void> {
   }
   // Always rm as backstop — an overlapping pool registration must never leave
   // a 40 GB file behind because virsh disagreed about the name.
-  await fs.rm(`${sp.vms}/${file}`, { force: true }).catch(() => {});
+  await fs.rm(`${sp.vms}/${file}`, { force: true }).catch(ignore('file may not exist'));
 }
 
 export async function volResize(volName: string, newGb: number): Promise<void> {

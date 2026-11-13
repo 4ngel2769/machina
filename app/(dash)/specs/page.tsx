@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { StatusCue } from '@/app/ui/status';
+import { ignore } from '@/lib/core/ignore';
 
 type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; bandwidthGb: number; monthlyCapMin: number };
 
@@ -15,7 +16,7 @@ export default function SpecsPage() {
     fetch('/api/catalog', { cache: 'no-store' })
       .then((catalogResponse) => (catalogResponse.ok ? catalogResponse.json() : null))
       .then((catalog) => catalog && setPlans(catalog.plans))
-      .catch(() => {});
+      .catch(ignore('catalog fetch failure leaves the page empty'));
   }, []);
 
   const formatGigabytes = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`);

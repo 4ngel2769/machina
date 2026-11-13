@@ -14,6 +14,7 @@ import path from 'path';
 import { Readable } from 'stream';
 import { storagePaths, config } from '@/lib/config';
 import { virsh } from '@/lib/core/driver';
+import { ignore } from '@/lib/core/ignore';
 
 export type Iso = { name: string; sizeMb: number; mtime: number; sha256: string | null };
 
@@ -89,7 +90,7 @@ export async function saveIso(
     });
   } catch (caught) {
     ws.destroy();
-    await fs.rm(tempFile, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(ignore('temp file may not exist'));
     throw caught;
   }
 

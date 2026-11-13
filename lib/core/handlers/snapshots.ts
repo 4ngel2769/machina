@@ -15,6 +15,7 @@ import { settleUser } from '../metering';
 import { now } from '../util';
 import { shutdownAndWait } from './lifecycle';
 import type { JobCtx } from '../handlers';
+import { ignore } from '@/lib/core/ignore';
 
 /**
  * Quota gate for snapshot creation. A snapshot is a request to write to the
@@ -130,7 +131,7 @@ export async function snapshotRevert(job: JobCtx, log: (m: string) => void): Pro
 
   // Reverting can throw away hours of metered work; bill what is owed first.
   log('settle before revert');
-  await settleUser(instanceRow.user_id).catch(() => {});
+  await settleUser(instanceRow.user_id).catch(ignore('settle retries on the next tick'));
 
   const wasRunning = await isDomainRunning(instanceRow.domain_name);
   if (mode === 'clean' && wasRunning) {

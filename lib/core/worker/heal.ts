@@ -15,6 +15,7 @@
  */
 import { rawDb } from '@/lib/db';
 import { now } from '../util';
+import { ignore } from '@/lib/core/ignore';
 
 /** How many times we will re-run a provisioning job before giving up and
  *  showing the user an error. Bounded on purpose: an unbounded "self-heal"
@@ -82,17 +83,17 @@ function giveUp(raw: RawDb, nowTs: number, instanceId: string, reason: string): 
  *  nothing to clear. */
 function clearArtifacts(instanceId: string, domainName: string): void {
   import('@/lib/core/driver').then(({ destroyDomain, undefineDomain }) => {
-    void destroyDomain(domainName).catch(() => {});
-    void undefineDomain(domainName).catch(() => {});
-  }).catch(() => {});
+    void destroyDomain(domainName).catch(ignore('domain may already be gone'));
+    void undefineDomain(domainName).catch(ignore('domain may already be undefined'));
+  }).catch(ignore('heal cleanup is best-effort'));
   // foreign-owned leftovers (libvirt/qemu chown) block the retry
   void import('fs/promises').then(async (fsp) => {
     const { diskVolFromId } = await import('@/lib/core/disks');
     const { storagePaths } = await import('@/lib/config');
     const sp = storagePaths();
-    await fsp.rm(`${sp.vms}/${diskVolFromId(instanceId)}.qcow2`, { force: true }).catch(() => {});
-    await fsp.rm(`${sp.seeds}/${instanceId}/seed.iso`, { force: true }).catch(() => {});
-  }).catch(() => {});
+    await fsp.rm(`${sp.vms}/${diskVolFromId(instanceId)}.qcow2`, { force: true }).catch(ignore('overlay may not exist'));
+    await fsp.rm(`${sp.seeds}/${instanceId}/seed.iso`, { force: true }).catch(ignore('seed may not exist'));
+  }).catch(ignore('heal cleanup is best-effort'));
 }
 
 /** Put the create job back in the queue, or mint one when the row lost it. */

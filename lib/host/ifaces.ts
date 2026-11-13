@@ -12,6 +12,7 @@
 import fs from 'fs';
 import { run, has } from './exec';
 import { ifaceTraffic, type IfaceTraffic } from './sampler';
+import { ignore } from '@/lib/core/ignore';
 
 export type Driver = 'networkmanager' | 'libvirt' | 'container' | 'unmanaged';
 
@@ -282,6 +283,6 @@ export async function deleteIface(name: string): Promise<void> {
   if (!/bridge|vlan|bond|team|wireguard/.test(type)) {
     throw new Error(`${name} is a ${type} connection; refusing to delete it from here`);
   }
-  await run('nmcli', ['connection', 'down', name], { sudo: true }).catch(() => {});
+  await run('nmcli', ['connection', 'down', name], { sudo: true }).catch(ignore('connection may already be down'));
   await run('nmcli', ['connection', 'delete', name], { sudo: true });
 }

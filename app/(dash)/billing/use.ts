@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
+import { ignore } from '@/lib/core/ignore';
 
 export type Ledger = {
   id: string; deltaCents: number; reason: string; note: string | null;
@@ -45,7 +46,7 @@ export function useBilling(): {
     fetch('/api/instances', { cache: 'no-store' })
       .then((instancesResponse) => (instancesResponse.ok ? instancesResponse.json() : []))
       .then((rows) => setRunning(rows.filter((instance: { status: string }) => instance.status === 'running')))
-      .catch(() => {});
+      .catch(ignore('billing fetch failure leaves the card empty'));
   }, []);
 
   async function changePw(event: React.FormEvent) {

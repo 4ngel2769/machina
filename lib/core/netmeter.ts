@@ -15,6 +15,7 @@ import { rawDb } from '@/lib/db';
 import { domNetStats, tuneIface, readIfaceTune, domState } from './driver';
 import { logAudit } from '@/lib/services/audit';
 import { now } from './util';
+import { ignore } from '@/lib/core/ignore';
 
 export const THROTTLE_KBS = 128; // ~1 Mbps each way once over quota
 export const GB = 1024 * 1024 * 1024;
@@ -104,7 +105,7 @@ async function throttleInstance(instanceRow: InstRow, used: number, quota: numbe
   rawDb().prepare(`update net_monthly set throttled=1, updated_at=? where instance_id=? and month=?`)
     .run(now(), instanceRow.id, month);
   if (instanceRow.status === 'running') {
-    await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
+    await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(ignore('iface may not exist yet'));
   }
   await logAudit({ action: 'net.throttled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
@@ -116,7 +117,7 @@ async function unthrottleInstance(instanceRow: InstRow, used: number, quota: num
   rawDb().prepare(`update net_monthly set throttled=0, updated_at=? where instance_id=? and month=?`)
     .run(now(), instanceRow.id, month);
   if (instanceRow.status === 'running') {
-    await tuneIface(instanceRow.domain_name, instanceRow.mac, 0, 0).catch(() => {});
+    await tuneIface(instanceRow.domain_name, instanceRow.mac, 0, 0).catch(ignore('iface may not exist'));
   }
   await logAudit({ action: 'net.unthrottled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
@@ -127,7 +128,7 @@ async function unthrottleInstance(instanceRow: InstRow, used: number, quota: num
 async function healThrottle(instanceRow: InstRow): Promise<void> {
   const currentTune = await readIfaceTune(instanceRow.domain_name, instanceRow.mac).catch(() => null);
   if (!currentTune || (currentTune.inAvg === THROTTLE_KBS && currentTune.outAvg === THROTTLE_KBS)) return;
-  await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
+  await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(ignore('iface may not exist yet'));
   console.log(`[netmeter] re-applied throttle ${instanceRow.id}`);
 }
 
@@ -189,5 +190,5 @@ export async function ensureThrottleState(instanceId: string, domainName: string
   if (!mac) return;
   const live = await domState(domainName).catch(() => null);
   if (!live || !/running/i.test(live)) return;
-  await tuneIface(domainName, mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
+  await tuneIface(domainName, mac, THROTTLE_KBS, THROTTLE_KBS).catch(ignore('iface may not exist'));
 }

@@ -12,6 +12,7 @@ import { settleUser } from '../metering';
 import { ensureThrottleState } from '../netmeter';
 import { now } from '../util';
 import type { JobCtx } from '../handlers';
+import { ignore } from '@/lib/core/ignore';
 
 /** ACPI shutdown, then poll until libvirt reports it off; force after grace. */
 export async function shutdownAndWait(
@@ -39,7 +40,7 @@ export async function start(job: JobCtx, log: (m: string) => void): Promise<void
   if (!instanceRow) throw new Error('instance row missing');
   log('starting');
   await startDomain(instanceRow.domain_name);
-  await ensureThrottleState(instanceRow.id, instanceRow.domain_name).catch(() => {});
+  await ensureThrottleState(instanceRow.id, instanceRow.domain_name).catch(ignore('throttle state is rebuilt lazily'));
   log('running');
   // heal_count is a provisioning self-heal counter, not a lifecycle one. Leaving
   // it set meant a box that started cleanly still advertised "auto-recovery
@@ -54,7 +55,7 @@ export async function stop(job: JobCtx, log: (m: string) => void): Promise<void>
   if (!instanceRow) throw new Error('instance row missing');
   const payload = JSON.parse(job.payload || '{}') as { force?: boolean; graceSec?: number };
   log('settle before stop');
-  await settleUser(instanceRow.user_id).catch(() => {});
+  await settleUser(instanceRow.user_id).catch(ignore('settle retries on the next tick'));
   if (payload.force) {
     log('force destroy');
     await destroyDomain(instanceRow.domain_name);
@@ -76,17 +77,17 @@ export async function del(job: JobCtx, log: (m: string) => void): Promise<void> 
   const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
   log('settle before delete');
-  await settleUser(instanceRow.user_id).catch(() => {});
+  await settleUser(instanceRow.user_id).catch(ignore('settle retries on the next tick'));
   log('destroy+undefine');
   await destroyDomain(instanceRow.domain_name);
   await undefineDomain(instanceRow.domain_name);
-  await removeIpLease(instanceRow.mac).catch(() => {});
+  await removeIpLease(instanceRow.mac).catch(ignore('lease may already be gone'));
   log('delete disk');
   await deleteVolume(diskVolFromId(instanceRow.id));
   log('rm seed + vnc socket');
   const fsp = await import('fs/promises');
-  await fsp.rm(`${config.storageDir}/seeds/${instanceRow.id}`, { recursive: true, force: true }).catch(() => {});
-  await fsp.rm(`${config.storageDir}/vnc/${instanceRow.id}.vnc`, { force: true }).catch(() => {});
+  await fsp.rm(`${config.storageDir}/seeds/${instanceRow.id}`, { recursive: true, force: true }).catch(ignore('seed dir may not exist'));
+  await fsp.rm(`${config.storageDir}/vnc/${instanceRow.id}.vnc`, { force: true }).catch(ignore('socket may not exist'));
   log('delete rows');
   raw.prepare(`delete from snapshots where instance_id=?`).run(instanceRow.id);
   raw.prepare(`delete from instances where id=?`).run(instanceRow.id);

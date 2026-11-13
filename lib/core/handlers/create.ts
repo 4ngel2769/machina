@@ -17,6 +17,7 @@ import { createBackedDisk, deleteVolume, copyDisk } from '../disks';
 import { now } from '../util';
 import { eq } from 'drizzle-orm';
 import type { JobCtx } from '../handlers';
+import { ignore } from '@/lib/core/ignore';
 
 type InstanceRow = {
   id: string; user_id: string; plan_id: string; image_id: string; name: string;
@@ -108,8 +109,8 @@ async function defineInstanceDomain(
   log('defining domain');
   // a previous attempt may have left the domain defined (or even running);
   // define is not idempotent, so clear it first
-  await destroyDomain(instanceRow.domain_name).catch(() => {});
-  await undefineDomain(instanceRow.domain_name).catch(() => {});
+  await destroyDomain(instanceRow.domain_name).catch(ignore('domain may already be gone'));
+  await undefineDomain(instanceRow.domain_name).catch(ignore('domain may already be undefined'));
   await defineDomain(xml);
   log('dhcp lease entry');
   await ensureIpLease(instanceRow.mac, instanceRow.ip);

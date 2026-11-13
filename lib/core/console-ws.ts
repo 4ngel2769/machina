@@ -14,8 +14,8 @@ import { attachKeepalive } from './ws-keepalive';
  */
 export function relayVnc(ws: WebSocket, socketPath: string): void {
   if (!fs.existsSync(socketPath)) {
-    try { ws.send(JSON.stringify({ t: 'e', d: 'vnc socket missing (is the VM running?)' })); } catch {}
-    try { ws.close(); } catch {}
+    try { ws.send(JSON.stringify({ t: 'e', d: 'vnc socket missing (is the VM running?)' })); } catch { /* socket may already be closing */ }
+    try { ws.close(); } catch { /* already closed */ }
     return;
   }
 
@@ -31,8 +31,8 @@ export function relayVnc(ws: WebSocket, socketPath: string): void {
 
   sock.on('connect', () => { sockReady = true; });
   sock.on('data', (socketData: Buffer) => { if (ws.readyState === 1) ws.send(socketData); });
-  sock.on('close', () => { try { ws.close(); } catch {} });
-  sock.on('error', () => { try { ws.close(); } catch {} });
+  sock.on('close', () => { try { ws.close(); } catch { /* already closed */ } });
+  sock.on('error', () => { try { ws.close(); } catch { /* already closed */ } });
 
   ws.on('message', (message: Buffer) => {
     if (sockReady) sock.write(message as Buffer);

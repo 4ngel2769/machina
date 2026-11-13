@@ -16,6 +16,7 @@ import { plans } from '@/lib/db/schema';
 import type { Plan } from '@/lib/db/schema';
 import { newId } from '@/lib/core/crypto';
 import { config } from '@/lib/config';
+import { ok, fail, unwrap, type Result } from '@/lib/core/result';
 
 export type CustomSpec = {
   vcpu: number;
@@ -78,21 +79,34 @@ function hourlyRateOf(v: unknown): number | undefined {
   return rate;
 }
 
-/**
- * Validate a spec from a request body. Returns the normalised spec or throws an
- * Error whose message is safe to show an admin (it names the bound that failed).
- */
-export function validateCustomSpec(body: Record<string, unknown>): CustomSpec {
+function validateCustomSpecResult(body: Record<string, unknown>): Result<CustomSpec> {
   const diskMin = config.limits.minDiskGb;
   const diskMax = config.limits.maxDiskGb;
-  return {
-    vcpu: boundedInt(body.vcpu, 1, 16, 'vcpu must be a whole number from 1 to 16'),
-    ramMb: boundedInt(body.ramMb, 128, 32768, 'ram must be 128-32768 MB'),
-    diskGb: boundedInt(body.diskGb, diskMin, diskMax, `disk must be ${diskMin}-${diskMax} GB`),
-    bandwidthGb: bandwidthOf(body.bandwidthGb),
-    monthlyCapMin: monthlyCapOf(body.monthlyCapMin),
-    hourlyRateCents: hourlyRateOf(body.hourlyRateCents),
-  };
+  try {
+    return ok({
+      vcpu: boundedInt(body.vcpu, 1, 16, 'vcpu must be a whole number from 1 to 16'),
+      ramMb: boundedInt(body.ramMb, 128, 32768, 'ram must be 128-32768 MB'),
+      diskGb: boundedInt(body.diskGb, diskMin, diskMax, `disk must be ${diskMin}-${diskMax} GB`),
+      bandwidthGb: bandwidthOf(body.bandwidthGb),
+      monthlyCapMin: monthlyCapOf(body.monthlyCapMin),
+      hourlyRateCents: hourlyRateOf(body.hourlyRateCents),
+    });
+  } catch (error) {
+    return fail((error as Error).message);
+  }
+}
+
+/**
+ * Validate a spec from a request body. The Result names the bound that failed;
+ * unwrap() restores the old throw for callers inside a try/catch.
+ */
+export function validateCustomSpec(body: Record<string, unknown>): CustomSpec {
+  return unwrap(validateCustomSpecResult(body));
+}
+
+/** Result-returning form for callers that prefer values over exceptions. */
+export function validateCustomSpecSafe(body: Record<string, unknown>): Result<CustomSpec> {
+  return validateCustomSpecResult(body);
 }
 
 export function specLabel(s: { vcpu: number; ramMb: number; diskGb: number }): string {
