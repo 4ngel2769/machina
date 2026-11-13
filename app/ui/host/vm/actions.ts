@@ -14,16 +14,16 @@ export function useVmOp(name: string, reload: () => void): { busy: string; op: O
   const op = useCallback(async (body: Record<string, unknown>, label: string) => {
     setBusy(label);
     try {
-      const r = await fetch('/api/host/vm', {
+      const response = await fetch('/api/host/vm', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, ...body }),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        toast.err(j.error ?? `${label} failed`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.err(payload.error ?? `${label} failed`);
         return false;
       }
-      toast.ok(j.result ? `${label}: ${j.result}` : `${label} done`);
+      toast.ok(payload.result ? `${label}: ${payload.result}` : `${label} done`);
       reload();
       return true;
     } catch {
@@ -45,13 +45,13 @@ export function useIsoUpload(onDone: () => void, onIsoList: () => void): {
   const uploadIso = useCallback(async (file: File) => {
     setBusy('upload iso');
     try {
-      const r = await fetch(`/api/isos?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        toast.err(j.error ?? 'upload failed');
+      const response = await fetch(`/api/isos?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.err(payload.error ?? 'upload failed');
         return;
       }
-      toast.ok(`uploaded ${j.iso?.name ?? file.name}`);
+      toast.ok(`uploaded ${payload.iso?.name ?? file.name}`);
       onIsoList();
       onDone();
     } catch {

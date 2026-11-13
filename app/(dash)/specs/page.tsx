@@ -13,12 +13,12 @@ export default function SpecsPage() {
 
   useEffect(() => {
     fetch('/api/catalog', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setPlans(j.plans))
+      .then((catalogResponse) => (catalogResponse.ok ? catalogResponse.json() : null))
+      .then((catalog) => catalog && setPlans(catalog.plans))
       .catch(() => {});
   }, []);
 
-  const fmtGb = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`);
+  const formatGigabytes = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB` : `${mb} MB`);
 
   return (
     <>
@@ -32,15 +32,15 @@ export default function SpecsPage() {
             <tr><th>plan</th><th>vCPU</th><th>RAM</th><th>disk</th><th>network</th><th>rate</th><th>monthly cap</th></tr>
           </thead>
           <tbody>
-            {plans.map((p) => (
-              <tr key={p.id}>
-                <td style={{ color: 'var(--text)', fontWeight: 500 }}>{p.name}</td>
-                <td className="mono">{p.vcpu}</td>
-                <td className="mono">{fmtGb(p.ramMb)}</td>
-                <td className="mono">{p.diskGb} GB</td>
-                <td className="mono">{p.bandwidthGb} GB/mo</td>
-                <td className="mono" style={{ color: 'var(--accent)' }}>${(p.hourlyRateCents / 100).toFixed(2)}/h</td>
-                <td className="mono muted">{p.monthlyCapMin} min</td>
+            {plans.map((plan) => (
+              <tr key={plan.id}>
+                <td style={{ color: 'var(--text)', fontWeight: 500 }}>{plan.name}</td>
+                <td className="mono">{plan.vcpu}</td>
+                <td className="mono">{formatGigabytes(plan.ramMb)}</td>
+                <td className="mono">{plan.diskGb} GB</td>
+                <td className="mono">{plan.bandwidthGb} GB/mo</td>
+                <td className="mono" style={{ color: 'var(--accent)' }}>${(plan.hourlyRateCents / 100).toFixed(2)}/h</td>
+                <td className="mono muted">{plan.monthlyCapMin} min</td>
               </tr>
             ))}
           </tbody>

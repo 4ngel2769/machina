@@ -25,10 +25,10 @@ async function load(id: string, userId: string, role: string) {
 /** The plan's disk size, used to show the tenant how close they are to the
  *  growth ceiling that stops snapshot creation. */
 function planDiskGb(id: string): number {
-  const r = rawDb().prepare(
+  const row = rawDb().prepare(
     `select p.disk_gb as g from instances i join plans p on p.id = i.plan_id where i.id=?`,
   ).get(id) as { g: number } | undefined;
-  return r?.g ?? 0;
+  return row?.g ?? 0;
 }
 
 type IndexedSnap = { id: string; name: string; description: string; state: string; sizeBytes: number; current: number; createdAt: number };
@@ -49,27 +49,27 @@ async function diskUsageFor(instId: string) {
 
 /** First non-nullish value wins (?? semantics: '' and 0 are real values). */
 function firstDefined<T>(...vals: (T | null | undefined)[]): T {
-  for (const v of vals) if (v !== null && v !== undefined) return v;
+  for (const value of vals) if (value !== null && value !== undefined) return value;
   return vals[vals.length - 1] as T;
 }
 
 /** First truthy value wins (|| semantics: 0 and '' fall through). */
 function firstTruthy<T>(...vals: (T | null | undefined | false | 0 | '')[]): T {
-  for (const v of vals) if (v) return v as T;
+  for (const value of vals) if (value) return value as T;
   return vals[vals.length - 1] as T;
 }
 
 /** One libvirt snapshot merged with its index row; orphaned when the index
  *  lost the row (taken out of band, or after a restore). */
-function mergeSnap(s: LiveSnap, row: IndexedSnap | undefined) {
+function mergeSnap(snap: LiveSnap, row: IndexedSnap | undefined) {
   return {
     id: row?.id ?? '',
-    name: s.name,
-    description: firstDefined<string>(row?.description, s.description, ''),
-    state: s.state,
-    sizeBytes: firstTruthy<number>(s.sizeBytes, row?.sizeBytes, 0),
-    current: s.isCurrent,
-    createdAt: firstTruthy<number>(s.createdAt, row?.createdAt, 0),
+    name: snap.name,
+    description: firstDefined<string>(row?.description, snap.description, ''),
+    state: snap.state,
+    sizeBytes: firstTruthy<number>(snap.sizeBytes, row?.sizeBytes, 0),
+    current: snap.isCurrent,
+    createdAt: firstTruthy<number>(snap.createdAt, row?.createdAt, 0),
     // True when libvirt still holds it but our index lost the row.
     orphaned: !row,
   };
@@ -79,7 +79,7 @@ function mergeSnap(s: LiveSnap, row: IndexedSnap | undefined) {
  *  out of band). Say so rather than pretending it is still restorable. */
 function missingSnaps(indexed: IndexedSnap[], live: LiveSnap[]) {
   return indexed
-    .filter((row) => !live.some((s) => s.name === row.name))
+    .filter((row) => !live.some((snap) => snap.name === row.name))
     .map((row) => ({ ...row, state: 'missing', current: false, orphaned: true }));
 }
 
@@ -90,11 +90,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
-  const [inst, e] = await load(id, user.id, user.role);
-  if (e) return e;
+  const [inst, forbidden] = await load(id, user.id, user.role);
+  if (forbidden) return forbidden;
 
-  const rd = rawDb();
-  const indexed = rd.prepare(
+  const raw = rawDb();
+  const indexed = raw.prepare(
     `select id, name, description, state, size_bytes as sizeBytes, current, created_at as createdAt
      from snapshots where instance_id=? order by created_at desc`,
   ).all(id) as IndexedSnap[];
@@ -107,12 +107,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     // than a hard error: the tenant can still see and act on their list.
   }
 
-  const byName = new Map<string, IndexedSnap>(indexed.map((r) => [r.name, r]));
+  const byName = new Map<string, IndexedSnap>(indexed.map((row) => [row.name, row]));
   const merged = [
-    ...live.map((s) => mergeSnap(s, byName.get(s.name))),
+    ...live.map((snap) => mergeSnap(snap, byName.get(snap.name))),
     ...missingSnaps(indexed, live),
   ];
-  merged.sort((a, b) => b.createdAt - a.createdAt);
+  merged.sort((first, second) => second.createdAt - first.createdAt);
 
   return json({
     ok: true,
@@ -137,8 +137,8 @@ function snapshotActionCheck(action: string | undefined, status: string) {
 function validSnapName(body: SnapBody) {
   try {
     return { name: assertSnapshotName(body.name ?? '') };
-  } catch (err2) {
-    return { refused: err((err2 as Error).message, 400) };
+  } catch (parseError) {
+    return { refused: err((parseError as Error).message, 400) };
   }
 }
 
@@ -148,7 +148,7 @@ function validSnapName(body: SnapBody) {
  *  of a bookkeeping gap would be a lie told in both directions. */
 async function snapshotExists(inst: { domainName: string }, id: string, name: string) {
   try {
-    return (await listSnapshots(inst.domainName)).some((s) => s.name === name);
+    return (await listSnapshots(inst.domainName)).some((snap) => snap.name === name);
   } catch {
     return Boolean(rawDb().prepare(`select 1 from snapshots where instance_id=? and name=?`).get(id, name));
   }
@@ -189,13 +189,13 @@ function snapshotDispatch(action: string, inst: { id: string; userId: string }, 
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
-  const [inst, e] = await load(id, user.id, user.role);
-  if (e) return e;
+  const [inst, forbidden] = await load(id, user.id, user.role);
+  if (forbidden) return forbidden;
 
   const body = (await req.json().catch(() => ({}))) as SnapBody;
   const action = body.action ?? '';
@@ -208,10 +208,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if ('refused' in named) return named.refused;
   const name = named.name;
 
-  const rd = rawDb();
+  const raw = rawDb();
   // One job at a time per instance: the worker is single-flight per instance
   // and two concurrent snapshot ops on one qcow2 will corrupt the metadata.
-  const active = rd.prepare(
+  const active = raw.prepare(
     `select 1 from jobs where instance_id=? and status in ('queued','running')`,
   ).get(id);
   if (active) return err('another job is already running for this instance', 409);

@@ -21,9 +21,9 @@ export interface SeedOpts {
 }
 
 /** Identity, credentials and the sshd drop-in: the static half of user-data. */
-function userDataHead(o: SeedOpts): string {
+function userDataHead(opts: SeedOpts): string {
   return `${CLOUD_INIT_HEADER}
-hostname: ${o.hostname}
+hostname: ${opts.hostname}
 manage_etc_hosts: true
 disable_root: false
 ssh_pwauth: true
@@ -35,7 +35,7 @@ chpasswd:
   expire: false
   users:
     - name: root
-      password: ${o.rootPassword}
+      password: ${opts.rootPassword}
       type: text
 growpart:
   mode: auto
@@ -55,7 +55,7 @@ write_files:
  * host keys, the sshd drop-in for OpenRC, the service enable, and the iproute2
  * address fallback for images that ignore cloud-init's netplan syntax.
  */
-function runcmdBlock(o: SeedOpts): string {
+function runcmdBlock(opts: SeedOpts): string {
   return `runcmd:
   # The cloud images ship WITHOUT /etc/ssh/ssh_host_* keys, and ssh.service is
   # gated on 'ExecStartPre=/usr/sbin/sshd -t', which aborts with "no hostkeys
@@ -72,44 +72,44 @@ function runcmdBlock(o: SeedOpts): string {
   # Debian/Ubuntu apply but Alpine/OpenRC and some minimal images ignore — the
   # guest then boots with no address and provisioning times out on SSH. Applying
   # the address directly with iproute2 works on every image and cannot hurt.
-  - [sh, -c, "IFACE=$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -1); [ -z \\"$IFACE\\" ] && exit 0; ip link set \\"$IFACE\\" up; ip addr add ${o.ip}/${maskBits(o.netmask)} dev \\"$IFACE\\" 2>/dev/null || true; ip route replace default via ${o.gateway} dev \\"$IFACE\\" 2>/dev/null || true; printf 'nameserver ${o.dns[0]}\\n' > /etc/resolv.conf 2>/dev/null || true"]`;
+  - [sh, -c, "IFACE=$(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(en|eth)' | head -1); [ -z \\"$IFACE\\" ] && exit 0; ip link set \\"$IFACE\\" up; ip addr add ${opts.ip}/${maskBits(opts.netmask)} dev \\"$IFACE\\" 2>/dev/null || true; ip route replace default via ${opts.gateway} dev \\"$IFACE\\" 2>/dev/null || true; printf 'nameserver ${opts.dns[0]}\\n' > /etc/resolv.conf 2>/dev/null || true"]`;
 }
 
 function authorizedKeys(keys: string[]): string {
   if (!keys.length) return '';
-  return `ssh_authorized_keys:\n${keys.map((k) => `  - ${k}`).join('\n')}`;
+  return `ssh_authorized_keys:\n${keys.map((keyLine) => `  - ${keyLine}`).join('\n')}`;
 }
 
 /** Files written into the per-instance seed dir, then packed with genisoimage. */
-export function userData(o: SeedOpts): string {
-  return `${userDataHead(o)}${runcmdBlock(o)}\n${authorizedKeys(o.sshPublicKeys)}`;
+export function userData(opts: SeedOpts): string {
+  return `${userDataHead(opts)}${runcmdBlock(opts)}\n${authorizedKeys(opts.sshPublicKeys)}`;
 }
 
-export function metaData(o: { instanceId: string; hostname: string }): string {
-  return `instance-id: ${o.instanceId}
-local-hostname: ${o.hostname}`;
+export function metaData(opts: { instanceId: string; hostname: string }): string {
+  return `instance-id: ${opts.instanceId}
+local-hostname: ${opts.hostname}`;
 }
 
-export function networkConfig(o: { mac: string; ip: string; gateway: string; netmask: string; dns: string[] }): string {
+export function networkConfig(opts: { mac: string; ip: string; gateway: string; netmask: string; dns: string[] }): string {
   return `version: 2
 ethernets:
   machina:
     match:
-      macaddress: "${o.mac}"
+      macaddress: "${opts.mac}"
     addresses:
-      - ${o.ip}/${maskBits(o.netmask)}
+      - ${opts.ip}/${maskBits(opts.netmask)}
     routes:
       - to: default
-        via: ${o.gateway}
+        via: ${opts.gateway}
     nameservers:
-      addresses: [${o.dns.join(', ')}]
+      addresses: [${opts.dns.join(', ')}]
 `;
 }
 
 function maskBits(netmask: string): number {
-  return netmask.split('.').reduce((bits, oct) => {
-    let n = parseInt(oct, 10).toString(2).padStart(8, '0');
-    return bits + (n.match(/1/g)?.length ?? 0);
+  return netmask.split('.').reduce((bits, octet) => {
+    const bitsSet = parseInt(octet, 10).toString(2).padStart(8, '0');
+    return bits + (bitsSet.match(/1/g)?.length ?? 0);
   }, 0);
 }
 
@@ -120,20 +120,20 @@ function maskBits(netmask: string): number {
  * cannot proceed without a seed.
  */
 export async function buildSeed(
-  o: SeedOpts & { seedIsoPath: string },
+  opts: SeedOpts & { seedIsoPath: string },
 ): Promise<void> {
   const sp = storagePaths();
-  const dir = path.join(sp.seeds, o.instanceId);
+  const dir = path.join(sp.seeds, opts.instanceId);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(`${dir}/user-data`, userData(o), { mode: 0o600 });
-  fs.writeFileSync(`${dir}/meta-data`, metaData({ instanceId: o.instanceId, hostname: o.hostname }));
-  fs.writeFileSync(`${dir}/network-config`,    networkConfig({ mac: o.mac, ip: o.ip, gateway: o.gateway, netmask: o.netmask, dns: o.dns }),
+  fs.writeFileSync(`${dir}/user-data`, userData(opts), { mode: 0o600 });
+  fs.writeFileSync(`${dir}/meta-data`, metaData({ instanceId: opts.instanceId, hostname: opts.hostname }));
+  fs.writeFileSync(`${dir}/network-config`,    networkConfig({ mac: opts.mac, ip: opts.ip, gateway: opts.gateway, netmask: opts.netmask, dns: opts.dns }),
   );
   // genisoimage cannot overwrite an existing ISO, and libvirt/qemu chowns the
   // one it mounted — a leftover seed.iso makes every retry fail with
   // "Permission denied". Clear it first, idempotently.
-  fs.rmSync(o.seedIsoPath, { force: true });
-  await geniso(o.seedIsoPath, dir);
+  fs.rmSync(opts.seedIsoPath, { force: true });
+  await geniso(opts.seedIsoPath, dir);
 }
 
 export function seedDir(instanceId: string): string {

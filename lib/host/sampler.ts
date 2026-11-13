@@ -27,31 +27,31 @@ function readCounters(): Record<string, { rx: number; tx: number }> {
   } catch {
     return out;
   }
-  for (const n of names) {
+  for (const ifaceName of names) {
     try {
-      out[n] = {
-        rx: Number(fs.readFileSync(path.join('/sys/class/net', n, 'statistics/rx_bytes'), 'utf8')) || 0,
-        tx: Number(fs.readFileSync(path.join('/sys/class/net', n, 'statistics/tx_bytes'), 'utf8')) || 0,
+      out[ifaceName] = {
+        rx: Number(fs.readFileSync(path.join('/sys/class/net', ifaceName, 'statistics/rx_bytes'), 'utf8')) || 0,
+        tx: Number(fs.readFileSync(path.join('/sys/class/net', ifaceName, 'statistics/tx_bytes'), 'utf8')) || 0,
       };
     } catch { /* interface vanished mid-read */ }
   }
   return out;
 }
 
-function pass(): void {
-  const t = Date.now();
-  for (const [name, c] of Object.entries(readCounters())) {
-    const arr = hist.get(name) ?? [];
-    arr.push({ t, rx: c.rx, tx: c.tx });
-    if (arr.length > MAX) arr.splice(0, arr.length - MAX);
-    hist.set(name, arr);
+function sampleOnce(): void {
+  const sampledAt = Date.now();
+  for (const [ifaceName, counters] of Object.entries(readCounters())) {
+    const series = hist.get(ifaceName) ?? [];
+    series.push({ t: sampledAt, rx: counters.rx, tx: counters.tx });
+    if (series.length > MAX) series.splice(0, series.length - MAX);
+    hist.set(ifaceName, series);
   }
 }
 
 export function startHostSampler(): void {
   if (timer) return;
-  pass();
-  timer = setInterval(pass, INTERVAL_MS);
+  sampleOnce();
+  timer = setInterval(sampleOnce, INTERVAL_MS);
   console.log('[host] interface sampler 5s');
 }
 
@@ -64,14 +64,14 @@ export function stopHostSampler(): void {
  *  lower rate instead of a fake spike. */
 export function ifaceTraffic(): Record<string, IfaceTraffic> {
   const out: Record<string, IfaceTraffic> = {};
-  for (const [name, arr] of hist) {
-    const last = arr[arr.length - 1];
-    const prev = arr[arr.length - 2];
+  for (const [ifaceName, samples] of hist) {
+    const last = samples[samples.length - 1];
+    const prev = samples[samples.length - 2];
     const dt = last && prev ? (last.t - prev.t) / 1000 : 0;
-    out[name] = {
+    out[ifaceName] = {
       rxBps: dt > 0 ? Math.max(0, (last.rx - prev.rx) / dt) : 0,
       txBps: dt > 0 ? Math.max(0, (last.tx - prev.tx) / dt) : 0,
-      series: arr.slice(-60).map((s) => ({ t: s.t, rx: s.rx, tx: s.tx })),
+      series: samples.slice(-60).map((sample) => ({ t: sample.t, rx: sample.rx, tx: sample.tx })),
     };
   }
   return out;

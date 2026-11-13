@@ -19,14 +19,14 @@ export async function GET(_req: NextRequest) {
   }
   try {
     return json({ available: true, containers: await listContainers(), error: null });
-  } catch (e) {
-    return json({ available: true, containers: [], error: friendlyError(e) });
+  } catch (error) {
+    return json({ available: true, containers: [], error: friendlyError(error) });
   }
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
   const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       detail: { image: spec.image, memoryMb: spec.memoryMb, cpus: spec.cpus, ports: spec.ports },
     });
     return json({ ok: true, id, name: spec.name });
-  } catch (e) {
-    return err(friendlyError(e), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }

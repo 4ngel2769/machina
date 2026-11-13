@@ -15,14 +15,14 @@ const listeners = new Set<(on: boolean) => void>();
 /** Call before starting a long async action. */
 export function loadStart() {
   guards += 1;
-  listeners.forEach((l) => l(true));
+  listeners.forEach((listener) => listener(true));
 }
 
 /** Call when the action settles. */
 export function loadEnd() {
   guards = Math.max(0, guards - 1);
   if (guards === 0) {
-    setTimeout(() => { if (guards === 0) listeners.forEach((l) => l(false)); }, 350);
+    setTimeout(() => { if (guards === 0) listeners.forEach((listener) => listener(false)); }, 350);
   }
 }
 

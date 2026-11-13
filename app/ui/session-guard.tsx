@@ -17,17 +17,17 @@ export function SessionGuard() {
     const original = window.fetch;
     let redirecting = false;
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const res = await original(input, init);
-      if (res.status === 401 && !redirecting) {
-        const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
-        const path = url.startsWith('/') ? url : '';
+      const response = await original(input, init);
+      if (response.status === 401 && !redirecting) {
+        const requestUrl = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
+        const path = requestUrl.startsWith('/') ? requestUrl : '';
         if (path && !path.startsWith('/api/auth') && !path.startsWith('/signin')) {
           redirecting = true;
           const dest = encodeURIComponent(window.location.pathname + window.location.search);
           window.location.href = `/signin?callbackUrl=${dest}`;
         }
       }
-      return res;
+      return response;
     };
     return () => { window.fetch = original; };
   }, []);

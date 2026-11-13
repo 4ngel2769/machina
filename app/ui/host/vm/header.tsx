@@ -88,18 +88,18 @@ function vcpuText(vm: Detail): string {
 }
 
 function ramText(vm: Detail, live: Live | undefined): string {
-  const mb = live ? live.memMb : vm.memMb;
-  return `${(mb / 1024).toFixed(1)} GB`;
+  const memMb = live ? live.memMb : vm.memMb;
+  return `${(memMb / 1024).toFixed(1)} GB`;
 }
 
 function blocksText(live: Live | undefined): string {
   if (!live) return '—';
-  return `${bytes(live.blocks.reduce((a, b) => a + b.rdBytes + b.wrBytes, 0))} total`;
+  return `${bytes(live.blocks.reduce((total, block) => total + block.rdBytes + block.wrBytes, 0))} total`;
 }
 
 function netsText(live: Live | undefined): string {
   if (!live) return '—';
-  return `${bytes(live.nets.reduce((a, b) => a + b.rxBytes + b.txBytes, 0))} total`;
+  return `${bytes(live.nets.reduce((total, net) => total + net.rxBytes + net.txBytes, 0))} total`;
 }
 
 export function VmStats({ vm, live, cpuPct }: {

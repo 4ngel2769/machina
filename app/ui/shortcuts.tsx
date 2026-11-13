@@ -14,38 +14,38 @@ const LABEL: Record<string, string> = {
   h: 'home', i: 'instances', k: 'ssh keys', b: 'billing', s: 'specs', a: 'admin',
 };
 
-function isTyping(e: KeyboardEvent): boolean {
-  const el = e.target as HTMLElement | null;
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+function isTyping(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
 }
 
-function armGoTimer(timer: { current: ReturnType<typeof setTimeout> | null }, setPending: (v: boolean) => void) {
+function armGoTimer(timer: { current: ReturnType<typeof setTimeout> | null }, setPending: (value: boolean) => void) {
   setPending(true);
   if (timer.current) clearTimeout(timer.current);
   timer.current = setTimeout(() => setPending(false), 1200);
 }
 
-function focusSearch(e: KeyboardEvent) {
-  const s = document.querySelector<HTMLInputElement>('input[data-search]');
-  if (s) { e.preventDefault(); s.focus(); }
+function focusSearch(event: KeyboardEvent) {
+  const input = document.querySelector<HTMLInputElement>('input[data-search]');
+  if (input) { event.preventDefault(); input.focus(); }
 }
 
-function followGo(e: KeyboardEvent, setPending: (v: boolean) => void, router: ReturnType<typeof useRouter>) {
-  const dest = GO[e.key.toLowerCase()];
-  if (dest) { e.preventDefault(); setPending(false); router.push(dest); }
+function followGo(event: KeyboardEvent, setPending: (value: boolean) => void, router: ReturnType<typeof useRouter>) {
+  const dest = GO[event.key.toLowerCase()];
+  if (dest) { event.preventDefault(); setPending(false); router.push(dest); }
 }
 
 /** Esc, ?, / and the g-prefix; returns true when the key was consumed. */
 function specialKey(
-  e: KeyboardEvent,
+  event: KeyboardEvent,
   setShow: React.Dispatch<React.SetStateAction<boolean>>,
   setPending: React.Dispatch<React.SetStateAction<boolean>>,
   timer: { current: ReturnType<typeof setTimeout> | null },
 ): boolean {
-  if (e.key === 'Escape') { setShow(false); setPending(false); return true; }
-  if (e.key === '?') { e.preventDefault(); setShow((v) => !v); return true; }
-  if (e.key === '/') { focusSearch(e); return true; }
-  if (e.key === 'g' || e.key === 'G') { armGoTimer(timer, setPending); return true; }
+  if (event.key === 'Escape') { setShow(false); setPending(false); return true; }
+  if (event.key === '?') { event.preventDefault(); setShow((visible) => !visible); return true; }
+  if (event.key === '/') { focusSearch(event); return true; }
+  if (event.key === 'g' || event.key === 'G') { armGoTimer(timer, setPending); return true; }
   return false;
 }
 
@@ -61,11 +61,11 @@ export function Shortcuts() {
   const [pending, setPending] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const onKey = useCallback((e: KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (isTyping(e)) return;
-    if (specialKey(e, setShow, setPending, timer)) return;
-    if (pending) followGo(e, setPending, router);
+  const onKey = useCallback((event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (isTyping(event)) return;
+    if (specialKey(event, setShow, setPending, timer)) return;
+    if (pending) followGo(event, setPending, router);
   }, [pending, router]);
 
   useEffect(() => {
@@ -78,8 +78,8 @@ export function Shortcuts() {
       {pending && (
         <div style={{ position: 'fixed', bottom: 16, left: 16, zIndex: 60 }} className="shortcutbar">
           <span>g</span><span style={{ opacity: .6 }}>then</span>
-          {Object.entries(LABEL).map(([k, v]) => (
-            <span key={k}><kbd>{k}</kbd> {v}</span>
+          {Object.entries(LABEL).map(([key, label]) => (
+            <span key={key}><kbd>{key}</kbd> {label}</span>
           ))}
         </div>
       )}
@@ -91,7 +91,7 @@ export function Shortcuts() {
           onClick={() => setShow(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
         >
-          <div className="card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380, width: '100%' }}>
+          <div className="card" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 380, width: '100%' }}>
             <h3 style={{ marginBottom: 14 }}>keyboard shortcuts</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', fontSize: 13, alignItems: 'center' }}>
               <span><kbd>g</kbd> <kbd>h</kbd></span><span className="muted">go home</span>

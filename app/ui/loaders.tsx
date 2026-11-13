@@ -16,8 +16,8 @@ export function SkelCard({ lines = 3 }: { lines?: number }) {
   return (
     <div className="card">
       <Skeleton w="55%" h={14} style={{ marginBottom: 12 }} />
-      {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton key={i} w={`${90 - i * 18}%`} h={10} style={{ marginBottom: 8 }} />
+      {Array.from({ length: lines }).map((_, index) => (
+        <Skeleton key={index} w={`${90 - index * 18}%`} h={10} style={{ marginBottom: 8 }} />
       ))}
     </div>
   );
@@ -26,8 +26,8 @@ export function SkelCard({ lines = 3 }: { lines?: number }) {
 export function SkelRow({ cols = 4 }: { cols?: number }) {
   return (
     <div className="skelrow">
-      {Array.from({ length: cols }).map((_, i) => (
-        <Skeleton key={i} h={10} w={`${100 / cols - 4}%`} />
+      {Array.from({ length: cols }).map((_, index) => (
+        <Skeleton key={index} h={10} w={`${100 / cols - 4}%`} />
       ))}
     </div>
   );

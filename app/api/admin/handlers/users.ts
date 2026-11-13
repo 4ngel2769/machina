@@ -39,12 +39,12 @@ function createUserCheck(body: AdminBody): { name: string; pw: string; credit: n
 
 /** Insert the users row plus the optional opening-credit ledger row. */
 function insertNewUser(id: string, name: string, role: string, pw: string, credit: number, adminName: string, adminId: string) {
-  const rd = rawDb();
-  rd.transaction(() => {
-    rd.prepare(`insert into users (id,name,role,password_hash,balance_cents,created_at) values (?,?,?,?,?,?)`)
+  const raw = rawDb();
+  raw.transaction(() => {
+    raw.prepare(`insert into users (id,name,role,password_hash,balance_cents,created_at) values (?,?,?,?,?,?)`)
       .run(id, name, role, hashPassword(pw), credit, now());
     if (credit > 0) {
-      rd.prepare(`insert into ledger (id,user_id,delta_cents,reason,ref_type,ref_id,note,created_at)
+      raw.prepare(`insert into ledger (id,user_id,delta_cents,reason,ref_type,ref_id,note,created_at)
         values (?,?,?,?,?,?,?,?)`)
         .run(newId('led_'), id, credit, 'grant', 'admin', adminId, `opening allocation by ${adminName}`, now());
     }
@@ -70,21 +70,21 @@ export async function setPassword(body: AdminBody, { admin }: AdminCtx) {
   if (!body.userId) return err('userId required');
   const pw = body.password ?? '';
   if (pw.length < 8 || pw.length > 72) return err('password: 8-72 chars (72 is bcrypt cap)');
-  const u = await getDb().select().from(users).where(eq(users.id, body.userId));
-  if (!u[0]) return err('user not found', 404);
+  const userRows = await getDb().select().from(users).where(eq(users.id, body.userId));
+  if (!userRows[0]) return err('user not found', 404);
   await getDb().update(users).set({ passwordHash: hashPassword(pw) }).where(eq(users.id, body.userId));
   // Existing sessions are JWTs and stay valid until they expire; this only
   // changes what the login form accepts from here on.
-  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.setPassword', target: u[0].name });
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.setPassword', target: userRows[0].name });
   return json({ ok: true });
 }
 
 /** Refusal when demoting this user would lock the panel; null when allowed. */
-function demotionBlocked(u: { id: string; role: string }, role: string, admin: AdminCtx['admin']) {
+function demotionBlocked(userRow: { id: string; role: string }, role: string, admin: AdminCtx['admin']) {
   // Do not let an admin lock themselves (or the last admin) out of the
   // panel: demoting the final admin is unrecoverable from the UI.
-  if (u.role !== 'admin' || role !== 'user') return null;
-  if (u.id === admin.id) return err('you cannot demote your own account', 409);
+  if (userRow.role !== 'admin' || role !== 'user') return null;
+  if (userRow.id === admin.id) return err('you cannot demote your own account', 409);
   const admins = (rawDb().prepare(`select count(*) c from users where role='admin'`).get() as { c: number }).c;
   if (admins <= 1) return err('this is the last admin account', 409);
   return null;
@@ -94,47 +94,47 @@ export async function setRole(body: AdminBody, { admin }: AdminCtx) {
   if (!body.userId) return err('userId required');
   const role = body.role === 'admin' ? 'admin' : body.role === 'user' ? 'user' : null;
   if (!role) return err('role must be admin or user');
-  const u = await getDb().select().from(users).where(eq(users.id, body.userId));
-  if (!u[0]) return err('user not found', 404);
-  const blocked = demotionBlocked(u[0], role, admin);
+  const userRows = await getDb().select().from(users).where(eq(users.id, body.userId));
+  if (!userRows[0]) return err('user not found', 404);
+  const blocked = demotionBlocked(userRows[0], role, admin);
   if (blocked) return blocked;
-  if (u[0].role === role) return json({ ok: true, role });
+  if (userRows[0].role === role) return json({ ok: true, role });
   await getDb().update(users).set({ role }).where(eq(users.id, body.userId));
   await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.setRole',
-    target: u[0].name, detail: { from: u[0].role, to: role } });
+    target: userRows[0].name, detail: { from: userRows[0].role, to: role } });
   return json({ ok: true, role });
 }
 
 export async function deleteUser(body: AdminBody, { admin }: AdminCtx) {
   if (!body.userId) return err('userId required');
   if (body.userId === admin.id) return err('you cannot delete your own account', 409);
-  const u = await getDb().select().from(users).where(eq(users.id, body.userId));
-  if (!u[0]) return err('user not found', 404);
+  const userRows = await getDb().select().from(users).where(eq(users.id, body.userId));
+  if (!userRows[0]) return err('user not found', 404);
   const owned = (rawDb().prepare(`select count(*) c from instances where user_id=?`).get(body.userId) as { c: number }).c;
   if (owned > 0) {
     // Deleting the account would strand qcow2 overlays, leases and VNC
     // sockets with no owner to bill or blame. Make the admin destroy the
     // instances first, where each destroy goes through the normal handler.
-    return err(`${u[0].name} still owns ${owned} instance${owned === 1 ? '' : 's'} — delete ${owned === 1 ? 'it' : 'them'} first`, 409);
+    return err(`${userRows[0].name} still owns ${owned} instance${owned === 1 ? '' : 's'} — delete ${owned === 1 ? 'it' : 'them'} first`, 409);
   }
-  if (u[0].role === 'admin') {
+  if (userRows[0].role === 'admin') {
     const admins = (rawDb().prepare(`select count(*) c from users where role='admin'`).get() as { c: number }).c;
     if (admins <= 1) return err('this is the last admin account', 409);
   }
-  const rd = rawDb();
+  const raw = rawDb();
   const id = body.userId;
-  rd.transaction(() => {
+  raw.transaction(() => {
     // Instances are gone (checked above); sweep everything else that keys
     // off the account so a later id collision cannot inherit its history.
-    rd.prepare(`delete from ssh_keys where user_id=?`).run(id);
-    rd.prepare(`delete from quotas where user_id=?`).run(id);
-    rd.prepare(`delete from instance_requests where user_id=?`).run(id);
-    rd.prepare(`delete from deletion_requests where user_id=?`).run(id);
-    rd.prepare(`delete from jobs where user_id=?`).run(id);
+    raw.prepare(`delete from ssh_keys where user_id=?`).run(id);
+    raw.prepare(`delete from quotas where user_id=?`).run(id);
+    raw.prepare(`delete from instance_requests where user_id=?`).run(id);
+    raw.prepare(`delete from deletion_requests where user_id=?`).run(id);
+    raw.prepare(`delete from jobs where user_id=?`).run(id);
     // Ledger rows stay: they are the money trail, and an audit that can be
     // erased by deleting the account is not an audit.
-    rd.prepare(`delete from users where id=?`).run(id);
+    raw.prepare(`delete from users where id=?`).run(id);
   })();
-  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.deleteUser', target: u[0].name, detail: { id } });
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.deleteUser', target: userRows[0].name, detail: { id } });
   return json({ ok: true });
 }

@@ -7,8 +7,8 @@ import type { useContainerActions } from './actions';
 type Actions = ReturnType<typeof useContainerActions>;
 
 export function CreateForm({ form, setForm, busy, create }: Pick<Actions, 'form' | 'setForm' | 'busy' | 'create'>) {
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [k]: e.target.value });
+  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...form, [key]: event.target.value });
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <h3>create a container</h3>

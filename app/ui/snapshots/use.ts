@@ -11,13 +11,13 @@ export function useSnapshots(instanceId: string): {
   disk: DiskInfo | null;
   planDiskGb: number;
   name: string;
-  setName: (v: string) => void;
+  setName: (value: string) => void;
   desc: string;
-  setDesc: (v: string) => void;
+  setDesc: (value: string) => void;
   busy: string;
   msg: string;
   confirm: ConfirmState | null;
-  setConfirm: (v: ConfirmState | null) => void;
+  setConfirm: (value: ConfirmState | null) => void;
   post: (body: Record<string, unknown>) => Promise<void>;
 } {
   const [snaps, setSnaps] = useState<Snap[]>([]);
@@ -32,12 +32,12 @@ export function useSnapshots(instanceId: string): {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/instances/${instanceId}/snapshots`, { cache: 'no-store' });
-      if (!r.ok) return;
-      const j = await r.json();
-      setSnaps(j.snapshots ?? []);
-      setDisk(j.disk ?? null);
-      setPlanDiskGb(j.planDiskGb ?? 0);
+      const response = await fetch(`/api/instances/${instanceId}/snapshots`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setSnaps(payload.snapshots ?? []);
+      setDisk(payload.disk ?? null);
+      setPlanDiskGb(payload.planDiskGb ?? 0);
       setLoaded(true);
     } catch {
       /* transient; the interval will retry */
@@ -46,24 +46,24 @@ export function useSnapshots(instanceId: string): {
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 6000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void load(), 6000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(String(body.name));
     setMsg('');
     try {
-      const r = await fetch(`/api/instances/${instanceId}/snapshots`, {
+      const response = await fetch(`/api/instances/${instanceId}/snapshots`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        setMsg(j.error ?? 'that did not work');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMsg(payload.error ?? 'that did not work');
         // A refusal here is almost always quota, so say what to do about it.
-        if (/limit|free space|grown/i.test(j.error ?? '')) setMsg(`${j.error}. Delete a snapshot, or ask an admin to resize the disk.`);
+        if (/limit|free space|grown/i.test(payload.error ?? '')) setMsg(`${payload.error}. Delete a snapshot, or ask an admin to resize the disk.`);
       } else {
         setName('');
         setDesc('');

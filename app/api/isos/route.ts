@@ -16,20 +16,20 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const { response: e } = await requireAdmin();
-  if (e) return e;
+  const { response: denied } = await requireAdmin();
+  if (denied) return denied;
   try {
     return json({ isos: await listIsos(), maxIsoGb: config.limits.maxIsoGb });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
 
   const name = req.nextUrl.searchParams.get('name') ?? '';
   const cap = config.limits.maxIsoGb * 1024 ** 3;
@@ -45,23 +45,23 @@ export async function POST(req: NextRequest) {
       target: iso.name, detail: { sizeMb: iso.sizeMb, sha256: iso.sha256 },
     });
     return json({ ok: true, iso });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
 
   const name = req.nextUrl.searchParams.get('name') ?? '';
   try {
     const result = await deleteIso(name);
     await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.iso.delete', target: name });
     return json({ ok: true, result });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }

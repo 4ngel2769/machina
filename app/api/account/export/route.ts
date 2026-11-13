@@ -12,14 +12,14 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const db = getDb();
-  const rd = rawDb();
-  const myInsts = await db.select().from(instances).where(eq(instances.userId, user.id));
+  const raw = rawDb();
+  const myInstances = await db.select().from(instances).where(eq(instances.userId, user.id));
   const myKeys = await db.select().from(sshKeys).where(eq(sshKeys.userId, user.id));
   const myLedger = await db.select().from(ledger).where(eq(ledger.userId, user.id));
   const payload = {
     exportedAt: new Date().toISOString(),
     user: { id: user.id, name: user.name, role: user.role },
-    instances: myInsts.map((i) => ({ ...i, rootPassEnc: undefined, vncPass: undefined })),
+    instances: myInstances.map((inst) => ({ ...inst, rootPassEnc: undefined, vncPass: undefined })),
     sshKeys: myKeys,
     ledger: myLedger,
   };

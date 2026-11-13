@@ -16,10 +16,10 @@ import { checkQuota } from '@/lib/core/quota';
 export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
-  const rd = rawDb();
+  const raw = rawDb();
   const rows = user.role === 'admin'
-    ? rd.prepare(`select * from instance_requests order by created_at desc`).all()
-    : rd.prepare(`select * from instance_requests where user_id=? order by created_at desc`).all(user.id);
+    ? raw.prepare(`select * from instance_requests order by created_at desc`).all()
+    : raw.prepare(`select * from instance_requests where user_id=? order by created_at desc`).all(user.id);
   return json(rows);
 }
 
@@ -91,8 +91,8 @@ async function pickImageId(userId: string, bodyImageId: string | undefined) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   if (user.role === 'admin') return err('admins create directly via /api/instances', 400);
@@ -101,47 +101,47 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { name?: string; planId?: string; imageId?: string; note?: string };
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
-  const plan = await pickPlan(body.planId);
-  if (plan instanceof Response) return plan;
+  const pickedPlan = await pickPlan(body.planId);
+  if (pickedPlan instanceof Response) return pickedPlan;
 
   const picked = await pickImageId(user.id, body.imageId);
   if ('refused' in picked) return picked.refused;
   const imageId = picked.imageId;
 
-  return await submitRequest(user, name, plan, imageId, body.note);
+  return await submitRequest(user, name, pickedPlan, imageId, body.note);
 }
 
 /** Duplicate-name and quota gates, then the insert. */
 async function submitRequest(
   user: { id: string; name: string },
   name: string,
-  plan: { id: string; vcpu: number; ramMb: number; diskGb: number },
+  pickedPlan: { id: string; vcpu: number; ramMb: number; diskGb: number },
   imageId: string,
   note: string | undefined,
 ) {
-  const rd = rawDb();
-  const dupe = rd.prepare(`select 1 from instance_requests where user_id=? and name=? and status='pending'`).get(user.id, name);
+  const raw = rawDb();
+  const dupe = raw.prepare(`select 1 from instance_requests where user_id=? and name=? and status='pending'`).get(user.id, name);
   if (dupe) return err('a pending request with that name already exists', 409);
 
   // Quota is checked HERE as well as at approval. Telling someone their request
   // is fine and only failing when an admin approves it wastes their time and the
   // admin's; approving a request that cannot be honoured is worse. The check is
   // re-run at approval because quota and other approvals move in between.
-  const verdict = checkQuota(user.id, { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb });
+  const verdict = checkQuota(user.id, { vcpu: pickedPlan.vcpu, ramMb: pickedPlan.ramMb, diskGb: pickedPlan.diskGb });
   if (!verdict.allowed) return err(verdict.reason, 403);
-  return insertAndAudit(user, name, plan, imageId, note);
+  return insertAndAudit(user, name, pickedPlan, imageId, note);
 }
 
 async function insertAndAudit(
   user: { id: string; name: string },
   name: string,
-  plan: { id: string },
+  pickedPlan: { id: string },
   imageId: string,
   note: string | undefined,
 ) {
   const id = newId('req_');
-  insertRequest(id, user.id, name, plan.id, imageId, note);
-  await logAudit({ actorId: user.id, actorName: user.name, action: 'instance.request', target: id, detail: { name, planId: plan.id, imageId: imageId || null } });
+  insertRequest(id, user.id, name, pickedPlan.id, imageId, note);
+  await logAudit({ actorId: user.id, actorName: user.name, action: 'instance.request', target: id, detail: { name, planId: pickedPlan.id, imageId: imageId || null } });
   return json({ id, status: 'pending' }, 201);
 }
 

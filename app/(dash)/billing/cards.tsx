@@ -5,33 +5,33 @@
 import { relTime } from '@/app/ui/time';
 import type { BillingState } from './use';
 
-export function BalanceCard({ b }: { b: BillingState }) {
+export function BalanceCard({ billing }: { billing: BillingState }) {
   return (
     <div className="card">
       <div className="grid3" style={{ alignItems: 'center' }}>
         <div>
           <div className="muted">balance</div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 600 }}>
-            {b.balance === null ? '…' : `$${(b.balance / 100).toFixed(2)}`}
+            {billing.balance === null ? '…' : `$${(billing.balance / 100).toFixed(2)}`}
           </div>
-          {b.balance !== null && b.balance < 100
+          {billing.balance !== null && billing.balance < 100
             ? <span className="badge suspended" title="auto-suspends when it hits zero">low balance</span>
             : null}
         </div>
         <div>
           <div className="muted">host capacity</div>
-          <div>{b.cap ? <span className="mono">{b.cap.running}/{b.cap.max}</span> : '…'} <span className="copy">running</span></div>
+          <div>{billing.cap ? <span className="mono">{billing.cap.running}/{billing.cap.max}</span> : '…'} <span className="copy">running</span></div>
         </div>
       </div>
     </div>
   );
 }
 
-export function ForecastCard({ b }: { b: BillingState }) {
-  const burn = b.running.reduce((a, i) => a + (i.rateHourlyCents ?? 0), 0);
-  const bal = b.balance ?? 0;
+export function ForecastCard({ billing }: { billing: BillingState }) {
+  const burn = billing.running.reduce((totalCents, instance) => totalCents + (instance.rateHourlyCents ?? 0), 0);
+  const bal = billing.balance ?? 0;
   const days = burn > 0 ? Math.floor(bal / burn / 24) : null;
-  const lasts = b.running.length === 0 ? '—' : days !== null ? (days > 365 ? '>1y' : `${days}d`) : '<1d';
+  const lasts = billing.running.length === 0 ? '—' : days !== null ? (days > 365 ? '>1y' : `${days}d`) : '<1d';
   return (
     <div className="card">
       <h3>forecast</h3>
@@ -52,52 +52,52 @@ export function ForecastCard({ b }: { b: BillingState }) {
         </div>
       </div>
       <div className="muted" style={{ fontSize: 11, marginTop: 12 }}>
-        based on your {b.running.length} running VM{b.running.length === 1 ? '' : 's'} right now. VMs suspend automatically at zero.
+        based on your {billing.running.length} running VM{billing.running.length === 1 ? '' : 's'} right now. VMs suspend automatically at zero.
       </div>
     </div>
   );
 }
 
-export function PasswordCard({ b }: { b: BillingState }) {
+export function PasswordCard({ billing }: { billing: BillingState }) {
   return (
     <div className="card">
       <h3>change password</h3>
       <div className="sub" style={{ margin: '-6px 0 12px' }}>persists across restarts; the seed never rewrites it unless ADMIN_FORCE_RESET=1</div>
-      <form onSubmit={(e) => void b.changePw(e)}>
+      <form onSubmit={(event) => void billing.changePw(event)}>
         <div className="row">
           <div style={{ flex: 1, minWidth: 180 }}>
             <label htmlFor="cp">current password</label>
-            <input id="cp" type="password" value={b.cur} onChange={(e) => b.setCur(e.target.value)} autoComplete="current-password" />
+            <input id="cp" type="password" value={billing.currentPw} onChange={(event) => billing.setCurrentPw(event.target.value)} autoComplete="current-password" />
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <label htmlFor="np">new password (8-72)</label>
-            <input id="np" type="password" value={b.nw} onChange={(e) => b.setNw(e.target.value)} autoComplete="new-password" />
+            <input id="np" type="password" value={billing.newPw} onChange={(event) => billing.setNewPw(event.target.value)} autoComplete="new-password" />
           </div>
-          <button type="submit" disabled={b.pwBusy || !b.cur || b.nw.length < 8}>update</button>
+          <button type="submit" disabled={billing.pwBusy || !billing.currentPw || billing.newPw.length < 8}>update</button>
         </div>
       </form>
     </div>
   );
 }
 
-export function LedgerCard({ b }: { b: BillingState }) {
+export function LedgerCard({ billing }: { billing: BillingState }) {
   return (
     <div className="card">
       <h3>ledger (last 50)</h3>
       <table>
         <thead><tr><th>when</th><th>reason</th><th>delta</th><th>note</th></tr></thead>
         <tbody>
-          {b.ledger.map((l) => (
-            <tr key={l.id}>
-              <td title={new Date(l.createdAt).toLocaleString()}>{relTime(l.createdAt)}</td>
-              <td>{l.reason}</td>
-              <td className="mono" style={{ color: l.deltaCents >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
-                {l.deltaCents >= 0 ? '+' : ''}{(l.deltaCents / 100).toFixed(2)}
+          {billing.ledger.map((entry) => (
+            <tr key={entry.id}>
+              <td title={new Date(entry.createdAt).toLocaleString()}>{relTime(entry.createdAt)}</td>
+              <td>{entry.reason}</td>
+              <td className="mono" style={{ color: entry.deltaCents >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
+                {entry.deltaCents >= 0 ? '+' : ''}{(entry.deltaCents / 100).toFixed(2)}
               </td>
-              <td className="copy">{l.note ?? '—'}</td>
+              <td className="copy">{entry.note ?? '—'}</td>
             </tr>
           ))}
-          {b.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
+          {billing.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
         </tbody>
       </table>
     </div>

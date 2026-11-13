@@ -12,32 +12,32 @@ export const FILTERS = ['all', 'running', 'unhealthy', 'stopped'] as const;
 export type Filter = (typeof FILTERS)[number];
 
 /** Badge tone for the row: health first, then the docker state. */
-export function badge(c: Container): string {
-  if (c.health === 'unhealthy') return 'error';
-  if (c.state === 'running') return c.health === 'starting' ? 'queued' : 'running';
-  if (c.state === 'restarting') return 'provisioning';
-  if (c.state === 'paused') return 'suspended';
+export function badge(container: Container): string {
+  if (container.health === 'unhealthy') return 'error';
+  if (container.state === 'running') return container.health === 'starting' ? 'queued' : 'running';
+  if (container.state === 'restarting') return 'provisioning';
+  if (container.state === 'paused') return 'suspended';
   return 'stopped';
 }
 
-export function match(c: Container, f: Filter): boolean {
-  if (f === 'all') return true;
-  if (f === 'unhealthy') return c.health === 'unhealthy' || c.state === 'restarting' || c.state === 'dead';
-  if (f === 'running') return c.state === 'running';
-  return c.state !== 'running';
+export function match(container: Container, filter: Filter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'unhealthy') return container.health === 'unhealthy' || container.state === 'restarting' || container.state === 'dead';
+  if (filter === 'running') return container.state === 'running';
+  return container.state !== 'running';
 }
 
 /** True when the container is in a state worth an operator's attention. */
-export function needsAttention(c: Container): boolean {
-  return c.health === 'unhealthy' || c.state === 'restarting' || c.state === 'dead';
+export function needsAttention(container: Container): boolean {
+  return container.health === 'unhealthy' || container.state === 'restarting' || container.state === 'dead';
 }
 
 /** Containers grouped by compose project, sorted by project name. */
-export function groupByProject(cs: Container[]): [string, Container[]][] {
-  const m = new Map<string, Container[]>();
-  for (const c of cs) {
-    const k = c.project ?? '(standalone)';
-    m.set(k, [...(m.get(k) ?? []), c]);
+export function groupByProject(containers: Container[]): [string, Container[]][] {
+  const groups = new Map<string, Container[]>();
+  for (const container of containers) {
+    const key = container.project ?? '(standalone)';
+    groups.set(key, [...(groups.get(key) ?? []), container]);
   }
-  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
 }

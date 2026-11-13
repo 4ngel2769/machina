@@ -12,14 +12,14 @@ export function Meter({ used, max, label }: { used: number; max: number | null; 
   if (max === null) {
     return <span className="muted" style={{ fontSize: 11 }}>{label}: {used} (unlimited)</span>;
   }
-  const p = Math.min(100, Math.round((used / Math.max(1, max)) * 100));
+  const percent = Math.min(100, Math.round((used / Math.max(1, max)) * 100));
   // Over the line is the only state that needs a colour; everything else is calm.
   const over = used > max;
   return (
     <span className="meter" title={`${label}: ${used} of ${max}`}>
       <span className="muted" style={{ fontSize: 11 }}>{label}</span>
       <span className={`bar${over ? ' over' : ''}`}>
-        <span className="fill" style={{ width: `${p}%` }} />
+        <span className="fill" style={{ width: `${percent}%` }} />
       </span>
       <span className="mono" style={{ fontSize: 11 }}>{used}/{max}</span>
     </span>
@@ -38,39 +38,39 @@ export function UsageMeters({ quota, usage }: { quota: Row['quota']; usage: Row[
   );
 }
 
-function BoundInput({ f, edit }: { f: Field; edit: Edit }) {
+function BoundInput({ field, edit }: { field: Field; edit: Edit }) {
   return (
     <label className="qfield">
-      <span>{f.label}{f.unit ? ` (${f.unit})` : ''}</span>
+      <span>{field.label}{field.unit ? ` (${field.unit})` : ''}</span>
       <input
-        value={edit.draft[f.key] ?? ''}
+        value={edit.draft[field.key] ?? ''}
         placeholder="∞"
         inputMode="numeric"
-        onChange={(e) => edit.setDraft({ ...edit.draft, [f.key]: e.target.value })}
+        onChange={(event) => edit.setDraft({ ...edit.draft, [field.key]: event.target.value })}
       />
     </label>
   );
 }
 
 /** Expanded edit row: the five numeric bounds plus suspended. */
-export function EditRow({ r, edit }: { r: Row; edit: Edit }) {
+export function EditRow({ row, edit }: { row: Row; edit: Edit }) {
   return (
-    <tr key={`${r.userId}-edit`}>
+    <tr key={`${row.userId}-edit`}>
       <td colSpan={4} className="quotaedit">
         <div className="snappresets" style={{ marginBottom: 10 }}>
-          {FIELDS.map((f) => <BoundInput key={f.key} f={f} edit={edit} />)}
+          {FIELDS.map((field) => <BoundInput key={field.key} field={field} edit={edit} />)}
           <label className="qfield">
             <span>suspended</span>
             <input
               type="checkbox"
               checked={edit.suspended}
-              onChange={(e) => edit.setSuspended(e.target.checked)}
+              onChange={(event) => edit.setSuspended(event.target.checked)}
               style={{ width: 'auto' }}
             />
           </label>
         </div>
         <div className="row">
-          <button className="primary" onClick={() => void edit.save(r)} disabled={edit.busy}>
+          <button className="primary" onClick={() => void edit.save(row)} disabled={edit.busy}>
             {edit.busy ? <Ring size={12} /> : null} save quota
           </button>
           <span className="muted" style={{ fontSize: 11 }}>
@@ -85,33 +85,33 @@ export function EditRow({ r, edit }: { r: Row; edit: Edit }) {
 
 /** One account's read row plus its edit row when open. */
 export function QuotaRows({ rows, edit }: { rows: Row[]; edit: Edit }) {
-  return rows.map((r) => <QuotaRow key={r.userId} r={r} edit={edit} />);
+  return rows.map((row) => <QuotaRow key={row.userId} row={row} edit={edit} />);
 }
 
-function QuotaRow({ r, edit }: { r: Row; edit: Edit }) {
-  const open = edit.open === r.userId;
+function QuotaRow({ row, edit }: { row: Row; edit: Edit }) {
+  const open = edit.open === row.userId;
   return (
     <>
       <tr>
         <td>
-          <div>{r.name} {r.role === 'admin' && <span className="badge">admin</span>}</div>
+          <div>{row.name} {row.role === 'admin' && <span className="badge">admin</span>}</div>
           <div className="muted" style={{ fontSize: 11 }}>
-            {(r.balanceCents / 100).toFixed(2)} credit
+            {(row.balanceCents / 100).toFixed(2)} credit
           </div>
         </td>
-        <td><UsageMeters quota={r.quota} usage={r.usage} /></td>
+        <td><UsageMeters quota={row.quota} usage={row.usage} /></td>
         <td>
-          {r.quota.suspended
+          {row.quota.suspended
             ? <span className="badge error">suspended</span>
             : <span className="badge ready">active</span>}
         </td>
         <td className="snapacts">
-          <button onClick={() => edit.toggle(r)}>
+          <button onClick={() => edit.toggle(row)}>
             {open ? 'cancel' : 'set quota'}
           </button>
         </td>
       </tr>
-      {open && <EditRow r={r} edit={edit} />}
+      {open && <EditRow row={row} edit={edit} />}
     </>
   );
 }

@@ -11,21 +11,21 @@ function sizeCell(sizeGb: number | null): React.ReactNode {
   return `${sizeGb} GB`;
 }
 
-function DiskRow({ d, busy, op }: {
-  d: Detail['disks'][number]; busy: string; op: Op;
+function DiskRow({ disk, busy, op }: {
+  disk: Detail['disks'][number]; busy: string; op: Op;
 }) {
   const detach = () => {
-    if (confirm(`detach ${d.target}? the file stays on the host.`)) {
-      void op({ op: 'diskDetach', target: d.target }, 'detach disk');
+    if (confirm(`detach ${disk.target}? the file stays on the host.`)) {
+      void op({ op: 'diskDetach', target: disk.target }, 'detach disk');
     }
   };
   return (
     <tr>
-      <td className="mono">{d.target}</td><td>{d.bus}</td><td>{d.device}</td><td>{d.format}</td>
-      <td className="mono">{sizeCell(d.sizeGb)}</td>
-      <td className="mono muted" style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.source || '—'}</td>
+      <td className="mono">{disk.target}</td><td>{disk.bus}</td><td>{disk.device}</td><td>{disk.format}</td>
+      <td className="mono">{sizeCell(disk.sizeGb)}</td>
+      <td className="mono muted" style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>{disk.source || '—'}</td>
       <td style={{ textAlign: 'right' }}>
-        {d.device === 'disk' && (
+        {disk.device === 'disk' && (
           <button style={{ color: 'var(--danger, #f87171)' }} disabled={!!busy} onClick={detach}>detach</button>
         )}
       </td>
@@ -43,7 +43,7 @@ export function DisksCard({ vm, busy, op }: { vm: Detail; busy: string; op: Op }
       <table>
         <thead><tr><th>target</th><th>bus</th><th>device</th><th>format</th><th>size</th><th>source</th><th /></tr></thead>
         <tbody>
-          {vm.disks.map((d) => <DiskRow key={d.target + d.source} d={d} busy={busy} op={op} />)}
+          {vm.disks.map((disk) => <DiskRow key={disk.target + disk.source} disk={disk} busy={busy} op={op} />)}
         </tbody>
       </table>
       <div className="row" style={{ marginTop: 10 }}>

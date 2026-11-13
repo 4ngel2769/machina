@@ -52,12 +52,12 @@ export function imagePathFor(imageId: string): string {
 
 /** Stream-sha256 to avoid loading 600MB into RAM. */
 export function sha256File(file: string): Promise<string> {
-  return new Promise((res, rej) => {
-    const h = createHash('sha256');
-    const s = fs.createReadStream(file);
-    s.on('data', (d) => h.update(d));
-    s.on('end', () => res(h.digest('hex')));
-    s.on('error', rej);
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const stream = fs.createReadStream(file);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
   });
 }
 
@@ -65,26 +65,25 @@ async function fetchFile(url: string, dest: string): Promise<void> {
   const { default: https } = await import('https');
   const { default: http } = await import('http');
   const client = url.startsWith('https') ? https : http;
-  await new Promise<void>((res, rej) => {
-    const get = client.get;
-    const req = get(url, (r0) => {
-      if (r0.statusCode && r0.statusCode >= 300 && r0.statusCode < 400 && r0.headers.location) {
+  await new Promise<void>((resolve, reject) => {
+    const request = client.get(url, (firstResponse) => {
+      if (firstResponse.statusCode && firstResponse.statusCode >= 300 && firstResponse.statusCode < 400 && firstResponse.headers.location) {
         // one redirect hop is enough for cloud-images
-        const req2 = get(r0.headers.location, (r2) => {
-          if (r2.statusCode !== 200) return rej(new Error(`http ${r2.statusCode}`));
-          const f = fs.createWriteStream(dest);
-          r2.pipe(f);
-          f.on('finish', () => f.close(() => res()));
+        const redirectRequest = client.get(firstResponse.headers.location, (redirectResponse) => {
+          if (redirectResponse.statusCode !== 200) return reject(new Error(`http ${redirectResponse.statusCode}`));
+          const outFile = fs.createWriteStream(dest);
+          redirectResponse.pipe(outFile);
+          outFile.on('finish', () => outFile.close(() => resolve()));
         });
-        req2.on('error', rej);
+        redirectRequest.on('error', reject);
         return;
       }
-      if (r0.statusCode !== 200) return rej(new Error(`http ${r0.statusCode}`));
-      const f = fs.createWriteStream(dest);
-      r0.pipe(f);
-      f.on('finish', () => f.close(() => res()));
+      if (firstResponse.statusCode !== 200) return reject(new Error(`http ${firstResponse.statusCode}`));
+      const outFile = fs.createWriteStream(dest);
+      firstResponse.pipe(outFile);
+      outFile.on('finish', () => outFile.close(() => resolve()));
     });
-    req.on('error', rej);
+    request.on('error', reject);
   });
 }
 
@@ -93,15 +92,15 @@ function shaFor(sums: string, version: string): string | null {
   // Collect all matching .img hashes, prefer amd64.
   const matches: { hash: string; name: string }[] = [];
   for (const line of sums.split('\n')) {
-    const m = line.match(/([0-9a-f]{64})\s+\*?(.*\.img)$/);
-    if (!m) continue;
-    const name = m[2];
-    if (!name.includes(version) || name.includes('lxd') || name.includes('rootfs')) continue;
-    matches.push({ hash: m[1], name });
+    const match = line.match(/([0-9a-f]{64})\s+\*?(.*\.img)$/);
+    if (!match) continue;
+    const fileName = match[2];
+    if (!fileName.includes(version) || fileName.includes('lxd') || fileName.includes('rootfs')) continue;
+    matches.push({ hash: match[1], name: fileName });
   }
   if (!matches.length) return null;
-  const amd = matches.find((x) => x.name.includes('amd64') && !x.name.includes('amd64v'));
-  return (amd ?? matches[0]).hash;
+  const amd64Match = matches.find((entry) => entry.name.includes('amd64') && !entry.name.includes('amd64v'));
+  return (amd64Match ?? matches[0]).hash;
 }
 
 const syncState = new Map<string, boolean>();
@@ -120,33 +119,33 @@ export async function syncImage(imageId: string): Promise<void> {
 
 /** Published checksum, when the image declares one. Missing sums are not fatal. */
 async function expectedSha(
-  row: { sha256Url: string | null; version: string | null },
-  part: string,
+  imageRow: { sha256Url: string | null; version: string | null },
+  partPath: string,
 ): Promise<string> {
-  if (!row.sha256Url) return '';
-  const tmpSums = `${part}.sums`;
-  await fetchFile(row.sha256Url, tmpSums).catch(() => {});
-  if (!fs.existsSync(tmpSums)) return '';
-  const want = shaFor(fs.readFileSync(tmpSums, 'utf8'), row.version ?? '') || '';
-  await fsp.rm(tmpSums, { force: true });
-  return want;
+  if (!imageRow.sha256Url) return '';
+  const sumsPath = `${partPath}.sums`;
+  await fetchFile(imageRow.sha256Url, sumsPath).catch(() => {});
+  if (!fs.existsSync(sumsPath)) return '';
+  const expectedHash = shaFor(fs.readFileSync(sumsPath, 'utf8'), imageRow.version ?? '') || '';
+  await fsp.rm(sumsPath, { force: true });
+  return expectedHash;
 }
 
 /** Fetch to .part, verify, then move into place. */
 async function downloadVerified(
-  row: { url: string },
-  part: string,
-  final: string,
+  imageRow: { url: string },
+  partPath: string,
+  finalPath: string,
   wantSha: string,
 ): Promise<void> {
-  await fetchFile(row.url, part);
-  const got = await sha256File(part);
-  if (wantSha && wantSha !== got) {
-    throw new Error(`sha256 mismatch: got ${got.slice(0, 12)} want ${wantSha.slice(0, 12)}`);
+  await fetchFile(imageRow.url, partPath);
+  const actualSha = await sha256File(partPath);
+  if (wantSha && wantSha !== actualSha) {
+    throw new Error(`sha256 mismatch: got ${actualSha.slice(0, 12)} want ${wantSha.slice(0, 12)}`);
   }
-  fs.renameSync(part, final);
+  fs.renameSync(partPath, finalPath);
   // libvirt-qemu needs to read it directly from the pool dir.
-  await fsp.chmod(final, 0o644).catch(() => {});
+  await fsp.chmod(finalPath, 0o644).catch(() => {});
 }
 
 async function doSync(imageId: string): Promise<void> {
@@ -156,32 +155,32 @@ async function doSync(imageId: string): Promise<void> {
   const db = getDb();
   const row = (await db.select().from(images).where(eq(images.id, imageId)).limit(1))[0];
   if (!row) throw new Error(`unknown image ${imageId}`);
-  const sp = storagePaths();
-  fs.mkdirSync(sp.images, { recursive: true });
-  const part = path.join(sp.images, `${imageId}.part`);
-  const final = imagePathFor(imageId);
+  const storage = storagePaths();
+  fs.mkdirSync(storage.images, { recursive: true });
+  const partPath = path.join(storage.images, `${imageId}.part`);
+  const finalPath = imagePathFor(imageId);
 
   try {
-    const wantSha = await expectedSha(row, part);
+    const wantSha = await expectedSha(row, partPath);
     await db.update(images).set({ status: 'downloading', updatedAt: now() }).where(eq(images.id, imageId));
-    await downloadVerified(row, part, final, wantSha);
-  } catch (e) {
-    await fsp.rm(part, { force: true }).catch(() => {});
+    await downloadVerified(row, partPath, finalPath, wantSha);
+  } catch (syncError) {
+    await fsp.rm(partPath, { force: true }).catch(() => {});
     await db.update(images).set({
       status: 'failed',
-      failure: String((e as Error).message || e),
+      failure: String((syncError as Error).message || syncError),
       updatedAt: now(),
     }).where(eq(images.id, imageId));
-    throw e;
+    throw syncError;
   }
 
   // Baseline-hash fallback when no published sums existed at first sync.
-  const baseline = row.sha256 || (await sha256File(final));
+  const baselineSha = row.sha256 || (await sha256File(finalPath));
   await db.update(images).set({
     status: 'ready',
-    path: final,
-    sha256: baseline,
-    sizeBytes: fs.statSync(final).size,
+    path: finalPath,
+    sha256: baselineSha,
+    sizeBytes: fs.statSync(finalPath).size,
     failure: null,
     updatedAt: now(),
   }).where(eq(images.id, imageId));

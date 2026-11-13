@@ -44,10 +44,10 @@ async function writeUpload(body: ReadableStream<Uint8Array>, tmp: string) {
       ws.once('error', reject);
       ws.end();
     });
-  } catch (e) {
+  } catch (error) {
     ws.destroy();
     await fs.rm(tmp, { force: true }).catch(() => {});
-    throw e;
+    throw error;
   }
   return { sha256: hash.digest('hex'), size };
 }
@@ -55,10 +55,10 @@ async function writeUpload(body: ReadableStream<Uint8Array>, tmp: string) {
 /** qemu-img must agree the file is a standalone, unencrypted qcow2 before it
  *  becomes a bootable base image. */
 async function validateImage(tmp: string) {
-  const info = await qemuImgInfo(tmp);
-  if (info.format !== 'qcow2') throw new Error(`only qcow2 images can be imported (got ${String(info.format)})`);
-  if (info['backing-filename']) throw new Error('backed qcow2 images are not supported — flatten or convert to a standalone qcow2 first');
-  if (info.encrypted === true) throw new Error('encrypted qcow2 images are not supported');
+  const imageInfo = await qemuImgInfo(tmp);
+  if (imageInfo.format !== 'qcow2') throw new Error(`only qcow2 images can be imported (got ${String(imageInfo.format)})`);
+  if (imageInfo['backing-filename']) throw new Error('backed qcow2 images are not supported — flatten or convert to a standalone qcow2 first');
+  if (imageInfo.encrypted === true) throw new Error('encrypted qcow2 images are not supported');
 }
 
 /** Id/name params plus the duplicate-id check; returns the refusal or the
@@ -95,8 +95,8 @@ export async function POST(req: NextRequest) {
   let size: number;
   try {
     ({ sha256, size } = await writeUpload(body, tmp));
-  } catch (e) {
-    return err((e as Error).message || 'upload failed', 400);
+  } catch (error) {
+    return err((error as Error).message || 'upload failed', 400);
   }
 
   try {
@@ -120,9 +120,9 @@ export async function POST(req: NextRequest) {
     await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.imagePool]).catch(() => {});
     await logAudit({ actorId: user.id, actorName: user.name, action: 'image.import', target: id, detail: { name, size, sha256 } });
     return json({ ok: true, id, name, sizeBytes: size, sha256 });
-  } catch (e) {
+  } catch (error) {
     await fs.rm(tmp, { force: true }).catch(() => {});
     await fs.rm(final, { force: true }).catch(() => {});
-    return err((e as Error).message || 'import validation failed', 400);
+    return err((error as Error).message || 'import validation failed', 400);
   }
 }

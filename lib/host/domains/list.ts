@@ -16,42 +16,42 @@ function ownerMap(): Map<string, { instanceId: string; owner: VmOwner }> {
     `select i.id, i.domain_name, u.id uid, u.name uname
      from instances i left join users u on u.id = i.user_id`,
   ).all() as { id: string; domain_name: string; uid: string | null; uname: string | null }[];
-  const m = new Map<string, { instanceId: string; owner: VmOwner }>();
-  for (const r of rows) m.set(r.domain_name, {
-    instanceId: r.id,
-    owner: r.uid ? { id: r.uid, name: r.uname ?? r.uid } : null,
+  const byDomain = new Map<string, { instanceId: string; owner: VmOwner }>();
+  for (const row of rows) byDomain.set(row.domain_name, {
+    instanceId: row.id,
+    owner: row.uid ? { id: row.uid, name: row.uname ?? row.uid } : null,
   });
-  return m;
+  return byDomain;
 }
 
 function blankStats(): StatsRow {
   return { vcpu: 0, vcpuMax: 0, memMb: 0, memMaxMb: 0 };
 }
 
-function applyStatLine(row: StatsRow, line: string): void {
-  const [k, v] = line.trim().split('=');
-  if (k === 'vcpu.current') row.vcpu = Number(v);
-  else if (k === 'vcpu.maximum') row.vcpuMax = Number(v);
-  else if (k === 'balloon.current') row.memMb = Math.round(Number(v) / 1024);
-  else if (k === 'balloon.maximum') row.memMaxMb = Math.round(Number(v) / 1024);
+function applyStatLine(target: StatsRow, line: string): void {
+  const [key, value] = line.trim().split('=');
+  if (key === 'vcpu.current') target.vcpu = Number(value);
+  else if (key === 'vcpu.maximum') target.vcpuMax = Number(value);
+  else if (key === 'balloon.current') target.memMb = Math.round(Number(value) / 1024);
+  else if (key === 'balloon.maximum') target.memMaxMb = Math.round(Number(value) / 1024);
 }
 
 /** `domstats` blocks: a `Domain: 'name'` header then key=value lines. */
 function parseDomStats(txt: string): Map<string, StatsRow> {
   const out = new Map<string, StatsRow>();
-  let cur: StatsRow | null = null;
-  let name = '';
+  let current: StatsRow | null = null;
+  let domainName = '';
   for (const line of txt.split('\n')) {
     const head = /^Domain: '(.+)'$/.exec(line);
     if (head) {
-      if (name && cur) out.set(name, cur);
-      name = head[1];
-      cur = blankStats();
+      if (domainName && current) out.set(domainName, current);
+      domainName = head[1];
+      current = blankStats();
       continue;
     }
-    if (cur) applyStatLine(cur, line);
+    if (current) applyStatLine(current, line);
   }
-  if (name && cur) out.set(name, cur);
+  if (domainName && current) out.set(domainName, current);
   return out;
 }
 
@@ -68,7 +68,7 @@ async function domStats(): Promise<Map<string, StatsRow>> {
 async function autostartSet(): Promise<Set<string>> {
   const out = new Set<string>();
   try {
-    for (const f of await fs.readdir('/etc/libvirt/qemu/autostart')) out.add(f.replace(/\.xml$/, ''));
+    for (const file of await fs.readdir('/etc/libvirt/qemu/autostart')) out.add(file.replace(/\.xml$/, ''));
   } catch { /* no autostart dir yet */ }
   return out;
 }
@@ -82,13 +82,13 @@ function normState(state: string): string {
 }
 
 /** Counters default to zero for a domain libvirt reported no stats for. */
-function statsFields(st: StatsRow | undefined) {
-  return { vcpu: st?.vcpu ?? 0, vcpuMax: st?.vcpuMax ?? 0, memMb: st?.memMb ?? 0, memMaxMb: st?.memMaxMb ?? 0 };
+function statsFields(stats: StatsRow | undefined) {
+  return { vcpu: stats?.vcpu ?? 0, vcpuMax: stats?.vcpuMax ?? 0, memMb: stats?.memMb ?? 0, memMaxMb: stats?.memMaxMb ?? 0 };
 }
 
 /** Ownership: a domain with no instance row is the operator's own. */
-function ownerFields(own: { instanceId: string; owner: VmOwner } | undefined) {
-  return { instanceId: own?.instanceId ?? null, owner: own?.owner ?? null, system: !own };
+function ownerFields(ownership: { instanceId: string; owner: VmOwner } | undefined) {
+  return { instanceId: ownership?.instanceId ?? null, owner: ownership?.owner ?? null, system: !ownership };
 }
 
 function toSummary(
@@ -114,11 +114,11 @@ export async function listVms(): Promise<VmSummary[]> {
   const [list, stats, owners, autostart] = await Promise.all([
     virsh(['list', '--all']), domStats(), Promise.resolve(ownerMap()), autostartSet(),
   ]);
-  const rows = list.split('\n').slice(2).map((l) => l.trim()).filter(Boolean).map((l) => l.split(/\s+/));
+  const rows = list.split('\n').slice(2).map((line) => line.trim()).filter(Boolean).map((line) => line.split(/\s+/));
   const vms = rows
-    .map((r) => toSummary(r, stats, owners, autostart))
-    .filter((v): v is VmSummary => v !== null);
+    .map((cells) => toSummary(cells, stats, owners, autostart))
+    .filter((vm): vm is VmSummary => vm !== null);
   // machina's VMs first, then alphabetical: the operator's own domains are the
   // ones they touch rarely and look for by name.
-  return vms.sort((a, b) => Number(!a.system) - Number(!b.system) || a.name.localeCompare(b.name));
+  return vms.sort((left, right) => Number(!left.system) - Number(!right.system) || left.name.localeCompare(right.name));
 }

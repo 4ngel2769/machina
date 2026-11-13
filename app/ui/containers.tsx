@@ -18,39 +18,39 @@ import { ContainerGroup } from './containers/group';
 import { FILTERS, groupByProject, match, needsAttention, type Filter, type Payload } from './containers/types';
 
 /** Subtitle: docker unreachable, or the counts that answer "what is broken". */
-function subline(data: Payload | null, all: number, running: number, broken: number): string {
-  if (data && data.available === false) return 'docker is not reachable on this host';
+function subline(payload: Payload | null, all: number, running: number, broken: number): string {
+  if (payload && payload.available === false) return 'docker is not reachable on this host';
   return `${all} containers · ${running} running · ${broken} needing attention`;
 }
 
 /** Filter + free-text match, all case-insensitive. */
-function matches(c: Payload['containers'][number], filter: Filter, needle: string): boolean {
-  if (!match(c, filter)) return false;
+function matches(container: Payload['containers'][number], filter: Filter, needle: string): boolean {
+  if (!match(container, filter)) return false;
   if (!needle) return true;
-  return c.name.toLowerCase().includes(needle)
-    || c.image.toLowerCase().includes(needle)
-    || (c.project ?? '').toLowerCase().includes(needle)
-    || (c.service ?? '').toLowerCase().includes(needle);
+  return container.name.toLowerCase().includes(needle)
+    || container.image.toLowerCase().includes(needle)
+    || (container.project ?? '').toLowerCase().includes(needle)
+    || (container.service ?? '').toLowerCase().includes(needle);
 }
 
 /** Toolbar: filter chips, free-text filter, create toggle. */
 function Toolbar({ filter, setFilter, q, setQ, createOpen, toggleCreate, broken }: {
-  filter: Filter; setFilter: (f: Filter) => void;
-  q: string; setQ: (v: string) => void;
+  filter: Filter; setFilter: (value: Filter) => void;
+  q: string; setQ: (value: string) => void;
   createOpen: boolean; toggleCreate: () => void; broken: number;
 }) {
-  const label = (f: Filter) => (f === 'unhealthy' && broken ? ` (${broken})` : '');
+  const label = (value: Filter) => (value === 'unhealthy' && broken ? ` (${broken})` : '');
   return (
     <div className="tabs">
-      {FILTERS.map((f) => (
-        <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>
-          {f}{label(f)}
+      {FILTERS.map((filterKey) => (
+        <button key={filterKey} className={filter === filterKey ? 'active' : ''} onClick={() => setFilter(filterKey)}>
+          {filterKey}{label(filterKey)}
         </button>
       ))}
       <div className="spacer" />
       <input
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onChange={(event) => setQ(event.target.value)}
         placeholder="filter by name, image, project…"
         style={{ maxWidth: 260 }}
         aria-label="filter containers"
@@ -67,16 +67,16 @@ function ListBody({ list, allCount, shownCount, groups, actions }: {
   groups: [string, Payload['containers']][];
   actions: ReturnType<typeof useContainerActions>;
 }) {
-  const empty = list.data && shownCount === 0;
+  const empty = list.payload && shownCount === 0;
   return (
     <>
       {list.error && <div className="notice err" style={{ marginTop: 12 }}>{list.error}</div>}
-      {list.data?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.data.error}</div>}
-      {!list.data && <Empty text="reading docker…" />}
+      {list.payload?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.payload.error}</div>}
+      {!list.payload && <Empty text="reading docker…" />}
       {empty && (
         <Empty text={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'} />
       )}
-      {groups.map(([project, cs]) => <ContainerGroup key={project} project={project} cs={cs} actions={actions} />)}
+      {groups.map(([project, containers]) => <ContainerGroup key={project} project={project} containers={containers} actions={actions} />)}
     </>
   );
 }
@@ -87,21 +87,21 @@ export function ContainersPanel() {
   const [q, setQ] = useState('');
   const actions = useContainerActions(list.reload);
 
-  const all = list.data?.containers ?? [];
+  const all = list.payload?.containers ?? [];
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return all.filter((c) => matches(c, filter, needle));
+    return all.filter((container) => matches(container, filter, needle));
   }, [all, filter, q]);
 
   const groups = useMemo(() => groupByProject(shown), [shown]);
-  const running = all.filter((c) => c.state === 'running').length;
+  const running = all.filter((container) => container.state === 'running').length;
   const broken = all.filter(needsAttention).length;
   const toggleCreate = () => actions.setCreateOpen(!actions.createOpen);
 
   return (
     <>
       <h1>containers</h1>
-      <div className="sub">{subline(list.data ?? null, all.length, running, broken)}</div>
+      <div className="sub">{subline(list.payload ?? null, all.length, running, broken)}</div>
 
       <Toolbar
         filter={filter} setFilter={setFilter} q={q} setQ={setQ}

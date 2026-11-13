@@ -12,22 +12,22 @@ export type Payload = {
 };
 
 export const RANGES = [
-  { k: '1h', label: '1 hour' },
-  { k: '6h', label: '6 hours' },
-  { k: '24h', label: '24 hours' },
-  { k: '7d', label: '7 days' },
+  { key: '1h', label: '1 hour' },
+  { key: '6h', label: '6 hours' },
+  { key: '24h', label: '24 hours' },
+  { key: '7d', label: '7 days' },
 ] as const;
 
-export function fmtBytes(b: number): string {
-  if (!b) return '—';
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 ** 2) return `${(b / 1024).toFixed(0)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-  return `${(b / 1024 ** 3).toFixed(2)} GB`;
+export function fmtBytes(byteCount: number): string {
+  if (!byteCount) return '—';
+  if (byteCount < 1024) return `${byteCount} B`;
+  if (byteCount < 1024 ** 2) return `${(byteCount / 1024).toFixed(0)} KB`;
+  if (byteCount < 1024 ** 3) return `${(byteCount / 1024 ** 2).toFixed(1)} MB`;
+  return `${(byteCount / 1024 ** 3).toFixed(2)} GB`;
 }
 
-export function fmtRate(bps: number): string {
-  return bps > 1024 ** 2 ? `${(bps / 1024 ** 2).toFixed(1)} MB/s` : `${(bps / 1024).toFixed(0)} KB/s`;
+export function fmtRate(bytesPerSec: number): string {
+  return bytesPerSec > 1024 ** 2 ? `${(bytesPerSec / 1024 ** 2).toFixed(1)} MB/s` : `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
 }
 
-export const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export const clock = (timestampMs: number) => new Date(timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

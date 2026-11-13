@@ -32,14 +32,14 @@ export async function sampleMetrics(): Promise<void> {
   if (inFlight) return; // a slow sweep must not stack behind itself
   inFlight = true;
   try {
-    const rd = rawDb();
-    const rows = rd
+    const db = rawDb();
+    const rows = db
       .prepare(`select id, domain_name from instances where status = 'running'`)
       .all() as { id: string; domain_name: string }[];
     if (rows.length === 0) return;
 
     const ts = now();
-    const ins = rd.prepare(
+    const ins = db.prepare(
       `insert into metrics (instance_id, ts, cpu_ns, ncpu, ram_kb, ram_max_kb, rd_b, wr_b, alloc_b)
        values (?,?,?,?,?,?,?,?,?)
        on conflict(instance_id, ts) do update set
@@ -48,23 +48,23 @@ export async function sampleMetrics(): Promise<void> {
          wr_b=excluded.wr_b, alloc_b=excluded.alloc_b`,
     );
 
-    for (const r of rows) {
-      let s;
+    for (const instanceRow of rows) {
+      let stats;
       try {
-        s = await domStats(r.domain_name);
+        stats = await domStats(instanceRow.domain_name);
       } catch {
         continue; // one unreachable guest must not abort the sweep
       }
-      if (!s) continue;
+      if (!stats) continue;
       try {
-        ins.run(r.id, ts, Math.round(s.cpuTimeNs), s.ncpu, s.ramKb, s.ramMaxKb,
-          s.rdBytes, s.wrBytes, s.allocBytes);
-      } catch (e) {
-        console.log(`[metrics] insert failed for ${r.id}: ${(e as Error).message}`);
+        ins.run(instanceRow.id, ts, Math.round(stats.cpuTimeNs), stats.ncpu, stats.ramKb, stats.ramMaxKb,
+          stats.rdBytes, stats.wrBytes, stats.allocBytes);
+      } catch (insertError) {
+        console.log(`[metrics] insert failed for ${instanceRow.id}: ${(insertError as Error).message}`);
       }
     }
-  } catch (e) {
-    console.log(`[metrics] sweep failed: ${(e as Error).message}`);
+  } catch (sweepError) {
+    console.log(`[metrics] sweep failed: ${(sweepError as Error).message}`);
   } finally {
     inFlight = false;
   }
@@ -73,11 +73,11 @@ export async function sampleMetrics(): Promise<void> {
 /** Drop samples past the retention window. Cheap; called hourly. */
 export function pruneMetrics(): void {
   try {
-    const rd = rawDb();
-    const n = rd.prepare(`delete from metrics where ts < ?`).run(now() - config.metrics.retainMs).changes;
-    if (n > 0) console.log(`[metrics] pruned ${n} sample(s) older than ${Math.round(config.metrics.retainMs / 3600000)}h`);
-  } catch (e) {
-    console.log(`[metrics] prune failed: ${(e as Error).message}`);
+    const db = rawDb();
+    const deleted = db.prepare(`delete from metrics where ts < ?`).run(now() - config.metrics.retainMs).changes;
+    if (deleted > 0) console.log(`[metrics] pruned ${deleted} sample(s) older than ${Math.round(config.metrics.retainMs / 3600000)}h`);
+  } catch (pruneError) {
+    console.log(`[metrics] prune failed: ${(pruneError as Error).message}`);
   }
 }
 
@@ -103,21 +103,21 @@ export function derivePoints(
 ): MetricPoint[] {
   const out: MetricPoint[] = [];
   for (let i = 1; i < rows.length; i++) {
-    const a = rows[i - 1];
-    const b = rows[i];
-    const dtMs = b.ts - a.ts;
+    const prev = rows[i - 1];
+    const curr = rows[i];
+    const dtMs = curr.ts - prev.ts;
     if (dtMs <= 0) continue;
 
-    const dCpu = b.cpuNs - a.cpuNs;
-    const dRd = b.rdB - a.rdB;
-    const dWr = b.wrB - a.wrB;
-    if (dCpu < 0 || dRd < 0 || dWr < 0) continue; // counter reset: no honest value
+    const deltaCpu = curr.cpuNs - prev.cpuNs;
+    const deltaRd = curr.rdB - prev.rdB;
+    const deltaWr = curr.wrB - prev.wrB;
+    if (deltaCpu < 0 || deltaRd < 0 || deltaWr < 0) continue; // counter reset: no honest value
 
-    const ncpu = b.ncpu || a.ncpu || 1;
-    // dt is ms -> ns, so cpu% = dCpu / (dt*1e6) / ncpu * 100
-    const cpu = Math.max(0, Math.min(100, (dCpu / (dtMs * 1e6)) / ncpu * 100));
+    const ncpu = curr.ncpu || prev.ncpu || 1;
+    // dt is ms -> ns, so cpu% = deltaCpu / (dt*1e6) / ncpu * 100
+    const cpu = Math.max(0, Math.min(100, (deltaCpu / (dtMs * 1e6)) / ncpu * 100));
     const secs = dtMs / 1000;
-    out.push({ t: b.ts, cpu: Math.round(cpu * 10) / 10, read: Math.round(dRd / secs), write: Math.round(dWr / secs) });
+    out.push({ t: curr.ts, cpu: Math.round(cpu * 10) / 10, read: Math.round(deltaRd / secs), write: Math.round(deltaWr / secs) });
   }
   return out;
 }
@@ -138,8 +138,8 @@ export function readMetrics(instanceId: string, sinceMs: number): {
   ramObservable: boolean;
   reason: string;
 } {
-  const rd = rawDb();
-  const rows = rd
+  const db = rawDb();
+  const rows = db
     .prepare(
       `select ts, cpu_ns as cpuNs, ncpu, ram_kb as ramKb, ram_max_kb as ramMaxKb,
               rd_b as rdB, wr_b as wrB, alloc_b as allocB

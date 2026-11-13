@@ -22,22 +22,22 @@ type Handler<K extends VmOp['op']> =
   (name: string, op: Extract<VmOp, { op: K }>, running: Running) => Promise<string>;
 
 /** Temp-file dance shared by every attach/detach that hands libvirt XML. */
-async function withXmlFile<T>(prefix: string, xml: string, fn: (tmp: string) => Promise<T>): Promise<T> {
-  const tmp = path.join(storagePaths().tmp, `${prefix}-${Date.now()}.xml`);
-  await fs.mkdir(path.dirname(tmp), { recursive: true });
-  await fs.writeFile(tmp, xml, 'utf8');
+async function withXmlFile<T>(prefix: string, xml: string, fn: (tempFile: string) => Promise<T>): Promise<T> {
+  const tempFile = path.join(storagePaths().tmp, `${prefix}-${Date.now()}.xml`);
+  await fs.mkdir(path.dirname(tempFile), { recursive: true });
+  await fs.writeFile(tempFile, xml, 'utf8');
   try {
-    return await fn(tmp);
+    return await fn(tempFile);
   } finally {
-    await fs.rm(tmp, { force: true }).catch(() => {});
+    await fs.rm(tempFile, { force: true }).catch(() => {});
   }
 }
 
 /** Lowest unused device name on the vd or sd bus. */
 function freeSlot(used: Set<string>, prefix: 'vd' | 'sd'): string {
-  for (let i = 0; i < 26; i += 1) {
-    const cand = `${prefix}${String.fromCharCode(97 + i)}`;
-    if (!used.has(cand)) return cand;
+  for (let index = 0; index < 26; index += 1) {
+    const candidate = `${prefix}${String.fromCharCode(97 + index)}`;
+    if (!used.has(candidate)) return candidate;
   }
   return '';
 }
@@ -75,16 +75,16 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
   },
 
   topology: async (name, op) => {
-    const s = INT(op.sockets, 1, 16, 'sockets');
-    const c = INT(op.cores, 1, 64, 'cores');
-    const t = INT(op.threads, 1, 8, 'threads');
+    const socketCount = INT(op.sockets, 1, 16, 'sockets');
+    const coreCount = INT(op.cores, 1, 64, 'cores');
+    const threadCount = INT(op.threads, 1, 8, 'threads');
     await editXml(name, (xml) => {
-      const topo = `<topology sockets='${s}' dies='1' clusters='1' cores='${c}' threads='${t}'/>`;
+      const topo = `<topology sockets='${socketCount}' dies='1' clusters='1' cores='${coreCount}' threads='${threadCount}'/>`;
       if (/<topology\b[^>]*\/>/.test(xml)) return xml.replace(/<topology\b[^>]*\/>/, topo);
       if (/<cpu\b[^>]*>/.test(xml)) return xml.replace(/(<cpu\b[^>]*>)/, `$1\n    ${topo}`);
       return xml.replace(/(<vcpu\b[^>]*>[\s\S]*?<\/vcpu>)/, `$1\n  <cpu><${topo.slice(1)}</cpu>`);
     });
-    return `topology ${s}×${c}×${t} — applies at next start`;
+    return `topology ${socketCount}×${coreCount}×${threadCount} — applies at next start`;
   },
 
   cpuMode: async (name, op) => {
@@ -99,10 +99,10 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
   },
 
   boot: async (name, op) => {
-    const devs = op.order.filter((d) => ['hd', 'cdrom', 'network', 'fd'].includes(d)).slice(0, 4);
+    const devs = op.order.filter((dev) => ['hd', 'cdrom', 'network', 'fd'].includes(dev)).slice(0, 4);
     if (!devs.length) throw new Error('at least one boot device');
     await editXml(name, (xml) => {
-      const seq = devs.map((d) => `    <boot dev='${d}'/>`).join('\n');
+      const seq = devs.map((dev) => `    <boot dev='${dev}'/>`).join('\n');
       if (/<boot\b[^>]*dev='[^']*'\/>/.test(xml)) {
         return xml.replace(/(<os\b[^>]*>[\s\S]*?)(\s*<boot\b[^>]*\/>)+/, `$1\n${seq}`);
       }
@@ -131,7 +131,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
   diskAttach: async (name, op) => {
     const gb = INT(op.sizeGb, 1, 2000, 'disk GB');
     const detail = await vmDetail(name);
-    const free = freeSlot(new Set(detail.disks.map((d) => d.target)), 'vd');
+    const free = freeSlot(new Set(detail.disks.map((disk) => disk.target)), 'vd');
     if (!free) throw new Error('no free vd* slot left');
     const file = path.join(storagePaths().vms, `hot-${name}-${free}-${Date.now()}.qcow2`);
     await run('qemu-img', ['create', '-f', 'qcow2', file, `${gb}G`], { sudo: true });
@@ -158,21 +158,21 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
   },
 
   hostdevAttach: async (name, op) => {
-    const v = op.vendor.replace(/^0x/, '');
-    const p = op.product.replace(/^0x/, '');
-    if (!/^[0-9a-f]{4}$/i.test(v) || !/^[0-9a-f]{4}$/i.test(p)) throw new Error('vendor and product must be 4 hex digits');
+    const vendorHex = op.vendor.replace(/^0x/, '');
+    const productHex = op.product.replace(/^0x/, '');
+    if (!/^[0-9a-f]{4}$/i.test(vendorHex) || !/^[0-9a-f]{4}$/i.test(productHex)) throw new Error('vendor and product must be 4 hex digits');
     const xml = `<hostdev mode='subsystem' type='usb' managed='yes'>
-  <source><vendor id='0x${v}'/><product id='0x${p}'/></source>
+  <source><vendor id='0x${vendorHex}'/><product id='0x${productHex}'/></source>
 </hostdev>`;
-    await withXmlFile('hostdev', xml, (tmp) => virsh(['attach-device', name, tmp, '--config']));
-    return `USB ${v}:${p} attached — applies at next start`;
+    await withXmlFile('hostdev', xml, (tempFile) => virsh(['attach-device', name, tempFile, '--config']));
+    return `USB ${vendorHex}:${productHex} attached — applies at next start`;
   },
 
   hostdevDetach: async (name, op) => {
     const detail = await vmDetail(name);
     const dev = detail.hostdevs[op.index];
     if (!dev) throw new Error('no such host device on this domain');
-    await withXmlFile('hostdev', dev.xml, (tmp) => virsh(['detach-device', name, tmp, '--config']));
+    await withXmlFile('hostdev', dev.xml, (tempFile) => virsh(['detach-device', name, tempFile, '--config']));
     return 'host device removed';
   },
 
@@ -189,7 +189,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
 
   dirDetach: async (name, op) => {
     await editXml(name, (xml) => {
-      const el = elems(xml, 'filesystem').find((f) => attr(f, 'target', 'dir') === op.tag);
+      const el = elems(xml, 'filesystem').find((fsXml) => attr(fsXml, 'target', 'dir') === op.tag);
       if (!el) throw new Error(`no shared dir tagged ${op.tag}`);
       return xml.replace(el, '');
     });
@@ -207,7 +207,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
     const detail = await vmDetail(name);
     // The seed already owns vdb, so installer media goes on the sata bus as
     // sd*, exactly where a BIOS looks for a boot cdrom.
-    const free = freeSlot(new Set(detail.disks.map((d) => d.target)), 'sd');
+    const free = freeSlot(new Set(detail.disks.map((disk) => disk.target)), 'sd');
     if (!free) throw new Error('no free sata slot left');
     await virsh(['attach-disk', name, file, free,
       '--type', 'cdrom', '--mode', 'readonly',
@@ -224,7 +224,7 @@ const VM_OPS: { [K in VmOp['op']]: Handler<K> } = {
   spice: async (name, op, running) => {
     if (running) throw new Error('stop the VM first: SPICE graphics changes apply to stored config');
     await editXml(name, (xml) => {
-      const existing = elems(xml, 'graphics').find((g) => /type='spice'/.test(g));
+      const existing = elems(xml, 'graphics').find((graphicsXml) => /type='spice'/.test(graphicsXml));
       if (!op.on) return existing ? xml.replace(existing, '') : xml;
       if (existing) return xml;
       return xml.replace('</devices>', "    <graphics type='spice' autoport='yes' listen='127.0.0.1'><listen type='address' address='127.0.0.1'/></graphics>\n  </devices>");
@@ -239,7 +239,7 @@ export async function applyVmOp(name: string, op: VmOp): Promise<string> {
   const live = (await virsh(['domstate', name]).catch(() => 'shut off')).trim();
   const running = /running/i.test(live);
   const handler = VM_OPS[op.op] as unknown as
-    ((n: string, o: VmOp, r: boolean) => Promise<string>) | undefined;
+    ((domainName: string, domainOp: VmOp, isRunning: boolean) => Promise<string>) | undefined;
   if (!handler) throw new Error('unknown operation');
   return handler(name, op, running);
 }

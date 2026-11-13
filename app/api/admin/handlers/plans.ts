@@ -10,15 +10,15 @@ import type { AdminBody, AdminCtx } from './types';
 
 export async function setPlan(body: AdminBody, { admin }: AdminCtx) {
   if (!body.planId) return err('planId required');
-  const p = await getDb().select().from(plans).where(eq(plans.id, body.planId));
-  if (!p[0]) return err('plan not found', 404);
+  const planRows = await getDb().select().from(plans).where(eq(plans.id, body.planId));
+  if (!planRows[0]) return err('plan not found', 404);
   await getDb().update(plans).set({
-    vcpu: body.vcpu ?? p[0].vcpu,
-    ramMb: body.ramMb ?? p[0].ramMb,
-    diskGb: body.diskGb ?? p[0].diskGb,
-    hourlyRateCents: body.hourlyRateCents ?? p[0].hourlyRateCents,
-    monthlyCapMin: body.monthlyCapMin ?? p[0].monthlyCapMin,
-    bandwidthGb: body.bandwidthGb ?? p[0].bandwidthGb,
+    vcpu: body.vcpu ?? planRows[0].vcpu,
+    ramMb: body.ramMb ?? planRows[0].ramMb,
+    diskGb: body.diskGb ?? planRows[0].diskGb,
+    hourlyRateCents: body.hourlyRateCents ?? planRows[0].hourlyRateCents,
+    monthlyCapMin: body.monthlyCapMin ?? planRows[0].monthlyCapMin,
+    bandwidthGb: body.bandwidthGb ?? planRows[0].bandwidthGb,
   }).where(eq(plans.id, body.planId));
   await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.setPlan', target: body.planId });
   return json({ ok: true });
@@ -26,13 +26,13 @@ export async function setPlan(body: AdminBody, { admin }: AdminCtx) {
 
 export async function setUserImage(body: AdminBody, { admin }: AdminCtx) {
   if (!body.userId) return err('userId required');
-  const u = await getDb().select().from(users).where(eq(users.id, body.userId));
-  if (!u[0]) return err('user not found', 404);
-  const pickable = body.imagePickable === undefined ? u[0].imagePickable : (body.imagePickable ? 1 : 0);
-  const assigned = body.assignedImageId === undefined ? u[0].assignedImageId : (body.assignedImageId || null);
+  const userRows = await getDb().select().from(users).where(eq(users.id, body.userId));
+  if (!userRows[0]) return err('user not found', 404);
+  const pickable = body.imagePickable === undefined ? userRows[0].imagePickable : (body.imagePickable ? 1 : 0);
+  const assigned = body.assignedImageId === undefined ? userRows[0].assignedImageId : (body.assignedImageId || null);
   if (assigned) {
-    const img = await getDb().select().from(images).where(eq(images.id, assigned));
-    if (!img[0]) return err('image not found', 404);
+    const imageRows = await getDb().select().from(images).where(eq(images.id, assigned));
+    if (!imageRows[0]) return err('image not found', 404);
   }
   await getDb().update(users).set({
     imagePickable: pickable,

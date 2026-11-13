@@ -23,8 +23,8 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 export function startNetmeter(intervalMs = 15 * 60 * 1000): void {
   if (timer) return;
-  timer = setInterval(() => { void sampleNetPass().catch((e) =>
-    console.log('[netmeter] sample failed:', (e as Error).message)); }, intervalMs);
+  timer = setInterval(() => { void sampleNetPass().catch((sampleError) =>
+    console.log('[netmeter] sample failed:', (sampleError as Error).message)); }, intervalMs);
   console.log('[netmeter] sampler 15min');
 }
 
@@ -32,8 +32,8 @@ export function stopNetmeter(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-export function monthKey(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+export function monthKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 interface NetRow {
@@ -61,24 +61,24 @@ export async function sampleNetPass(): Promise<number> {
   const db = rawDb();
   const stats = await domNetStats().catch(() => []);
   if (!stats.length) return 0;
-  const domToInst = new Map((db.prepare(
+  const domToInstance = new Map((db.prepare(
     `select id, domain_name from instances`,
-  ).all() as { id: string; domain_name: string }[]).map((r) => [r.domain_name, r.id]));
+  ).all() as { id: string; domain_name: string }[]).map((row) => [row.domain_name, row.id]));
   const month = monthKey();
-  let n = 0;
+  let touched = 0;
   const up = db.prepare(`update net_monthly set rx_bytes=rx_bytes+?, tx_bytes=tx_bytes+?,
     rx_last=?, tx_last=?, updated_at=? where instance_id=? and month=?`);
-  for (const s of stats) {
-    const instId = domToInst.get(s.domain);
-    if (!instId) continue; // not ours (lab VMs etc.)
-    const row = getRow(instId, month);
-    const dRx = s.rxBytes >= row.rx_last ? s.rxBytes - row.rx_last : s.rxBytes;
-    const dTx = s.txBytes >= row.tx_last ? s.txBytes - row.tx_last : s.txBytes;
-    up.run(dRx, dTx, s.rxBytes, s.txBytes, now(), instId, month);
-    n += 1;
+  for (const ifaceStats of stats) {
+    const instanceId = domToInstance.get(ifaceStats.domain);
+    if (!instanceId) continue; // not ours (lab VMs etc.)
+    const row = getRow(instanceId, month);
+    const deltaRx = ifaceStats.rxBytes >= row.rx_last ? ifaceStats.rxBytes - row.rx_last : ifaceStats.rxBytes;
+    const deltaTx = ifaceStats.txBytes >= row.tx_last ? ifaceStats.txBytes - row.tx_last : ifaceStats.txBytes;
+    up.run(deltaRx, deltaTx, ifaceStats.rxBytes, ifaceStats.txBytes, now(), instanceId, month);
+    touched += 1;
   }
-  if (n) console.log(`[netmeter] sampled ${n} instance(s)`);
-  return n;
+  if (touched) console.log(`[netmeter] sampled ${touched} instance(s)`);
+  return touched;
 }
 
 export interface BwState {
@@ -100,53 +100,53 @@ export function bandState(instanceId: string, quotaGb: number): BwState {
 type InstRow = { id: string; domain_name: string; mac: string; status: string; bandwidth_gb: number };
 
 /** Over quota: set the flag, drop the live limit, tell the audit log. */
-async function throttleInstance(inst: InstRow, used: number, quota: number, month: string): Promise<void> {
+async function throttleInstance(instanceRow: InstRow, used: number, quota: number, month: string): Promise<void> {
   rawDb().prepare(`update net_monthly set throttled=1, updated_at=? where instance_id=? and month=?`)
-    .run(now(), inst.id, month);
-  if (inst.status === 'running') {
-    await tuneIface(inst.domain_name, inst.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
+    .run(now(), instanceRow.id, month);
+  if (instanceRow.status === 'running') {
+    await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
   }
-  await logAudit({ action: 'net.throttled', target: inst.id,
+  await logAudit({ action: 'net.throttled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
-  console.log(`[netmeter] throttled ${inst.id} (${(used / GB).toFixed(2)}/${quota}GB)`);
+  console.log(`[netmeter] throttled ${instanceRow.id} (${(used / GB).toFixed(2)}/${quota}GB)`);
 }
 
 /** Back under quota (raised limit, or a fresh month row): clear flag and limit. */
-async function unthrottleInstance(inst: InstRow, used: number, quota: number, month: string): Promise<void> {
+async function unthrottleInstance(instanceRow: InstRow, used: number, quota: number, month: string): Promise<void> {
   rawDb().prepare(`update net_monthly set throttled=0, updated_at=? where instance_id=? and month=?`)
-    .run(now(), inst.id, month);
-  if (inst.status === 'running') {
-    await tuneIface(inst.domain_name, inst.mac, 0, 0).catch(() => {});
+    .run(now(), instanceRow.id, month);
+  if (instanceRow.status === 'running') {
+    await tuneIface(instanceRow.domain_name, instanceRow.mac, 0, 0).catch(() => {});
   }
-  await logAudit({ action: 'net.unthrottled', target: inst.id,
+  await logAudit({ action: 'net.unthrottled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
-  console.log(`[netmeter] unthrottled ${inst.id}`);
+  console.log(`[netmeter] unthrottled ${instanceRow.id}`);
 }
 
 /** Flag set but the live limit was lost (e.g. libvirt restart): put it back. */
-async function healThrottle(inst: InstRow): Promise<void> {
-  const cur = await readIfaceTune(inst.domain_name, inst.mac).catch(() => null);
-  if (!cur || (cur.inAvg === THROTTLE_KBS && cur.outAvg === THROTTLE_KBS)) return;
-  await tuneIface(inst.domain_name, inst.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
-  console.log(`[netmeter] re-applied throttle ${inst.id}`);
+async function healThrottle(instanceRow: InstRow): Promise<void> {
+  const currentTune = await readIfaceTune(instanceRow.domain_name, instanceRow.mac).catch(() => null);
+  if (!currentTune || (currentTune.inAvg === THROTTLE_KBS && currentTune.outAvg === THROTTLE_KBS)) return;
+  await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(() => {});
+  console.log(`[netmeter] re-applied throttle ${instanceRow.id}`);
 }
 
 type QuotaAction = 'throttle' | 'clear' | 'heal' | 'none';
 
 /** Over/under the quota plus the stored flag decide the one thing to do. */
-function quotaAction(over: boolean, flagged: boolean, running: boolean): QuotaAction {
-  if (over && !flagged) return 'throttle';
-  if (!over && flagged) return 'clear';
-  if (over && flagged && running) return 'heal';
+function quotaAction(isOver: boolean, isFlagged: boolean, isRunning: boolean): QuotaAction {
+  if (isOver && !isFlagged) return 'throttle';
+  if (!isOver && isFlagged) return 'clear';
+  if (isOver && isFlagged && isRunning) return 'heal';
   return 'none';
 }
 
 async function applyQuotaAction(
-  action: QuotaAction, inst: InstRow, used: number, quota: number, month: string,
+  action: QuotaAction, instanceRow: InstRow, used: number, quota: number, month: string,
 ): Promise<void> {
-  if (action === 'throttle') await throttleInstance(inst, used, quota, month);
-  else if (action === 'clear') await unthrottleInstance(inst, used, quota, month);
-  else if (action === 'heal') await healThrottle(inst);
+  if (action === 'throttle') await throttleInstance(instanceRow, used, quota, month);
+  else if (action === 'clear') await unthrottleInstance(instanceRow, used, quota, month);
+  else if (action === 'heal') await healThrottle(instanceRow);
 }
 
 /**
@@ -155,28 +155,28 @@ async function applyQuotaAction(
  * (quota raised, or fresh month row) -> clear the live limit + flag.
  */
 export async function checkQuotas(): Promise<{ throttled: number; cleared: number }> {
-  const res = { throttled: 0, cleared: 0 };
+  const result = { throttled: 0, cleared: 0 };
   const db = rawDb();
   const month = monthKey();
-  const insts = db.prepare(
+  const instanceRows = db.prepare(
     `select id, domain_name, mac, status, bandwidth_gb from instances`,
   ).all() as InstRow[];
-  for (const inst of insts) {
-    const quota = inst.bandwidth_gb ?? 0;
-    if (!(quota > 0)) continue; // 0 = unlimited
-    const row = getRow(inst.id, month);
+  for (const instanceRow of instanceRows) {
+    const quotaGb = instanceRow.bandwidth_gb ?? 0;
+    if (!(quotaGb > 0)) continue; // 0 = unlimited
+    const row = getRow(instanceRow.id, month);
     const used = row.rx_bytes + row.tx_bytes;
-    const action = quotaAction(used > quota * GB, row.throttled === 1, inst.status === 'running');
+    const action = quotaAction(used > quotaGb * GB, row.throttled === 1, instanceRow.status === 'running');
     if (action === 'none') continue;
     try {
-      await applyQuotaAction(action, inst, used, quota, month);
-      if (action === 'throttle') res.throttled += 1;
-      else if (action === 'clear') res.cleared += 1;
-    } catch (e) {
-      console.log(`[netmeter] quota ${inst.id} failed:`, (e as Error).message);
+      await applyQuotaAction(action, instanceRow, used, quotaGb, month);
+      if (action === 'throttle') result.throttled += 1;
+      else if (action === 'clear') result.cleared += 1;
+    } catch (quotaError) {
+      console.log(`[netmeter] quota ${instanceRow.id} failed:`, (quotaError as Error).message);
     }
   }
-  return res;
+  return result;
 }
 
 /** Start-hook: re-apply the live limit when a flagged instance boots. */

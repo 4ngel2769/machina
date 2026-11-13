@@ -11,24 +11,24 @@ import { useInstance } from './detail/use';
 
 export default function InstanceDetail() {
   const id = instanceIdFromPath();
-  const { inst, jobs, msg, busy, act, clone, exportDisk } = useInstance(id);
+  const { instance, jobs, msg, busy, act, clone, exportDisk } = useInstance(id);
   const [tab, setTab] = useState<Tab>('term');
 
-  if (!inst) return <h1>{msg || 'loading…'}</h1>;
+  if (!instance) return <h1>{msg || 'loading…'}</h1>;
 
   return (
     <>
-      <h1>{inst.name}</h1>
+      <h1>{instance.name}</h1>
       <div className="sub">
-        <span className="mono">{inst.id}</span> · {inst.planName?.name ?? inst.planId} · {inst.imageId}
+        <span className="mono">{instance.id}</span> · {instance.planName?.name ?? instance.planId} · {instance.imageId}
       </div>
 
-      <StatusCard inst={inst} busy={busy} msg={msg} act={act} clone={clone} exportDisk={exportDisk} />
+      <StatusCard instance={instance} busy={busy} msg={msg} act={act} clone={clone} exportDisk={exportDisk} />
 
       <TabBar tab={tab} setTab={setTab} />
 
       <div className="card">
-        <TabBody tab={tab} inst={inst} jobs={jobs} />
+        <TabBody tab={tab} instance={instance} jobs={jobs} />
       </div>
     </>
   );

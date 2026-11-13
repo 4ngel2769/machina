@@ -19,21 +19,21 @@ let libvirtCache: { at: number; ok: boolean } = { at: 0, ok: false };
 
 async function libvirt(): Promise<boolean> {
   if (Date.now() - libvirtCache.at < 10_000) return libvirtCache.ok;
-  let ok = false;
+  let isOk = false;
   try {
     await run(config.virshBin, ['-c', config.virshUri, 'version'], { timeout: 6000 });
-    ok = true;
+    isOk = true;
   } catch {
-    ok = false;
+    isOk = false;
   }
-  libvirtCache = { at: Date.now(), ok };
-  return ok;
+  libvirtCache = { at: Date.now(), ok: isOk };
+  return isOk;
 }
 
 async function diskFreeGb(path: string): Promise<number | null> {
   try {
-    const s = await statfs(path);
-    return Math.round((s.bavail * s.bsize) / 1024 ** 3);
+    const stats = await statfs(path);
+    return Math.round((stats.bavail * stats.bsize) / 1024 ** 3);
   } catch {
     return null;
   }
@@ -56,8 +56,8 @@ export async function GET() {
   else if (free < 5) checks.storage = { status: 'degraded', note: 'low free space' };
   else checks.storage = { status: 'ok' };
 
-  const down = Object.values(checks).filter((c) => c.status === 'down').length;
-  const degraded = Object.values(checks).some((c) => c.status === 'degraded');
+  const down = Object.values(checks).filter((check) => check.status === 'down').length;
+  const degraded = Object.values(checks).some((check) => check.status === 'degraded');
   const status = down > 0 ? 'unhealthy' : degraded ? 'degraded' : 'healthy';
 
   return NextResponse.json(

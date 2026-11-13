@@ -19,24 +19,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const push = useCallback((kind: Toast['kind'], msg: string) => {
     const id = nextId.current++;
-    setToasts((ts) => [...ts.slice(-3), { id, kind, msg }]);
-    setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), kind === 'err' ? 6000 : 4000);
+    setToasts((list) => [...list.slice(-3), { id, kind, msg }]);
+    setTimeout(() => setToasts((list) => list.filter((toast) => toast.id !== id)), kind === 'err' ? 6000 : 4000);
   }, []);
 
   const ctx = useMemo<Ctx>(() => ({
-    ok: (m) => push('ok', m),
-    err: (m) => push('err', m),
-    info: (m) => push('info', m),
+    ok: (message) => push('ok', message),
+    err: (message) => push('err', message),
+    info: (message) => push('info', message),
   }), [push]);
 
   return (
     <ToastCtx.Provider value={ctx}>
       {children}
       <div className="toaststack" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`}>
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast ${toast.kind}`}>
             <span className="toastdot" aria-hidden />
-            <span>{t.msg}</span>
+            <span>{toast.msg}</span>
           </div>
         ))}
       </div>

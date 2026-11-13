@@ -14,23 +14,23 @@ import { macFromId } from '@/lib/core/driver';
  * instances keep theirs so their live domain is not disturbed.
  */
 function repairDuplicateMacs(): void {
-  const rd = rawDb();
-  const rows = rd.prepare(`select id, mac, status from instances`).all() as
+  const raw = rawDb();
+  const rows = raw.prepare(`select id, mac, status from instances`).all() as
     { id: string; mac: string; status: string }[];
   const seen = new Set<string>();
-  for (const r of rows) {
-    if (r.status === 'running') { seen.add(r.mac); continue; }
-    const fresh = macFromId(r.id);
+  for (const instanceRow of rows) {
+    if (instanceRow.status === 'running') { seen.add(instanceRow.mac); continue; }
+    const fresh = macFromId(instanceRow.id);
     let mac = fresh;
     let bump = 0;
     while (seen.has(mac)) {
       bump++;
-      mac = fresh.replace(/(..)$/, (m) => ((parseInt(m, 16) + bump) & 0xff).toString(16).padStart(2, '0'));
+      mac = fresh.replace(/(..)$/, (lastByteHex) => ((parseInt(lastByteHex, 16) + bump) & 0xff).toString(16).padStart(2, '0'));
     }
     seen.add(mac);
-    if (mac !== r.mac) {
-      rd.prepare(`update instances set mac=? where id=?`).run(mac, r.id);
-      console.log(`[seed] repaired duplicate MAC for ${r.id}: ${r.mac} -> ${mac}`);
+    if (mac !== instanceRow.mac) {
+      raw.prepare(`update instances set mac=? where id=?`).run(mac, instanceRow.id);
+      console.log(`[seed] repaired duplicate MAC for ${instanceRow.id}: ${instanceRow.mac} -> ${mac}`);
     }
   }
 }
@@ -87,7 +87,7 @@ function seedPlans(db: ReturnType<typeof rawDb>): void {
   const reg = db.prepare(`insert into plans (id,name,vcpu,ram_mb,disk_gb,hourly_rate_cents,monthly_cap_min,bandwidth_gb,active)
     values (?,?,?,?,?,?,720,?,1)
     on conflict(id) do nothing`);
-  for (const p of SEED_PLANS) reg.run(p.id, p.name, p.vcpu, p.ram_mb, p.disk_gb, Math.round(p.hourly * 100), p.bwGb);
+  for (const plan of SEED_PLANS) reg.run(plan.id, plan.name, plan.vcpu, plan.ram_mb, plan.disk_gb, Math.round(plan.hourly * 100), plan.bwGb);
 }
 
 /** Admin account — insert-only so credential changes survive restarts.
@@ -95,20 +95,20 @@ function seedPlans(db: ReturnType<typeof rawDb>): void {
  *  ADMIN_PASSWORD once. */
 function seedAdmin(db: ReturnType<typeof rawDb>): void {
   const adminName = process.env.ADMIN_USER || 'admin';
-  const adminPass = process.env.ADMIN_PASSWORD || '';
-  if (!adminPass) return;
+  const adminPassword = process.env.ADMIN_PASSWORD || '';
+  if (!adminPassword) return;
   const exists = db.prepare('select 1 from users where name=?').get(adminName);
   if (exists && process.env.ADMIN_FORCE_RESET !== '1') return;
   db.prepare(`insert or replace into users (id,name,role,password_hash,balance_cents,created_at)
     values (?,?,'admin',?,?,?)`).run(
-    newId('usr_'), adminName, hashPassword(adminPass), config.limits.adminBalanceCents, Date.now());
+    newId('usr_'), adminName, hashPassword(adminPassword), config.limits.adminBalanceCents, Date.now());
 }
 
 function seedImages(db: ReturnType<typeof rawDb>): void {
   const imgReg = db.prepare(`insert into images (id,name,distro,version,url,sha256,sha256_url,path,status,size_bytes,updated_at)
     values (?,?,?,?,?,?,?,'','missing',0,0)
     on conflict(id) do nothing`);
-  for (const c of CATALOG) imgReg.run(c.id, c.name, c.distro, c.version, c.url, '', c.sha256_url);
+  for (const image of CATALOG) imgReg.run(image.id, image.name, image.distro, image.version, image.url, '', image.sha256_url);
 }
 
 /**

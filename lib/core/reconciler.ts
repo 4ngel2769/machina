@@ -22,8 +22,8 @@ import { storagePaths } from '@/lib/config';
 let timer: ReturnType<typeof setInterval> | null = null;
 export function startReconciler(): void {
   if (timer) return;
-  timer = setInterval(() => { void reconcilePass().catch((e) =>
-    console.log('[reconciler] pass failed:', (e as Error).message)); }, 60_000);
+  timer = setInterval(() => { void reconcilePass().catch((passError) =>
+    console.log('[reconciler] pass failed:', (passError as Error).message)); }, 60_000);
   console.log('[reconciler] loop 60s');
 }
 
@@ -31,25 +31,25 @@ export function stopReconciler(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-const mapDomState = (s: string | null): string => {
-  if (!s) return 'error';
-  if (/running/i.test(s)) return 'running';
-  if (/shut/i.test(s)) return 'stopped';
-  if (/crash/i.test(s)) return 'error';
-  if (/paused/i.test(s)) return 'stopped';
+const mapDomState = (domainState: string | null): string => {
+  if (!domainState) return 'error';
+  if (/running/i.test(domainState)) return 'running';
+  if (/shut/i.test(domainState)) return 'stopped';
+  if (/crash/i.test(domainState)) return 'error';
+  if (/paused/i.test(domainState)) return 'stopped';
   return 'error';
 };
 
 export async function reconcilePass(): Promise<{ fixed: number; suspended: number; orphans: number }> {
   const results = { fixed: 0, suspended: 0, orphans: 0 };
-  const doms = new Map((await listDomains().catch(() => [] as never[])).map((d) => [d.name, d.state]));
+  const doms = new Map((await listDomains().catch(() => [] as never[])).map((domain) => [domain.name, domain.state]));
   const db = getDb();
 
   results.fixed += await syncStatuses(doms);
   results.suspended += await suspendBrokeUsers();
   results.orphans += await cleanOrphans();
   // bandwidth quotas (throttle/clear live limits)
-  await checkQuotas().catch((e) => console.log('[reconciler] quotas failed:', (e as Error).message));
+  await checkQuotas().catch((quotaError) => console.log('[reconciler] quotas failed:', (quotaError as Error).message));
   return results;
 }
 
@@ -57,15 +57,15 @@ export async function reconcilePass(): Promise<{ fixed: number; suspended: numbe
 async function syncStatuses(doms: Map<string, string>): Promise<number> {
   const db = getDb();
   let fixed = 0;
-  for (const inst of await db.select().from(instances)) {
-    if (inst.status === 'provisioning' || inst.status === 'suspended') continue;
-    if (await inFlightForInstance(inst.id).catch(() => true)) continue;
-    const live = doms.get(inst.domainName);
-    if (live === undefined) continue; // transitional; explicit destroy path deletes the row
-    const mapped = mapDomState(live);
-    if (mapped !== inst.status) {
-      await db.update(instances).set({ status: mapped, updatedAt: now() }).where(
-        (await import('drizzle-orm')).eq(instances.id, inst.id),
+  for (const instanceRow of await db.select().from(instances)) {
+    if (instanceRow.status === 'provisioning' || instanceRow.status === 'suspended') continue;
+    if (await inFlightForInstance(instanceRow.id).catch(() => true)) continue;
+    const liveState = doms.get(instanceRow.domainName);
+    if (liveState === undefined) continue; // transitional; explicit destroy path deletes the row
+    const mappedState = mapDomState(liveState);
+    if (mappedState !== instanceRow.status) {
+      await db.update(instances).set({ status: mappedState, updatedAt: now() }).where(
+        (await import('drizzle-orm')).eq(instances.id, instanceRow.id),
       );
       fixed += 1;
     }
@@ -77,16 +77,16 @@ async function syncStatuses(doms: Map<string, string>): Promise<number> {
 async function suspendBrokeUsers(): Promise<number> {
   const db = getDb();
   let suspended = 0;
-  for (const inst of await db.select().from(instances)) {
-    if (inst.status !== 'running' || inst.autoSuspended) continue;
-    const user = (await db.select().from(users)).find((u) => u.id === inst.userId);
+  for (const instanceRow of await db.select().from(instances)) {
+    if (instanceRow.status !== 'running' || instanceRow.autoSuspended) continue;
+    const user = (await db.select().from(users)).find((userRow) => userRow.id === instanceRow.userId);
     if (!user) continue;
     if (user.balanceCents <= 0) {
-      await enqueue({ type: 'instance.stop', instanceId: inst.id, userId: inst.userId,
+      await enqueue({ type: 'instance.stop', instanceId: instanceRow.id, userId: instanceRow.userId,
         payload: { force: true, reason: 'auto-suspend (balance exhausted)' } });
       await db.update(instances).set({ autoSuspended: 1, status: 'suspended', updatedAt: now() }).where(
-        (await import('drizzle-orm')).eq(instances.id, inst.id));
-      console.log(`[reconciler] auto-suspend ${inst.id} (user ${inst.userId} broke)`);
+        (await import('drizzle-orm')).eq(instances.id, instanceRow.id));
+      console.log(`[reconciler] auto-suspend ${instanceRow.id} (user ${instanceRow.userId} broke)`);
       suspended += 1;
     }
   }
@@ -107,12 +107,12 @@ async function listOrEmpty(dir: string): Promise<string[]> {
  * references get removed so a deleted VM's files do not accumulate forever.
  */
 async function cleanOrphans(): Promise<number> {
-  const rd = rawDb();
+  const raw = rawDb();
   const known = new Set((
-    rd.prepare(`select id from instances`).all() as { id: string }[]
-  ).map((r) => r.id));
+    raw.prepare(`select id from instances`).all() as { id: string }[]
+  ).map((instanceRow) => instanceRow.id));
   const sp = storagePaths();
-  let n = 0;
+  let removed = 0;
 
   // Seed dirs + VNC sockets
   for (const dir of ['seeds', 'vnc'] as const) {
@@ -121,19 +121,19 @@ async function cleanOrphans(): Promise<number> {
       const id = ent.replace(/\.(vnc|iso)$/, '');
       if (!id.startsWith('vm_') || known.has(id)) continue;
       await fsp.rm(path.join(full, ent), { force: true, recursive: true });
-      n += 1;
+      removed += 1;
     }
   }
 
   // Guest disks: anything not owned by a live instance row is an orphan.
   const knownDisk = new Set([...known].map((id) => `${diskVolFromId(id)}.qcow2`));
-  for (const f of await listOrEmpty(sp.vms)) {
-    if (!f.endsWith('.qcow2') || knownDisk.has(f)) continue;
-    await fsp.rm(path.join(sp.vms, f), { force: true });
-    n += 1;
+  for (const diskFile of await listOrEmpty(sp.vms)) {
+    if (!diskFile.endsWith('.qcow2') || knownDisk.has(diskFile)) continue;
+    await fsp.rm(path.join(sp.vms, diskFile), { force: true });
+    removed += 1;
   }
 
-  return n;
+  return removed;
 }
 
 /** Explicit post-delete safety net: guarantee stale domain gone + disk gone. */

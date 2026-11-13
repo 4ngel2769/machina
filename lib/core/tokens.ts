@@ -25,42 +25,42 @@ function hmacKey(): Buffer {
   return crypto.createHash('sha256').update(`wsconn:${secret}`).digest();
 }
 
-export function mintToken(inst: string, typ: WsChannel, ttlSec = 120, uid = '', adm = false): string {
-  const payload: WsTokenPayload = { inst, typ, uid, adm, exp: Date.now() + ttlSec * 1000 };
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = crypto.createHmac('sha256', hmacKey()).update(body).digest('base64url');
-  return `${body}.${sig}`;
+export function mintToken(instanceId: string, channel: WsChannel, ttlSec = 120, userId = '', isAdmin = false): string {
+  const payload: WsTokenPayload = { inst: instanceId, typ: channel, uid: userId, adm: isAdmin, exp: Date.now() + ttlSec * 1000 };
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', hmacKey()).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
 }
 
-function signatureMatches(sig: string, want: string): boolean {
-  const a = Buffer.from(sig);
-  const b = Buffer.from(want);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+function signatureMatches(signature: string, expected: string): boolean {
+  const provided = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  return provided.length === wanted.length && crypto.timingSafeEqual(provided, wanted);
 }
 
-function decodePayload(body: string): WsTokenPayload | null {
+function decodePayload(encodedPayload: string): WsTokenPayload | null {
   try {
-    return JSON.parse(Buffer.from(body, 'base64url').toString()) as WsTokenPayload;
+    return JSON.parse(Buffer.from(encodedPayload, 'base64url').toString()) as WsTokenPayload;
   } catch {
     return null;
   }
 }
 
 /** Every field the relays depend on must be present, and the token unexpired. */
-function isUsable(p: WsTokenPayload | null): p is WsTokenPayload {
-  if (!p) return false;
-  if (!p.inst || !p.typ || !p.uid) return false;
-  if (typeof p.exp !== 'number') return false;
-  return p.exp >= Date.now();
+function isUsable(tokenPayload: WsTokenPayload | null): tokenPayload is WsTokenPayload {
+  if (!tokenPayload) return false;
+  if (!tokenPayload.inst || !tokenPayload.typ || !tokenPayload.uid) return false;
+  if (typeof tokenPayload.exp !== 'number') return false;
+  return tokenPayload.exp >= Date.now();
 }
 
 export function verifyToken(token: string | undefined | null): WsTokenPayload | null {
   if (!token || !token.includes('.')) return null;
-  const [body, sig] = token.split('.');
-  const want = crypto.createHmac('sha256', hmacKey()).update(body).digest('base64url');
-  if (!signatureMatches(sig, want)) return null;
-  const payload = decodePayload(body);
-  return isUsable(payload) ? payload : null;
+  const [encodedPayload, signature] = token.split('.');
+  const expected = crypto.createHmac('sha256', hmacKey()).update(encodedPayload).digest('base64url');
+  if (!signatureMatches(signature, expected)) return null;
+  const tokenPayload = decodePayload(encodedPayload);
+  return isUsable(tokenPayload) ? tokenPayload : null;
 }
 
-export const WS_URL = (base: string, inst: string, typ: WsChannel) => `${base}/api/instances/${inst}/${typ === 'term' ? 'terminal' : 'console'}`;
+export const WS_URL = (base: string, instanceId: string, channel: WsChannel) => `${base}/api/instances/${instanceId}/${channel === 'term' ? 'terminal' : 'console'}`;

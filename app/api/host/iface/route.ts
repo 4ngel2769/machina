@@ -8,13 +8,13 @@ import { listNetworks, bridges } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
 
 export async function GET() {
-  const { response: e } = await requireAdmin();
-  if (e) return e;
+  const { response: denied } = await requireAdmin();
+  if (denied) return denied;
   try {
     const nets = await listNetworks().catch(() => []);
     return json({ interfaces: await listIfaces(bridges(nets)) });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
@@ -22,12 +22,12 @@ type Admin = { id: string; name: string };
 
 /** Every optional NM field, normalised the way addIface expects it. */
 function ifaceSpec(body: Record<string, unknown>): AddIface {
-  const str = (k: string) => (body[k] ? String(body[k]) : undefined);
-  const num = (k: string) => (body[k] ? Number(body[k]) : undefined);
+  const str = (key: string) => (body[key] ? String(body[key]) : undefined);
+  const num = (key: string) => (body[key] ? Number(body[key]) : undefined);
   return {
     kind: String(body.kind ?? '') as AddIface['kind'],
     name: String(body.name ?? ''),
-    ports: String(body.ports ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    ports: String(body.ports ?? '').split(',').map((port) => port.trim()).filter(Boolean),
     parent: str('parent'),
     vlanId: num('vlanId'),
     bondMode: str('bondMode'),
@@ -55,16 +55,16 @@ async function ifaceAdd(body: Record<string, unknown>, admin: Admin) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   try {
     if (body.op === 'delete') return await ifaceDelete(body, admin);
     return await ifaceAdd(body, admin);
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }

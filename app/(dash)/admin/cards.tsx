@@ -56,25 +56,25 @@ export function UsersCard({ admin }: { admin: AdminState }) {
 }
 
 /** One image row plus its sync button. */
-function ImageRow({ i, post }: { i: Img; post: AdminState['post'] }) {
+function ImageRow({ image, post }: { image: Img; post: AdminState['post'] }) {
   return (
     <tr>
-      <td>{i.name}</td>
+      <td>{image.name}</td>
       <td>
-        <span className={`badge ${i.status}`}>
-          {i.status === 'downloading' ? (
+        <span className={`badge ${image.status}`}>
+          {image.status === 'downloading' ? (
             <>
               <ThinkingOrb state="working" size={20} theme="dark" aria-label="downloading" />
             </>
           ) : null}
-          {i.status}
+          {image.status}
         </span>
-        {i.failure ? <div className="copy">{i.failure}</div> : null}
+        {image.failure ? <div className="copy">{image.failure}</div> : null}
       </td>
-      <td className="mono">{(i.sizeBytes / 1024 / 1024).toFixed(0)}MB</td>
-      <td className="mono">{i.sha256 ? `${i.sha256.slice(0, 12)}…` : '—'}</td>
-      <td>{i.updatedAt ? new Date(i.updatedAt).toLocaleString() : '—'}</td>
-      <td><button onClick={() => void post({ op: 'syncImage', imageId: i.id }, `sync ${i.name}`)}>sync</button></td>
+      <td className="mono">{(image.sizeBytes / 1024 / 1024).toFixed(0)}MB</td>
+      <td className="mono">{image.sha256 ? `${image.sha256.slice(0, 12)}…` : '—'}</td>
+      <td>{image.updatedAt ? new Date(image.updatedAt).toLocaleString() : '—'}</td>
+      <td><button onClick={() => void post({ op: 'syncImage', imageId: image.id }, `sync ${image.name}`)}>sync</button></td>
     </tr>
   );
 }
@@ -98,22 +98,22 @@ export function ImagesCard({ admin }: { admin: AdminState }) {
   };
 
   return (
-    <BorderBeam size="line" colorVariant="ice" active={admin.imgs.some((i) => i.status === 'downloading')} strength={0.9} theme="dark">
+    <BorderBeam size="line" colorVariant="ice" active={admin.imgs.some((image) => image.status === 'downloading')} strength={0.9} theme="dark">
       <div className="card">
         <h3>images</h3>
         <table>
           <thead><tr><th>id</th><th>status</th><th>size</th><th>sha</th><th>updated</th><th /></tr></thead>
           <tbody>
-            {admin.imgs.map((i) => <ImageRow key={i.id} i={i} post={admin.post} />)}
+            {admin.imgs.map((image) => <ImageRow key={image.id} image={image} post={admin.post} />)}
           </tbody>
         </table>
         <div style={{ marginTop: 10 }}>
-          <button onClick={() => setOpen((v) => !v)}>{open ? 'cancel' : 'import image'}</button>
+          <button onClick={() => setOpen((prev) => !prev)}>{open ? 'cancel' : 'import image'}</button>
           {open && (
             <div className="row" style={{ marginTop: 10, alignItems: 'flex-end', gap: 10 }}>
-              <label>id<input style={{ width: 160 }} value={imgId} onChange={(e) => setImgId(e.target.value)} placeholder="my-distro-1" className="mono" /></label>
-              <label>display name<input style={{ width: 200 }} value={imgName} onChange={(e) => setImgName(e.target.value)} placeholder="optional" /></label>
-              <label>qcow2 file<input type="file" accept=".qcow2" onChange={(e) => setImgFile(e.target.files?.[0] ?? null)} /></label>
+              <label>id<input style={{ width: 160 }} value={imgId} onChange={(event) => setImgId(event.target.value)} placeholder="my-distro-1" className="mono" /></label>
+              <label>display name<input style={{ width: 200 }} value={imgName} onChange={(event) => setImgName(event.target.value)} placeholder="optional" /></label>
+              <label>qcow2 file<input type="file" accept=".qcow2" onChange={(event) => setImgFile(event.target.files?.[0] ?? null)} /></label>
               <button disabled={busy || !imgId || !imgFile} onClick={() => void importImage()}>{busy ? 'uploading…' : 'upload'}</button>
             </div>
           )}
@@ -123,32 +123,32 @@ export function ImagesCard({ admin }: { admin: AdminState }) {
   );
 }
 
-export function PlanRow({ plan: p, post, usedBy }: { plan: Plan; post: AdminState['post']; usedBy: number }) {
-  const [bw, setBw] = useState(String(p.bandwidthGb ?? 0));
-  useEffect(() => { setBw(String(p.bandwidthGb ?? 0)); }, [p.bandwidthGb]);
+export function PlanRow({ plan, post, usedBy }: { plan: Plan; post: AdminState['post']; usedBy: number }) {
+  const [bw, setBw] = useState(String(plan.bandwidthGb ?? 0));
+  useEffect(() => { setBw(String(plan.bandwidthGb ?? 0)); }, [plan.bandwidthGb]);
   return (
     <tr>
       <td>
-        {p.name}
-        {p.custom ? <span className="badge" title="one-off spec — not offered in the catalog">custom</span> : null}
+        {plan.name}
+        {plan.custom ? <span className="badge" title="one-off spec — not offered in the catalog">custom</span> : null}
       </td>
-      <td>{p.vcpu}</td><td>{p.ramMb / 1024}GB</td><td>{p.diskGb}GB</td>
-      <td className="mono">{(p.hourlyRateCents / 100).toFixed(2)}</td>
-      <td className="mono">{Math.round(p.monthlyCapMin / 60)}h</td>
+      <td>{plan.vcpu}</td><td>{plan.ramMb / 1024}GB</td><td>{plan.diskGb}GB</td>
+      <td className="mono">{(plan.hourlyRateCents / 100).toFixed(2)}</td>
+      <td className="mono">{Math.round(plan.monthlyCapMin / 60)}h</td>
       <td>
-        <input className="mono" style={{ width: 70 }} value={bw} onChange={(e) => setBw(e.target.value)} />
+        <input className="mono" style={{ width: 70 }} value={bw} onChange={(event) => setBw(event.target.value)} />
       </td>
       <td>
         <div className="snapacts">
           <button onClick={() => {
-            const v = parseFloat(bw);
-            if (Number.isFinite(v) && v >= 0) void post({ op: 'setPlan', planId: p.id, bandwidthGb: v }, `plan ${p.name} quota`);
+            const bandwidthGb = parseFloat(bw);
+            if (Number.isFinite(bandwidthGb) && bandwidthGb >= 0) void post({ op: 'setPlan', planId: plan.id, bandwidthGb }, `plan ${plan.name} quota`);
           }}>save</button>
-          {p.custom && (
+          {plan.custom && (
             <button
               disabled={usedBy > 0}
               title={usedBy > 0 ? `${usedBy} instance(s) use it` : 'delete this custom plan'}
-              onClick={() => { if (confirm(`delete plan ${p.name}?`)) void post({ op: 'deletePlan', planId: p.id }, 'delete plan'); }}
+              onClick={() => { if (confirm(`delete plan ${plan.name}?`)) void post({ op: 'deletePlan', planId: plan.id }, 'delete plan'); }}
               style={{ color: 'var(--danger, #f87171)' }}
             >drop</button>
           )}
@@ -165,8 +165,8 @@ export function PlansCard({ admin }: { admin: AdminState }) {
       <table>
         <thead><tr><th>name</th><th>vcpu</th><th>ram</th><th>disk</th><th>$/h</th><th>cap/h</th><th>bw GB/mo</th><th /></tr></thead>
         <tbody>
-          {admin.plans.map((p) => (
-            <PlanRow key={p.id} plan={p} post={admin.post} usedBy={admin.planUsage[p.id] ?? 0} />
+          {admin.plans.map((plan) => (
+            <PlanRow key={plan.id} plan={plan} post={admin.post} usedBy={admin.planUsage[plan.id] ?? 0} />
           ))}
         </tbody>
       </table>
@@ -184,23 +184,23 @@ export function OsAssignCard({ admin }: { admin: AdminState }) {
     <div className="card">
       <h3>OS assignment per user</h3>
       <div className="row">
-        <select value={imgPickUser} onChange={(e) => {
-          setImgPickUser(e.target.value);
-          const u = admin.users.find((x) => x.id === e.target.value);
-          if (u) { setImgPickable(!!u.imagePickable); setImgAssigned(u.assignedImageId ?? ''); }
+        <select value={imgPickUser} onChange={(event) => {
+          setImgPickUser(event.target.value);
+          const user = admin.users.find((candidate) => candidate.id === event.target.value);
+          if (user) { setImgPickable(!!user.imagePickable); setImgAssigned(user.assignedImageId ?? ''); }
         }} style={{ maxWidth: 190 }}>
           <option value="">select user…</option>
-          {admin.users.filter((u) => u.role === 'user').map((u) => (
-            <option key={u.id} value={u.id}>{u.name} {u.imagePickable ? '(pickable)' : '(assigned)'}</option>
+          {admin.users.filter((user) => user.role === 'user').map((user) => (
+            <option key={user.id} value={user.id}>{user.name} {user.imagePickable ? '(pickable)' : '(assigned)'}</option>
           ))}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={imgPickable} onChange={(e) => setImgPickable(e.target.checked)} />
+          <input type="checkbox" checked={imgPickable} onChange={(event) => setImgPickable(event.target.checked)} />
           user can pick OS
         </label>
-        <select value={imgAssigned} onChange={(e) => setImgAssigned(e.target.value)} style={{ maxWidth: 220 }}>
+        <select value={imgAssigned} onChange={(event) => setImgAssigned(event.target.value)} style={{ maxWidth: 220 }}>
           <option value="">no assigned OS</option>
-          {admin.imgs.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.status})</option>)}
+          {admin.imgs.map((image) => <option key={image.id} value={image.id}>{image.name} ({image.status})</option>)}
         </select>
         <button className="primary" disabled={!imgPickUser} onClick={() => {
           void admin.post({ op: 'setUserImage', userId: imgPickUser, imagePickable: imgPickable, assignedImageId: imgAssigned || null }, 'OS assignment');
@@ -229,54 +229,54 @@ export function CustomBoxCard({ admin }: { admin: AdminState }) {
 
 /** Assign a box to a user directly. */
 export function AssignBoxCard({ admin }: { admin: AdminState }) {
-  const [instUser, setInstUser] = useState('');
-  const [instName, setInstName] = useState('');
-  const [instPlan, setInstPlan] = useState('');
-  const [instImage, setInstImage] = useState('');
+  const [assignUserId, setAssignUserId] = useState('');
+  const [assignName, setAssignName] = useState('');
+  const [assignPlanId, setAssignPlanId] = useState('');
+  const [assignImageId, setAssignImageId] = useState('');
   return (
     <div className="card">
       <h3>assign a box to a user</h3>
       <div className="row">
-        <select value={instUser} onChange={(e) => setInstUser(e.target.value)} style={{ maxWidth: 190 }}>
+        <select value={assignUserId} onChange={(event) => setAssignUserId(event.target.value)} style={{ maxWidth: 190 }}>
           <option value="">select user…</option>
-          {admin.users.filter((u) => u.role === 'user').map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          {admin.users.filter((user) => user.role === 'user').map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
         </select>
-        <input style={{ width: 160 }} placeholder="instance name" value={instName} onChange={(e) => setInstName(e.target.value)} />
-        <select value={instPlan} onChange={(e) => setInstPlan(e.target.value)} style={{ maxWidth: 160 }}>
+        <input style={{ width: 160 }} placeholder="instance name" value={assignName} onChange={(event) => setAssignName(event.target.value)} />
+        <select value={assignPlanId} onChange={(event) => setAssignPlanId(event.target.value)} style={{ maxWidth: 160 }}>
           <option value="">plan…</option>
-          {admin.plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {admin.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
         </select>
-        <select value={instImage} onChange={(e) => setInstImage(e.target.value)} style={{ maxWidth: 220 }}>
+        <select value={assignImageId} onChange={(event) => setAssignImageId(event.target.value)} style={{ maxWidth: 220 }}>
           <option value="">OS (optional)…</option>
-          {admin.imgs.filter((i) => i.status === 'ready').map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+          {admin.imgs.filter((image) => image.status === 'ready').map((image) => <option key={image.id} value={image.id}>{image.name}</option>)}
         </select>
-        <button className="primary" disabled={!instUser || !instName || !instPlan} onClick={() => {
-          void admin.post({ op: 'createInstance', targetUserId: instUser, name: instName, planId: instPlan, imageId: instImage || undefined }, 'box assigned');
-          setInstName('');
+        <button className="primary" disabled={!assignUserId || !assignName || !assignPlanId} onClick={() => {
+          void admin.post({ op: 'createInstance', targetUserId: assignUserId, name: assignName, planId: assignPlanId, imageId: assignImageId || undefined }, 'box assigned');
+          setAssignName('');
         }}>create</button>
       </div>
     </div>
   );
 }
 
-async function decide(url: string, op: string, okMsg: string, toast: ReturnType<typeof useToast>, reload: () => Promise<void>) {
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op }) });
-  const j = await res.json().catch(() => ({}));
-  if (res.ok) toast.ok(okMsg); else toast.err(j.error ?? 'fail');
+async function decide(url: string, operation: string, okMsg: string, toast: ReturnType<typeof useToast>, reload: () => Promise<void>) {
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: operation }) });
+  const body = await res.json().catch(() => ({}));
+  if (res.ok) toast.ok(okMsg); else toast.err(body.error ?? 'fail');
   void reload();
 }
 
 export function RequestsCard({ admin }: { admin: AdminState }) {
   const toast = useToast();
-  const pending = admin.reqs.filter((r) => r.status === 'pending').length;
+  const pending = admin.reqs.filter((request) => request.status === 'pending').length;
   return (
     <div className="card">
       <h3>instance requests ({pending} pending)</h3>
       <table>
         <thead><tr><th>user</th><th>name</th><th>plan</th><th>status</th><th>note</th><th>actions</th></tr></thead>
         <tbody>
-          {admin.reqs.map((r) => (
-            <ReqRow key={r.id} r={r} toast={toast} reload={admin.load} />
+          {admin.reqs.map((request) => (
+            <ReqRow key={request.id} request={request} toast={toast} reload={admin.load} />
           ))}
         </tbody>
       </table>
@@ -285,24 +285,24 @@ export function RequestsCard({ admin }: { admin: AdminState }) {
   );
 }
 
-function ReqRow({ r, toast, reload }: { r: InstReq; toast: ReturnType<typeof useToast>; reload: () => Promise<void> }) {
+function ReqRow({ request, toast, reload }: { request: InstReq; toast: ReturnType<typeof useToast>; reload: () => Promise<void> }) {
   return (
     <tr>
-      <td>{r.userId.slice(0, 8)}</td>
-      <td className="mono">{r.name}</td>
-      <td>{r.planId}</td>
-      <td>{r.status}</td>
-      <td className="muted" style={{ fontSize: 11 }}>{r.note ?? '—'}</td>
+      <td>{request.userId.slice(0, 8)}</td>
+      <td className="mono">{request.name}</td>
+      <td>{request.planId}</td>
+      <td>{request.status}</td>
+      <td className="muted" style={{ fontSize: 11 }}>{request.note ?? '—'}</td>
       <td>
-        {r.status === 'pending' && (
+        {request.status === 'pending' && (
           <>
             <button onClick={async () => {
-              const res = await fetch(`/api/requests/${r.id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'approve' }) });
-              const j = await res.json().catch(() => ({}));
-              if (res.ok) toast.ok(`approved (${j.instanceId ?? ''})`); else toast.err(j.error ?? 'fail');
+              const res = await fetch(`/api/requests/${request.id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'approve' }) });
+              const body = await res.json().catch(() => ({}));
+              if (res.ok) toast.ok(`approved (${body.instanceId ?? ''})`); else toast.err(body.error ?? 'fail');
               void reload();
             }} style={{ padding: '2px 8px', fontSize: 11 }}>approve</button>
-            <button onClick={() => void decide(`/api/requests/${r.id}`, 'reject', 'rejected', toast, reload)} style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>reject</button>
+            <button onClick={() => void decide(`/api/requests/${request.id}`, 'reject', 'rejected', toast, reload)} style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>reject</button>
           </>
         )}
       </td>
@@ -312,15 +312,15 @@ function ReqRow({ r, toast, reload }: { r: InstReq; toast: ReturnType<typeof use
 
 export function DeletionsCard({ admin }: { admin: AdminState }) {
   const toast = useToast();
-  const pending = admin.delReqs.filter((r) => r.status === 'pending').length;
+  const pending = admin.delReqs.filter((delReq) => delReq.status === 'pending').length;
   return (
     <div className="card">
       <h3>deletion requests ({pending} pending)</h3>
       <table>
         <thead><tr><th>user</th><th>status</th><th>requested</th><th>actions</th></tr></thead>
         <tbody>
-          {admin.delReqs.map((r) => (
-            <DelRow key={r.id} r={r} toast={toast} reload={admin.load} />
+          {admin.delReqs.map((delReq) => (
+            <DelRow key={delReq.id} delReq={delReq} toast={toast} reload={admin.load} />
           ))}
         </tbody>
       </table>
@@ -328,22 +328,22 @@ export function DeletionsCard({ admin }: { admin: AdminState }) {
   );
 }
 
-function DelRow({ r, toast, reload }: { r: DelReq; toast: ReturnType<typeof useToast>; reload: () => Promise<void> }) {
+function DelRow({ delReq, toast, reload }: { delReq: DelReq; toast: ReturnType<typeof useToast>; reload: () => Promise<void> }) {
   return (
     <tr>
-      <td className="mono">{r.userId.slice(0, 12)}</td>
-      <td>{r.status}</td>
-      <td>{new Date(r.requestedAt).toLocaleString()}</td>
+      <td className="mono">{delReq.userId.slice(0, 12)}</td>
+      <td>{delReq.status}</td>
+      <td>{new Date(delReq.requestedAt).toLocaleString()}</td>
       <td>
-        {r.status === 'pending' && (
+        {delReq.status === 'pending' && (
           <>
             <button onClick={async () => {
-              const res = await fetch(`/api/deletion/${r.id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'fulfill' }) });
-              const j = await res.json().catch(() => ({}));
-              if (res.ok) toast.ok(`fulfilled (${j.destroyed ?? 0} VMs)`); else toast.err(j.error ?? 'fail');
+              const res = await fetch(`/api/deletion/${delReq.id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'fulfill' }) });
+              const body = await res.json().catch(() => ({}));
+              if (res.ok) toast.ok(`fulfilled (${body.destroyed ?? 0} VMs)`); else toast.err(body.error ?? 'fail');
               void reload();
             }} style={{ padding: '2px 8px', fontSize: 11, color: 'var(--danger, #f87171)' }}>fulfill (delete)</button>
-            <button onClick={() => void decide(`/api/deletion/${r.id}`, 'reject', 'rejected', toast, reload)} style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>reject</button>
+            <button onClick={() => void decide(`/api/deletion/${delReq.id}`, 'reject', 'rejected', toast, reload)} style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }}>reject</button>
           </>
         )}
       </td>
@@ -358,13 +358,13 @@ export function AuditCard({ admin }: { admin: AdminState }) {
       <table>
         <thead><tr><th>when</th><th>actor</th><th>action</th><th>target</th><th>detail</th></tr></thead>
         <tbody>
-          {admin.aud.map((a) => (
-            <tr key={a.id}>
-              <td>{new Date(a.ts).toLocaleString()}</td>
-              <td>{a.actorName ?? '—'}</td>
-              <td>{a.action}</td>
-              <td className="mono">{a.target ?? '—'}</td>
-              <td className="copy">{a.detail ?? '—'}</td>
+          {admin.aud.map((entry) => (
+            <tr key={entry.id}>
+              <td>{new Date(entry.ts).toLocaleString()}</td>
+              <td>{entry.actorName ?? '—'}</td>
+              <td>{entry.action}</td>
+              <td className="mono">{entry.target ?? '—'}</td>
+              <td className="copy">{entry.detail ?? '—'}</td>
             </tr>
           ))}
         </tbody>

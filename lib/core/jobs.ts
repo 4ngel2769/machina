@@ -22,24 +22,24 @@ export function setWaker(fn: () => void): void {
   waker = fn;
 }
 
-export async function enqueue(input: {
+export async function enqueue(jobInput: {
   type: JobType;
   instanceId?: string | null;
   userId?: string | null;
   payload?: Record<string, unknown>;
 }): Promise<string> {
-  const id = newJobId();
+  const jobId = newJobId();
   await getDb().insert(jobs).values({
-    id,
-    type: input.type,
-    instanceId: input.instanceId ?? null,
-    userId: input.userId ?? null,
-    payload: JSON.stringify(input.payload ?? {}),
+    id: jobId,
+    type: jobInput.type,
+    instanceId: jobInput.instanceId ?? null,
+    userId: jobInput.userId ?? null,
+    payload: JSON.stringify(jobInput.payload ?? {}),
     status: 'queued',
     createdAt: now(),
   });
   waker?.();
-  return id;
+  return jobId;
 }
 
 /** Atomically claim one runnable job. */
@@ -52,7 +52,7 @@ export async function claimNext(): Promise<{
   id: string; type: JobType; instanceId: string | null; userId: string | null; payload: string;
 } | null> {
   const db = rawDb();
-  for (let i = 0; i < 8; i++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const rows = db
       .prepare<unknown[], { id: string; type: string; instance_id: string | null; user_id: string | null; payload: string }>(
         // Never claim a job that has already spent its attempt budget: it can
@@ -64,18 +64,18 @@ export async function claimNext(): Promise<{
          limit 1`,
       )
       .all(now());
-    const j = rows[0];
-    if (!j) return null;
-    const r = db
+    const jobRow = rows[0];
+    if (!jobRow) return null;
+    const updateResult = db
       .prepare(`update jobs set status='running', started_at=?, attempts=attempts+1 where id=? and status='queued'`)
-      .run(now(), j.id);
-    if (r.changes === 1) {
+      .run(now(), jobRow.id);
+    if (updateResult.changes === 1) {
       return {
-        id: j.id,
-        type: j.type as JobType,
-        instanceId: j.instance_id,
-        userId: j.user_id,
-        payload: j.payload,
+        id: jobRow.id,
+        type: jobRow.type as JobType,
+        instanceId: jobRow.instance_id,
+        userId: jobRow.user_id,
+        payload: jobRow.payload,
       };
     }
   }

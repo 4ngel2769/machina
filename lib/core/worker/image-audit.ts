@@ -17,7 +17,7 @@ function hasBiosBootloader(buf: Buffer): boolean {
 }
 
 /** Stage the first sector on disk and inspect it. Throws when unreadable. */
-async function readMbr(file: string, id: string, pid: number): Promise<Buffer> {
+async function readMbr(file: string, imageId: string, pid: number): Promise<Buffer> {
   const { execFile } = await import('child_process');
   const { promisify } = await import('util');
   const os = await import('os');
@@ -26,34 +26,34 @@ async function readMbr(file: string, id: string, pid: number): Promise<Buffer> {
   const pexec = promisify(execFile);
   // qemu-img dd writes binary to a real file reliably; /dev/stdout gives us
   // nothing usable through execFile, so stage the MBR on disk.
-  const tmp = path.join(os.tmpdir(), `machina-mbr-${pid}-${id}.bin`);
-  await pexec('qemu-img', ['dd', `if=${file}`, `of=${tmp}`, 'bs=512', 'count=1'], { maxBuffer: 4096 });
-  const buf = await fsp.readFile(tmp);
-  await fsp.rm(tmp, { force: true }).catch(() => {});
-  return buf;
+  const mbrPath = path.join(os.tmpdir(), `machina-mbr-${pid}-${imageId}.bin`);
+  await pexec('qemu-img', ['dd', `if=${file}`, `of=${mbrPath}`, 'bs=512', 'count=1'], { maxBuffer: 4096 });
+  const mbr = await fsp.readFile(mbrPath);
+  await fsp.rm(mbrPath, { force: true }).catch(() => {});
+  return mbr;
 }
 
 export async function auditImageBootability(): Promise<void> {
   try {
     const { storagePaths } = await import('@/lib/config');
-    const rd = rawDb();
-    const sp = storagePaths();
-    const rows = rd.prepare(`select id, path, status from images where status='ready'`).all() as
+    const raw = rawDb();
+    const storage = storagePaths();
+    const rows = raw.prepare(`select id, path, status from images where status='ready'`).all() as
       { id: string; path: string; status: string }[];
-    for (const img of rows) {
-      const file = img.path || `${sp.images}/${img.id}.qcow2`;
-      let bootable: boolean;
+    for (const imageRow of rows) {
+      const file = imageRow.path || `${storage.images}/${imageRow.id}.qcow2`;
+      let isBootable: boolean;
       try {
-        bootable = hasBiosBootloader(await readMbr(file, img.id, process.pid));
+        isBootable = hasBiosBootloader(await readMbr(file, imageRow.id, process.pid));
       } catch {
         continue; // unreadable: leave it alone rather than disable a good image
       }
-      if (bootable) continue;
-      rd.prepare(`update images set status='broken', failure=? where id=?`)
-        .run('image has no BIOS bootloader (UEFI-only build) — not bootable on this host', img.id);
-      console.log(`[worker] image ${img.id} marked broken: no BIOS bootloader`);
+      if (isBootable) continue;
+      raw.prepare(`update images set status='broken', failure=? where id=?`)
+        .run('image has no BIOS bootloader (UEFI-only build) — not bootable on this host', imageRow.id);
+      console.log(`[worker] image ${imageRow.id} marked broken: no BIOS bootloader`);
     }
-  } catch (e) {
-    console.log(`[worker] image bootability audit skipped: ${(e as Error).message}`);
+  } catch (auditError) {
+    console.log(`[worker] image bootability audit skipped: ${(auditError as Error).message}`);
   }
 }

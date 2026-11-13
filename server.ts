@@ -54,8 +54,8 @@ async function main(): Promise<void> {
   wss = new WebSocketServer({ noServer: true });
   const server = createServer((req, res) => void handler(req, res));
   server.on('upgrade', (req, socket, head) => {
-    const u = parse(req.url || '', true);
-    void handleUpgrade(req, socket as import('net').Socket, head, u.pathname || '');
+    const parsed = parse(req.url || '', true);
+    void handleUpgrade(req, socket as import('net').Socket, head, parsed.pathname || '');
   });
 
   const port = parseInt(process.env.SERVER_PORT || String(config.serverPort ?? 3999), 10);
@@ -90,13 +90,13 @@ async function handleUpgrade(
   head: Buffer,
   pathname: string,
 ): Promise<void> {
-  const m = WS_PATH.exec(pathname);
-  if (!m) { socket.destroy(); return; }
-  const [, instId, pathChan] = m;
+  const wsMatch = WS_PATH.exec(pathname);
+  if (!wsMatch) { socket.destroy(); return; }
+  const [, instId, pathChan] = wsMatch;
   const chan: WsChannel = pathChan === 'terminal' ? 'term' : 'vnc';
-  const q = parse(req.url || '', true).query;
-  const token = (q.token as string) || '';
-  const persist = q.persist === '1';
+  const query = parse(req.url || '', true).query;
+  const token = (query.token as string) || '';
+  const persist = query.persist === '1';
   const payload = verifyToken(token);
   if (!payload || payload.inst !== instId || payload.typ !== chan) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -104,21 +104,21 @@ async function handleUpgrade(
     return;
   }
 
-  const inst = rawDb().prepare(`select * from instances where id=?`).get(instId) as
+  const instanceRow = rawDb().prepare(`select * from instances where id=?`).get(instId) as
     | { status: string; ip: string; root_pass_enc: string; vnc_socket: string; domain_name: string; user_id: string }
     | undefined;
-  if (!inst) {
+  if (!instanceRow) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     socket.destroy();
     return;
   }
   // Token is user-bound (mintToken(uid)); admins may mint for any instance.
-  if (!payload.adm && payload.uid !== inst.user_id) {
+  if (!payload.adm && payload.uid !== instanceRow.user_id) {
     socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
     socket.destroy();
     return;
   }
-  if (inst.status !== 'running') {
+  if (instanceRow.status !== 'running') {
     socket.write('HTTP/1.1 409 Conflict\r\n\r\n'); // "instance not running"
     socket.destroy();
     return;
@@ -128,14 +128,14 @@ async function handleUpgrade(
     if (chan === 'term') {
       void relayTerm(ws, {
         instanceId: instId,
-        ip: inst.ip,
-        rootPassword: decrypt(inst.root_pass_enc),
+        ip: instanceRow.ip,
+        rootPassword: decrypt(instanceRow.root_pass_enc),
         persist,
-        cols: Number(q.cols) || undefined,
-        rows: Number(q.rows) || undefined,
+        cols: Number(query.cols) || undefined,
+        rows: Number(query.rows) || undefined,
       });
     } else {
-      relayVnc(ws, inst.vnc_socket || `${config.storageDir}/vnc/${instId}.vnc`);
+      relayVnc(ws, instanceRow.vnc_socket || `${config.storageDir}/vnc/${instId}.vnc`);
     }
   });
 }

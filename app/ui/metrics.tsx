@@ -8,10 +8,10 @@ import { ChartBody } from './metrics/charts';
 import { RANGES, fmtRate, type Payload } from './metrics/format';
 
 /** The four headline numbers plus the range picker. */
-function MetricsHead({ data, range, setRange }: {
-  data: Payload | null; range: string; setRange: (r: string) => void;
+function MetricsHead({ payload, range, setRange }: {
+  payload: Payload | null; range: string; setRange: (value: string) => void;
 }) {
-  const latest = data?.points.length ? data.points[data.points.length - 1] : undefined;
+  const latest = payload?.points.length ? payload.points[payload.points.length - 1] : undefined;
   return (
     <div className="metrics-head">
       <div className="metrics-stats">
@@ -29,17 +29,17 @@ function MetricsHead({ data, range, setRange }: {
         </div>
         <div className="metric">
           <div className="label">memory allocated</div>
-          <div className="value">{data?.ramAllocMb ? `${data.ramAllocMb} MB` : '—'}</div>
+          <div className="value">{payload?.ramAllocMb ? `${payload.ramAllocMb} MB` : '—'}</div>
         </div>
       </div>
       <div className="metrics-ranges">
-        {RANGES.map((r) => (
+        {RANGES.map((rangeOption) => (
           <button
-            key={r.k}
-            className={`chip${range === r.k ? ' on' : ''}`}
-            onClick={() => setRange(r.k)}
+            key={rangeOption.key}
+            className={`chip${range === rangeOption.key ? ' on' : ''}`}
+            onClick={() => setRange(rangeOption.key)}
           >
-            {r.label}
+            {rangeOption.label}
           </button>
         ))}
       </div>
@@ -58,14 +58,14 @@ function MetricsHead({ data, range, setRange }: {
  * instead, which is the truth, with the reason stated rather than hidden.
  */
 export function MetricsPanel({ instanceId, instanceStatus }: { instanceId: string; instanceStatus: string }) {
-  const [data, setData] = useState<Payload | null>(null);
+  const [payload, setPayload] = useState<Payload | null>(null);
   const [range, setRange] = useState<string>('1h');
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/instances/${instanceId}/metrics?range=${range}`, { cache: 'no-store' });
-      if (r.ok) setData(await r.json());
+      const response = await fetch(`/api/instances/${instanceId}/metrics?range=${range}`, { cache: 'no-store' });
+      if (response.ok) setPayload(await response.json());
     } catch {
       /* retried on the next tick */
     } finally {
@@ -76,15 +76,15 @@ export function MetricsPanel({ instanceId, instanceStatus }: { instanceId: strin
   useEffect(() => {
     setLoading(true);
     void load();
-    const t = setInterval(() => void load(), 15_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void load(), 15_000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const off = instanceStatus !== 'running';
 
   return (
     <div className="metrics">
-      <MetricsHead data={data} range={range} setRange={setRange} />
+      <MetricsHead payload={payload} range={range} setRange={setRange} />
 
       {off && (
         <div className="muted" style={{ marginBottom: 10, fontSize: 12 }}>
@@ -92,7 +92,7 @@ export function MetricsPanel({ instanceId, instanceStatus }: { instanceId: strin
         </div>
       )}
 
-      <ChartBody data={data} loading={loading} off={off} />
+      <ChartBody payload={payload} loading={loading} off={off} />
     </div>
   );
 }

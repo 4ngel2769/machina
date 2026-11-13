@@ -12,39 +12,39 @@ function powerLabel(running: boolean): string {
   return running ? 'shutdown' : 'start';
 }
 
-function ownerCell(v: Vm): React.ReactNode {
-  if (v.system) return <span className="muted">system</span>;
-  return v.owner?.name;
+function ownerCell(vm: Vm): React.ReactNode {
+  if (vm.system) return <span className="muted">system</span>;
+  return vm.owner?.name;
 }
 
 /** "2 / 4" when the domain can be hot-plugged above its running count. */
-function cpuCell(v: Vm): string {
-  const above = v.vcpuMax && v.vcpuMax !== v.vcpu ? ` / ${v.vcpuMax}` : '';
-  return v.vcpu ? `${v.vcpu}${above}` : '—';
+function cpuCell(vm: Vm): string {
+  const above = vm.vcpuMax && vm.vcpuMax !== vm.vcpu ? ` / ${vm.vcpuMax}` : '';
+  return vm.vcpu ? `${vm.vcpu}${above}` : '—';
 }
 
-function memCell(v: Vm): string {
-  return v.memMb ? `${Math.round(v.memMb / 1024)} GB` : '—';
+function memCell(vm: Vm): string {
+  return vm.memMb ? `${Math.round(vm.memMb / 1024)} GB` : '—';
 }
 
-function VmRow({ v, busy, vmPost }: { v: Vm; busy: string; vmPost: VmPost }) {
-  const running = v.state === 'running';
+function VmRow({ vm, busy, vmPost }: { vm: Vm; busy: string; vmPost: VmPost }) {
+  const running = vm.state === 'running';
   const action = powerLabel(running);
-  const label = `${v.name} ${action}`;
+  const label = `${vm.name} ${action}`;
   return (
-    <tr key={v.name}>
-      <td className="mono"><Link href={`/host/${encodeURIComponent(v.name)}`}>{v.name}</Link></td>
-      <td><span className={`badge ${running ? 'running' : 'stopped'}`}>{v.state}</span></td>
-      <td>{ownerCell(v)}</td>
-      <td className="mono">{cpuCell(v)}</td>
-      <td className="mono">{memCell(v)}</td>
-      <td>{v.persistent ? 'defined' : 'transient'}</td>
-      <td>{v.autostart ? 'yes' : <span className="muted">no</span>}</td>
+    <tr key={vm.name}>
+      <td className="mono"><Link href={`/host/${encodeURIComponent(vm.name)}`}>{vm.name}</Link></td>
+      <td><span className={`badge ${running ? 'running' : 'stopped'}`}>{vm.state}</span></td>
+      <td>{ownerCell(vm)}</td>
+      <td className="mono">{cpuCell(vm)}</td>
+      <td className="mono">{memCell(vm)}</td>
+      <td>{vm.persistent ? 'defined' : 'transient'}</td>
+      <td>{vm.autostart ? 'yes' : <span className="muted">no</span>}</td>
       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-        <button disabled={!!busy} onClick={() => vmPost(v.name, { op: 'power', action }, label)}>
+        <button disabled={!!busy} onClick={() => vmPost(vm.name, { op: 'power', action }, label)}>
           {busy === label ? <Ring size={10} /> : running ? 'stop' : 'start'}
         </button>
-        <Link href={`/host/${encodeURIComponent(v.name)}`} style={{ marginLeft: 8 }}>open</Link>
+        <Link href={`/host/${encodeURIComponent(vm.name)}`} style={{ marginLeft: 8 }}>open</Link>
       </td>
     </tr>
   );
@@ -52,16 +52,16 @@ function VmRow({ v, busy, vmPost }: { v: Vm; busy: string; vmPost: VmPost }) {
 
 function OwnerSelect({ owner, setOwner, users, instances }: {
   owner: string;
-  setOwner: (v: string) => void;
+  setOwner: (value: string) => void;
   users: InstRow[] | { id: string; name: string }[];
   instances: InstRow[];
 }) {
-  const owners = (users as { id: string; name: string }[]).filter((u) => instances.some((i) => i.uid === u.id));
+  const owners = (users as { id: string; name: string }[]).filter((user) => instances.some((instance) => instance.uid === user.id));
   return (
-    <select value={owner} onChange={(e) => setOwner(e.target.value)} style={{ maxWidth: 240 }}>
+    <select value={owner} onChange={(event) => setOwner(event.target.value)} style={{ maxWidth: 240 }}>
       <option value="visible">system + admin-owned</option>
       <option value="all">everything</option>
-      {owners.map((u) => <option key={u.id} value={u.id}>owner: {u.name}</option>)}
+      {owners.map((user) => <option key={user.id} value={user.id}>owner: {user.name}</option>)}
     </select>
   );
 }
@@ -71,7 +71,7 @@ export function Machines({ vms, users, instances, owner, setOwner, busy, vmPost 
   users: { id: string; name: string }[];
   instances: InstRow[];
   owner: string;
-  setOwner: (v: string) => void;
+  setOwner: (value: string) => void;
   busy: string;
   vmPost: VmPost;
 }) {
@@ -87,7 +87,7 @@ export function Machines({ vms, users, instances, owner, setOwner, busy, vmPost 
             <th>name</th><th>state</th><th>owner</th><th>vCPU</th><th>RAM</th><th>boot</th><th>autostart</th><th />
           </tr></thead>
           <tbody>
-            {vms.map((v) => <VmRow key={v.name} v={v} busy={busy} vmPost={vmPost} />)}
+            {vms.map((vm) => <VmRow key={vm.name} vm={vm} busy={busy} vmPost={vmPost} />)}
           </tbody>
         </table>
       )}

@@ -19,53 +19,53 @@ type ByteMaps = {
 };
 
 /** Fold one domstats line into the accumulator it belongs to. */
-function foldStat(out: Live, maps: ByteMaps, key: string, n: number) {
-  if (key === 'cpu.time') { out.cpuSec = n / 1e9; return; }
-  if (key === 'balloon.current') { out.memMb = Math.round(n / 1024); return; }
-  if (key === 'balloon.maximum') { out.maxMemMb = Math.round(n / 1024); return; }
-  const net = key.match(/^net\.(\d+)\.(rx|tx)\.bytes$/);
-  if (net) {
-    const cur = maps.nets.get(net[1]) ?? { rxBytes: 0, txBytes: 0 };
-    if (net[2] === 'rx') cur.rxBytes = n; else cur.txBytes = n;
-    maps.nets.set(net[1], cur);
+function foldStat(live: Live, maps: ByteMaps, key: string, value: number) {
+  if (key === 'cpu.time') { live.cpuSec = value / 1e9; return; }
+  if (key === 'balloon.current') { live.memMb = Math.round(value / 1024); return; }
+  if (key === 'balloon.maximum') { live.maxMemMb = Math.round(value / 1024); return; }
+  const netMatch = key.match(/^net\.(\d+)\.(rx|tx)\.bytes$/);
+  if (netMatch) {
+    const counters = maps.nets.get(netMatch[1]) ?? { rxBytes: 0, txBytes: 0 };
+    if (netMatch[2] === 'rx') counters.rxBytes = value; else counters.txBytes = value;
+    maps.nets.set(netMatch[1], counters);
     return;
   }
-  const blk = key.match(/^block\.(\d+)\.(rd|wr)\.bytes$/);
-  if (blk) {
-    const cur = maps.blocks.get(blk[1]) ?? { rdBytes: 0, wrBytes: 0 };
-    if (blk[2] === 'rd') cur.rdBytes = n; else cur.wrBytes = n;
-    maps.blocks.set(blk[1], cur);
+  const blockMatch = key.match(/^block\.(\d+)\.(rd|wr)\.bytes$/);
+  if (blockMatch) {
+    const counters = maps.blocks.get(blockMatch[1]) ?? { rdBytes: 0, wrBytes: 0 };
+    if (blockMatch[2] === 'rd') counters.rdBytes = value; else counters.wrBytes = value;
+    maps.blocks.set(blockMatch[1], counters);
   }
 }
 
 async function liveStats(name: string): Promise<Live> {
-  const out: Live = { cpuSec: 0, memMb: 0, maxMemMb: 0, nets: [], blocks: [] };
+  const live: Live = { cpuSec: 0, memMb: 0, maxMemMb: 0, nets: [], blocks: [] };
   const maps: ByteMaps = { nets: new Map(), blocks: new Map() };
   const txt = await virsh(['domstats', name, '--cpu-total', '--balloon', '--interface', '--block']).catch(() => '');
   for (const line of txt.split('\n')) {
-    const [k, v] = line.trim().split('=');
-    if (!k || v === undefined) continue;
-    foldStat(out, maps, k, Number(v));
+    const [key, rawValue] = line.trim().split('=');
+    if (!key || rawValue === undefined) continue;
+    foldStat(live, maps, key, Number(rawValue));
   }
-  out.nets = [...maps.nets].map(([name2, v]) => ({ name: name2, ...v }));
-  out.blocks = [...maps.blocks].map(([name2, v]) => ({ name: name2, ...v }));
-  return out;
+  live.nets = [...maps.nets].map(([interfaceName, counters]) => ({ name: interfaceName, ...counters }));
+  live.blocks = [...maps.blocks].map(([blockName, counters]) => ({ name: blockName, ...counters }));
+  return live;
 }
 
 export async function GET(req: NextRequest) {
-  const { response: e } = await requireAdmin();
-  if (e) return e;
+  const { response: denied } = await requireAdmin();
+  if (denied) return denied;
   const name = req.nextUrl.searchParams.get('name') ?? '';
   try {
-    const [detail, live, snaps, hyper] = await Promise.all([
+    const [detail, liveStatsResult, snapshotRows, hyper] = await Promise.all([
       vmDetail(name),
       liveStats(name),
       listSnapshots(name).catch(() => []),
       virsh(['dominfo', name]).catch(() => ''),
     ]);
-    return json({ vm: detail, live, snapshots: snaps, dominfo: hyper });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+    return json({ vm: detail, live: liveStatsResult, snapshots: snapshotRows, dominfo: hyper });
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }
 
@@ -102,10 +102,10 @@ async function undefineOp(name: string, admin: Admin) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: deniedAdmin } = await requireAdmin();
+  if (deniedAdmin) return deniedAdmin;
   const body = (await req.json().catch(() => ({}))) as VmBody;
   const name = String(body.name ?? '');
   try {
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       target: name, detail: body as Record<string, unknown>,
     });
     return json({ ok: true, result });
-  } catch (x) {
-    return err(friendlyError(x), 400);
+  } catch (error) {
+    return err(friendlyError(error), 400);
   }
 }

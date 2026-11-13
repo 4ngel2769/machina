@@ -15,13 +15,13 @@ type Row = { id: string; name: string; status: string; activeJob: { type: string
 
 function announce(rows: Row[], seen: Record<string, string> | null, toast: ReturnType<typeof useToast>) {
   const next: Record<string, string> = {};
-  for (const i of rows) {
-    next[i.id] = i.status;
-    const prev = seen?.[i.id];
-    if (prev && prev !== i.status) {
-      if (i.status === 'error') toast.err(`${i.name} failed — open it to see why and retry`);
-      else if (i.status === 'running') toast.ok(`${i.name} is running`);
-      else if (i.status === 'stopped') toast.info(`${i.name} stopped`);
+  for (const instance of rows) {
+    next[instance.id] = instance.status;
+    const prev = seen?.[instance.id];
+    if (prev && prev !== instance.status) {
+      if (instance.status === 'error') toast.err(`${instance.name} failed — open it to see why and retry`);
+      else if (instance.status === 'running') toast.ok(`${instance.name} is running`);
+      else if (instance.status === 'stopped') toast.info(`${instance.name} stopped`);
     }
   }
   return next;
@@ -35,17 +35,17 @@ export function BackgroundWatcher() {
     let alive = true;
     const poll = async () => {
       try {
-        const r = await fetch('/api/instances', { cache: 'no-store' });
-        if (!r.ok || !alive) return;
-        const rows = (await r.json()) as Row[];
+        const response = await fetch('/api/instances', { cache: 'no-store' });
+        if (!response.ok || !alive) return;
+        const rows = (await response.json()) as Row[];
         seen.current = announce(rows, seen.current, toast);
       } catch {
         /* never throw into a render path */
       }
     };
     void poll();
-    const t = setInterval(poll, 15000);
-    return () => { alive = false; clearInterval(t); };
+    const timer = setInterval(poll, 15000);
+    return () => { alive = false; clearInterval(timer); };
   }, [toast]);
 
   return null;

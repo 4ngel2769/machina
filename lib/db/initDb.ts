@@ -292,11 +292,11 @@ export function initDb(): void {
   const db = rawDb();
   db.exec(`create table if not exists schema_migrations (version text primary key, applied_at integer not null)`);
   const applied = new Set(
-    (db.prepare('select version from schema_migrations').all() as { version: string }[]).map((r) => r.version),
+    (db.prepare('select version from schema_migrations').all() as { version: string }[]).map((row) => row.version),
   );
-  for (const m of migrations) {
-    if (applied.has(m.version)) continue;
-    db.exec(m.sql);
-    db.prepare('insert into schema_migrations (version, applied_at) values (?, ?)').run(m.version, Date.now());
+  for (const migration of migrations) {
+    if (applied.has(migration.version)) continue;
+    db.exec(migration.sql);
+    db.prepare('insert into schema_migrations (version, applied_at) values (?, ?)').run(migration.version, Date.now());
   }
 }

@@ -31,12 +31,12 @@ async function resolveCreateTarget(body: AdminBody) {
 
 /** Name checks plus the provisioning row insert; returns the row id or a refusal. */
 async function insertProvisioning(body: AdminBody, targetUser: { id: string }, plan: { id: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number | null }, image: { id: string }) {
-  const rd = rawDb();
+  const raw = rawDb();
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
-  const dupe = rd.prepare(`select 1 from instances where user_id=? and name=?`).get(targetUser.id, name);
+  const dupe = raw.prepare(`select 1 from instances where user_id=? and name=?`).get(targetUser.id, name);
   if (dupe) return err('name already used', 409);
-  const taken = (rd.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((r) => r.ip);
+  const taken = (raw.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((row) => row.ip);
   const id = newInstanceId();
   const ip = new IpAllocator(taken).next();
   if (!ip) return err('no free IP in range', 503);
@@ -94,8 +94,8 @@ export async function createCustomInstance(body: AdminBody, { admin }: AdminCtx)
   let spec;
   try {
     spec = validateCustomSpec(body as Record<string, unknown>);
-  } catch (e) {
-    return err((e as Error).message);
+  } catch (error) {
+    return err((error as Error).message);
   }
 
   const plan = await createCustomPlan(spec);
@@ -114,11 +114,11 @@ export async function createCustomInstance(body: AdminBody, { admin }: AdminCtx)
         diskGb: plan.diskGb, bandwidthGb: plan.bandwidthGb, rateHourlyCents: plan.hourlyRateCents } });
     return json({ id: created.id, name: created.name, ip: created.ip, planId: plan.id,
       rateHourlyCents: plan.hourlyRateCents, status: 'provisioning' }, 201);
-  } catch (e) {
+  } catch (error) {
     // Nothing was created, so the plan row it would have used is dead
     // weight in the plan list. Remove it; the error explains the refusal.
     await deleteCustomPlan(plan.id);
-    return err((e as Error).message, 400);
+    return err((error as Error).message, 400);
   }
 }
 
@@ -126,15 +126,15 @@ export async function deletePlan(body: AdminBody, { admin }: AdminCtx) {
   // Custom plans are one-off sizes; the plan they replaced stays in the
   // table forever otherwise. Catalog tiers are never deletable this way.
   if (!body.planId) return err('planId required');
-  const p = (rawDb().prepare(`select id, name, custom from plans where id=?`).get(body.planId) as
+  const planRow = (rawDb().prepare(`select id, name, custom from plans where id=?`).get(body.planId) as
     { id: string; name: string; custom: number } | undefined);
-  if (!p) return err('plan not found', 404);
-  if (!p.custom) return err('that is a catalog tier, not a custom plan', 409);
-  const used = (rawDb().prepare(`select count(*) c from instances where plan_id=?`).get(p.id) as { c: number }).c;
+  if (!planRow) return err('plan not found', 404);
+  if (!planRow.custom) return err('that is a catalog tier, not a custom plan', 409);
+  const used = (rawDb().prepare(`select count(*) c from instances where plan_id=?`).get(planRow.id) as { c: number }).c;
   if (used > 0) return err(`${used} instance${used === 1 ? '' : 's'} still use this plan — move them first`, 409);
-  const pending = (rawDb().prepare(`select count(*) c from instance_requests where plan_id=? and status='pending'`).get(p.id) as { c: number }).c;
+  const pending = (rawDb().prepare(`select count(*) c from instance_requests where plan_id=? and status='pending'`).get(planRow.id) as { c: number }).c;
   if (pending > 0) return err(`${pending} pending request${pending === 1 ? '' : 's'} still reference it`, 409);
-  await deleteCustomPlan(p.id);
-  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.deletePlan', target: p.id, detail: { name: p.name } });
+  await deleteCustomPlan(planRow.id);
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.deletePlan', target: planRow.id, detail: { name: planRow.name } });
   return json({ ok: true });
 }

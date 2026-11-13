@@ -15,13 +15,13 @@ type RfbLike = { disconnect: () => void; scaleViewport: boolean };
 
 /** Mint the short-lived ws token for this instance's VNC console. */
 async function fetchVncToken(instanceId: string): Promise<{ token: string; vncPass?: string }> {
-  const res = await fetch(`/api/instances/${instanceId}/ws-token`, {
+  const response = await fetch(`/api/instances/${instanceId}/ws-token`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ type: 'vnc' }),
   });
-  const tok = await res.json();
-  if (!tok?.token) throw new Error(tok?.error ?? 'could not get a console token');
-  return tok as { token: string; vncPass?: string };
+  const tokenBody = await response.json();
+  if (!tokenBody?.token) throw new Error(tokenBody?.error ?? 'could not get a console token');
+  return tokenBody as { token: string; vncPass?: string };
 }
 
 /** Open the noVNC session and wire its lifecycle events. */
@@ -29,7 +29,7 @@ async function openRfb(
   box: HTMLDivElement,
   wsUrl: string,
   vncPass: string | undefined,
-  cbs: {
+  callbacks: {
     onDisconnect: () => void;
     onConnect: () => void;
   },
@@ -40,8 +40,8 @@ async function openRfb(
   const { default: RFB } = await import('@novnc/novnc');
   const rfb = new RFB(box, wsUrl, vncPass ? { credentials: { password: vncPass } } : {});
   rfb.scaleViewport = true;
-  rfb.addEventListener('disconnect', cbs.onDisconnect);
-  rfb.addEventListener('connect', cbs.onConnect);
+  rfb.addEventListener('disconnect', callbacks.onDisconnect);
+  rfb.addEventListener('connect', callbacks.onConnect);
   return rfb as unknown as RfbLike;
 }
 
@@ -81,20 +81,20 @@ export function Console({ instanceId }: { instanceId: string }) {
     setState('connecting');
     setErr('');
     try {
-      const tok = await fetchVncToken(instanceId);
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${proto}://${location.host}/api/instances/${instanceId}/console?token=${tok.token}`;
+      const token = await fetchVncToken(instanceId);
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${location.host}/api/instances/${instanceId}/console?token=${token.token}`;
       const box = boxRef.current;
       if (!box) return;
       // An idle VNC session is silent too, so it is reaped by the same proxy
       // rule as the terminal. Retry unless the user asked for the disconnect.
-      const rfb = await openRfb(box, wsUrl, tok.vncPass, {
+      const rfb = await openRfb(box, wsUrl, token.vncPass, {
         onDisconnect: () => scheduleRfbReconnect(aliveRef, userClosedRef, retryRef, triesRef, connectRef, setState),
         onConnect: () => { triesRef.current = 0; setState('open'); },
       });
       rfbRef.current = rfb;
-    } catch (e) {
-      setErr(String((e as Error).message));
+    } catch (event) {
+      setErr(String((event as Error).message));
       setState('error');
     }
   }, [instanceId]);
@@ -108,8 +108,8 @@ export function Console({ instanceId }: { instanceId: string }) {
     void connect();
     const onWake = () => {
       if (document.visibilityState === 'hidden' || userClosedRef.current) return;
-      const r = rfbRef.current;
-      if (r) return;
+      const rfb = rfbRef.current;
+      if (rfb) return;
       if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
       triesRef.current = 0;
       void connectRef.current?.();

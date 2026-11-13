@@ -29,33 +29,33 @@ export type CustomSpec = {
   hourlyRateCents?: number;
 };
 
-const INT = (v: unknown): number | null => {
-  const n = typeof v === 'string' ? Number(v) : (v as number);
-  return typeof n === 'number' && Number.isFinite(n) && Number.isInteger(n) ? n : null;
+const INT = (value: unknown): number | null => {
+  const parsed = typeof value === 'string' ? Number(value) : (value as number);
+  return typeof parsed === 'number' && Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : null;
 };
 
 /** Cents per hour for a spec, from config.limits.customRate. */
-export function customRateCents(s: { vcpu: number; ramMb: number; diskGb: number }): number {
-  const c = config.limits.customRate;
+export function customRateCents(spec: { vcpu: number; ramMb: number; diskGb: number }): number {
+  const rate = config.limits.customRate;
   const total =
-    s.vcpu * c.perVcpuHourCents +
-    (s.ramMb / 1024) * c.perGbRamHourCents +
-    s.diskGb * c.perGbDiskHourCents;
+    spec.vcpu * rate.perVcpuHourCents +
+    (spec.ramMb / 1024) * rate.perGbRamHourCents +
+    spec.diskGb * rate.perGbDiskHourCents;
   // Never free: a zero rate means metering takes nothing and auto-suspend can
   // never fire, which is a different bug wearing a price tag.
   return Math.max(1, Math.round(total));
 }
 
 /** Whole number inside a range, or the message naming the bound that failed. */
-function boundedInt(v: unknown, min: number, max: number, message: string): number {
-  const n = INT(v);
-  if (n === null || n < min || n > max) throw new Error(message);
-  return n;
+function boundedInt(value: unknown, min: number, max: number, message: string): number {
+  const parsed = INT(value);
+  if (parsed === null || parsed < min || parsed > max) throw new Error(message);
+  return parsed;
 }
 
 /** Blank means unlimited (0), which is the schema's meaning for instances. */
-function bandwidthOf(v: unknown): number {
-  const raw = v === '' || v === undefined ? 0 : Number(v);
+function bandwidthOf(value: unknown): number {
+  const raw = value === '' || value === undefined ? 0 : Number(value);
   if (!Number.isFinite(raw) || raw < 0 || raw > 100_000) {
     throw new Error('bandwidth must be 0 (unlimited) or GB/month up to 100000');
   }

@@ -23,7 +23,7 @@ export default function InstancesPage() {
 
       {!isAdmin && (
         <div style={{ marginBottom: 20 }}>
-          <button className="primary" onClick={() => setReqOpen((v) => !v)}>{reqOpen ? 'cancel' : 'request instance'}</button>
+          <button className="primary" onClick={() => setReqOpen((prev) => !prev)}>{reqOpen ? 'cancel' : 'request instance'}</button>
           {reqOpen && <RequestForm page={page} selectedImage={reqImage} onImage={setReqImage} />}
         </div>
       )}

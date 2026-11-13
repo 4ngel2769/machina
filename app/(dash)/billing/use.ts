@@ -16,52 +16,52 @@ export function useBilling(): {
   ledger: Ledger[];
   cap: { running: number; max: number } | null;
   running: Running[];
-  cur: string; setCur: (v: string) => void;
-  nw: string; setNw: (v: string) => void;
+  currentPw: string; setCurrentPw: (v: string) => void;
+  newPw: string; setNewPw: (v: string) => void;
   pwBusy: boolean;
-  changePw: (e: React.FormEvent) => Promise<void>;
+  changePw: (event: React.FormEvent) => Promise<void>;
 } {
   const toast = useToast();
   const [balance, setBalance] = useState<number | null>(null);
   const [ledger, setLedger] = useState<Ledger[]>([]);
   const [cap, setCap] = useState<{ running: number; max: number } | null>(null);
-  const [cur, setCur] = useState('');
-  const [nw, setNw] = useState('');
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
   const [running, setRunning] = useState<Running[]>([]);
 
   const load = useCallback(async () => {
-    const r = await fetch('/api/billing', { cache: 'no-store' });
-    if (r.ok) {
-      const j = await r.json();
-      setBalance(j.balanceCents);
-      setLedger(j.ledger);
-      setCap(j.capacity);
+    const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
+    if (billingResponse.ok) {
+      const billing = await billingResponse.json();
+      setBalance(billing.balanceCents);
+      setLedger(billing.ledger);
+      setCap(billing.capacity);
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     fetch('/api/instances', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows) => setRunning(rows.filter((i: { status: string }) => i.status === 'running')))
+      .then((instancesResponse) => (instancesResponse.ok ? instancesResponse.json() : []))
+      .then((rows) => setRunning(rows.filter((instance: { status: string }) => instance.status === 'running')))
       .catch(() => {});
   }, []);
 
-  async function changePw(e: React.FormEvent) {
-    e.preventDefault();
+  async function changePw(event: React.FormEvent) {
+    event.preventDefault();
     setPwBusy(true);
-    const r = await fetch('/api/auth/password', {
+    const response = await fetch('/api/auth/password', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ current: cur, next: nw }),
+      body: JSON.stringify({ current: currentPw, next: newPw }),
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) { toast.ok('password changed — persists across restarts'); setCur(''); setNw(''); }
-    else toast.err(j.error ?? 'change failed');
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) { toast.ok('password changed — persists across restarts'); setCurrentPw(''); setNewPw(''); }
+    else toast.err(body.error ?? 'change failed');
     setPwBusy(false);
   }
 
-  return { balance, ledger, cap, running, cur, setCur, nw, setNw, pwBusy, changePw };
+  return { balance, ledger, cap, running, currentPw, setCurrentPw, newPw, setNewPw, pwBusy, changePw };
 }
 
 export type BillingState = ReturnType<typeof useBilling>;

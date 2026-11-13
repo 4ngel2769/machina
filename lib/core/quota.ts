@@ -40,7 +40,7 @@ export type Usage = {
 
 /** No quota row means "no limit set", not "denied". */
 export function getQuota(userId: string): Quota {
-  const r = rawDb()
+  const quotaRow = rawDb()
     .prepare(
       `select max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note
        from quotas where user_id = ?`,
@@ -48,17 +48,17 @@ export function getQuota(userId: string): Quota {
     .get(userId) as
     | { max_vms: number | null; max_vcpus: number | null; max_memory_mb: number | null; max_disk_gb: number | null; max_running: number | null; suspended: number; note: string | null }
     | undefined;
-  if (!r) {
+  if (!quotaRow) {
     return { maxVms: null, maxVcpus: null, maxMemoryMb: null, maxDiskGb: null, maxRunning: null, suspended: false, note: null };
   }
   return {
-    maxVms: r.max_vms,
-    maxVcpus: r.max_vcpus,
-    maxMemoryMb: r.max_memory_mb,
-    maxDiskGb: r.max_disk_gb,
-    maxRunning: r.max_running,
-    suspended: !!r.suspended,
-    note: r.note,
+    maxVms: quotaRow.max_vms,
+    maxVcpus: quotaRow.max_vcpus,
+    maxMemoryMb: quotaRow.max_memory_mb,
+    maxDiskGb: quotaRow.max_disk_gb,
+    maxRunning: quotaRow.max_running,
+    suspended: !!quotaRow.suspended,
+    note: quotaRow.note,
   };
 }
 
@@ -72,7 +72,7 @@ export function getQuota(userId: string): Quota {
  * on it, which cost a round of "no such column: vcpu".
  */
 export function getUsage(userId: string): Usage {
-  const r = rawDb()
+  const usageRow = rawDb()
     .prepare(
       `select
          count(*) as vms,
@@ -85,17 +85,17 @@ export function getUsage(userId: string): Usage {
     )
     .get(userId) as { vms: number; running: number | null; vcpus: number; memoryMb: number; diskGb: number };
   return {
-    vms: r.vms ?? 0,
-    running: r.running ?? 0,
-    vcpus: r.vcpus ?? 0,
-    memoryMb: r.memoryMb ?? 0,
-    diskGb: r.diskGb ?? 0,
+    vms: usageRow.vms ?? 0,
+    running: usageRow.running ?? 0,
+    vcpus: usageRow.vcpus ?? 0,
+    memoryMb: usageRow.memoryMb ?? 0,
+    diskGb: usageRow.diskGb ?? 0,
   };
 }
 
 /** Everything the host has committed across ALL users. */
 export function getHostCommitted(): Usage {
-  const r = rawDb()
+  const usageRow = rawDb()
     .prepare(
       `select
          count(*) as vms,
@@ -107,11 +107,11 @@ export function getHostCommitted(): Usage {
     )
     .get() as { vms: number; running: number | null; vcpus: number; memoryMb: number; diskGb: number };
   return {
-    vms: r.vms ?? 0,
-    running: r.running ?? 0,
-    vcpus: r.vcpus ?? 0,
-    memoryMb: r.memoryMb ?? 0,
-    diskGb: r.diskGb ?? 0,
+    vms: usageRow.vms ?? 0,
+    running: usageRow.running ?? 0,
+    vcpus: usageRow.vcpus ?? 0,
+    memoryMb: usageRow.memoryMb ?? 0,
+    diskGb: usageRow.diskGb ?? 0,
   };
 }
 
@@ -171,7 +171,7 @@ export function invalidateCapacity(): void {
  * reservation is released automatically when a request is declined or expires.
  */
 export function getPendingUsage(userId: string, excludeRequestId?: string): Usage {
-  const r = rawDb()
+  const usageRow = rawDb()
     .prepare(
       `select
          count(*) as vms,
@@ -183,7 +183,7 @@ export function getPendingUsage(userId: string, excludeRequestId?: string): Usag
     )
     .get(userId, excludeRequestId ?? null, excludeRequestId ?? null) as
     { vms: number; vcpus: number; memoryMb: number; diskGb: number };
-  return { vms: r.vms ?? 0, running: 0, vcpus: r.vcpus ?? 0, memoryMb: r.memoryMb ?? 0, diskGb: r.diskGb ?? 0 };
+  return { vms: usageRow.vms ?? 0, running: 0, vcpus: usageRow.vcpus ?? 0, memoryMb: usageRow.memoryMb ?? 0, diskGb: usageRow.diskGb ?? 0 };
 }
 
 /**
@@ -214,46 +214,46 @@ type QuotaRow = ReturnType<typeof getQuota>;
 type Committed = ReturnType<typeof getCommittedForNew>;
 
 /** An admin minted the account but has not granted anything yet. */
-function zeroAllocation(q: QuotaRow): boolean {
-  return q.maxVms === 0 && q.maxVcpus === 0 && q.maxMemoryMb === 0 && q.maxDiskGb === 0;
+function zeroAllocation(quotaRow: QuotaRow): boolean {
+  return quotaRow.maxVms === 0 && quotaRow.maxVcpus === 0 && quotaRow.maxMemoryMb === 0 && quotaRow.maxDiskGb === 0;
 }
 
-function checkVms(q: QuotaRow, u: Committed): Deny | null {
-  if (q.maxVms === null || u.vms < q.maxVms) return null;
+function checkVms(quotaRow: QuotaRow, usage: Committed): Deny | null {
+  if (quotaRow.maxVms === null || usage.vms < quotaRow.maxVms) return null;
   // "0 of 0" is a confusing way to say "not allocated".
-  if (zeroAllocation(q)) {
+  if (zeroAllocation(quotaRow)) {
     return { allowed: false, reason: 'this account has no allocation yet — ask an admin to grant one' };
   }
-  return { allowed: false, reason: `instance limit reached: you already have or have asked for ${u.vms} of ${q.maxVms}. Delete one or cancel a request, or ask an admin to raise your quota.` };
+  return { allowed: false, reason: `instance limit reached: you already have or have asked for ${usage.vms} of ${quotaRow.maxVms}. Delete one or cancel a request, or ask an admin to raise your quota.` };
 }
 
-function checkVcpus(q: QuotaRow, u: Committed, plan: { vcpu: number }): Deny | null {
-  if (q.maxVcpus === null || u.vcpus + plan.vcpu <= q.maxVcpus) return null;
-  return { allowed: false, reason: `vCPU limit reached: this needs ${plan.vcpu} more and you have ${u.vcpus} of ${q.maxVcpus} committed.` };
+function checkVcpus(quotaRow: QuotaRow, usage: Committed, plan: { vcpu: number }): Deny | null {
+  if (quotaRow.maxVcpus === null || usage.vcpus + plan.vcpu <= quotaRow.maxVcpus) return null;
+  return { allowed: false, reason: `vCPU limit reached: this needs ${plan.vcpu} more and you have ${usage.vcpus} of ${quotaRow.maxVcpus} committed.` };
 }
 
-function checkMemory(q: QuotaRow, u: Committed, plan: { ramMb: number }): Deny | null {
-  if (q.maxMemoryMb === null || u.memoryMb + plan.ramMb <= q.maxMemoryMb) return null;
-  return { allowed: false, reason: `memory limit reached: this needs ${plan.ramMb} MB more and you have ${u.memoryMb} of ${q.maxMemoryMb} MB committed.` };
+function checkMemory(quotaRow: QuotaRow, usage: Committed, plan: { ramMb: number }): Deny | null {
+  if (quotaRow.maxMemoryMb === null || usage.memoryMb + plan.ramMb <= quotaRow.maxMemoryMb) return null;
+  return { allowed: false, reason: `memory limit reached: this needs ${plan.ramMb} MB more and you have ${usage.memoryMb} of ${quotaRow.maxMemoryMb} MB committed.` };
 }
 
-function checkDisk(q: QuotaRow, u: Committed, plan: { diskGb: number }): Deny | null {
-  if (q.maxDiskGb === null || u.diskGb + plan.diskGb <= q.maxDiskGb) return null;
-  return { allowed: false, reason: `disk limit reached: this needs ${plan.diskGb} GB more and you have ${u.diskGb} of ${q.maxDiskGb} GB committed.` };
+function checkDisk(quotaRow: QuotaRow, usage: Committed, plan: { diskGb: number }): Deny | null {
+  if (quotaRow.maxDiskGb === null || usage.diskGb + plan.diskGb <= quotaRow.maxDiskGb) return null;
+  return { allowed: false, reason: `disk limit reached: this needs ${plan.diskGb} GB more and you have ${usage.diskGb} of ${quotaRow.maxDiskGb} GB committed.` };
 }
 
-function checkRunning(q: QuotaRow, u: Committed): Deny | null {
-  if (q.maxRunning === null || u.running < q.maxRunning) return null;
-  return { allowed: false, reason: `running instance limit reached: ${u.running} of ${q.maxRunning} running. Stop one first.` };
+function checkRunning(quotaRow: QuotaRow, usage: Committed): Deny | null {
+  if (quotaRow.maxRunning === null || usage.running < quotaRow.maxRunning) return null;
+  return { allowed: false, reason: `running instance limit reached: ${usage.running} of ${quotaRow.maxRunning} running. Stop one first.` };
 }
 
 /** The user-level refusals, in the order they are easiest to explain. */
-function checkUserLimits(q: QuotaRow, u: Committed, plan: { vcpu: number; ramMb: number; diskGb: number }): Deny | null {
-  return checkVms(q, u)
-    ?? checkVcpus(q, u, plan)
-    ?? checkMemory(q, u, plan)
-    ?? checkDisk(q, u, plan)
-    ?? checkRunning(q, u);
+function checkUserLimits(quotaRow: QuotaRow, usage: Committed, plan: { vcpu: number; ramMb: number; diskGb: number }): Deny | null {
+  return checkVms(quotaRow, usage)
+    ?? checkVcpus(quotaRow, usage, plan)
+    ?? checkMemory(quotaRow, usage, plan)
+    ?? checkDisk(quotaRow, usage, plan)
+    ?? checkRunning(quotaRow, usage);
 }
 
 /**
@@ -269,16 +269,16 @@ export function checkQuota(
   plan: { vcpu: number; ramMb: number; diskGb: number },
   opts: { isAdmin?: boolean; excludeRequestId?: string } = {},
 ): Verdict {
-  const q = getQuota(userId);
-  if (q.suspended) {
+  const quotaRow = getQuota(userId);
+  if (quotaRow.suspended) {
     return { allowed: false, reason: 'your account is suspended — contact an admin' };
   }
-  const u = getCommittedForNew(userId, opts.excludeRequestId);
+  const usage = getCommittedForNew(userId, opts.excludeRequestId);
   // An admin creating on someone's behalf is still bound by the HOST's limits,
   // but not by that user's quota: an admin overriding a customer quota is a
   // deliberate act, not an accident.
   if (opts.isAdmin) return checkHostCapacity(plan);
-  return checkUserLimits(q, u, plan) ?? checkHostCapacity(plan);
+  return checkUserLimits(quotaRow, usage, plan) ?? checkHostCapacity(plan);
 }
 
 /** Is the HOST able to take this VM? Independent of whose it is. */
@@ -333,12 +333,12 @@ export function pct(used: number, max: number | null): number | null {
  * overwrite bounds an admin has since set.
  */
 export function grantDefaultQuota(userId: string): void {
-  const q = config.limits.defaultQuota;
+  const defaultQuota = config.limits.defaultQuota;
   rawDb()
     .prepare(
       `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running, suspended, note, updated_at)
        values (?,?,?,?,?,?,0,?,?)
        on conflict(user_id) do nothing`,
     )
-    .run(userId, q.maxVms, q.maxVcpus, q.maxMemoryMb, q.maxDiskGb, q.maxRunning, 'no allocation yet', now());
+    .run(userId, defaultQuota.maxVms, defaultQuota.maxVcpus, defaultQuota.maxMemoryMb, defaultQuota.maxDiskGb, defaultQuota.maxRunning, 'no allocation yet', now());
 }

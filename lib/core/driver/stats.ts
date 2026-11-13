@@ -19,24 +19,24 @@ export async function domNetStats(): Promise<IfaceStat[]> {
   const out = await virsh(['domstats', '--interface']);
   const stats: IfaceStat[] = [];
   let domain = '';
-  const byIdx = new Map<number, { dev: string; rx: number; tx: number }>();
+  const byIndex = new Map<number, { dev: string; rx: number; tx: number }>();
   const flush = () => {
-    for (const s of byIdx.values()) {
-      if (s.dev) stats.push({ domain, dev: s.dev, rxBytes: s.rx, txBytes: s.tx });
+    for (const iface of byIndex.values()) {
+      if (iface.dev) stats.push({ domain, dev: iface.dev, rxBytes: iface.rx, txBytes: iface.tx });
     }
-    byIdx.clear();
+    byIndex.clear();
   };
   for (const line of out.split('\n')) {
-    let m = /^Domain: '(.+)'/.exec(line.trim());
-    if (m) { flush(); domain = m[1]; continue; }
-    m = /^\s*net\.(\d+)\.(name|rx\.bytes|tx\.bytes)=(.+)$/.exec(line);
-    if (!m) continue;
-    const idx = parseInt(m[1], 10);
-    const cur = byIdx.get(idx) ?? { dev: '', rx: 0, tx: 0 };
-    if (m[2] === 'name') cur.dev = m[3].trim();
-    else if (m[2] === 'rx.bytes') cur.rx = parseInt(m[3], 10) || 0;
-    else cur.tx = parseInt(m[3], 10) || 0;
-    byIdx.set(idx, cur);
+    let match = /^Domain: '(.+)'/.exec(line.trim());
+    if (match) { flush(); domain = match[1]; continue; }
+    match = /^\s*net\.(\d+)\.(name|rx\.bytes|tx\.bytes)=(.+)$/.exec(line);
+    if (!match) continue;
+    const index = parseInt(match[1], 10);
+    const current = byIndex.get(index) ?? { dev: '', rx: 0, tx: 0 };
+    if (match[2] === 'name') current.dev = match[3].trim();
+    else if (match[2] === 'rx.bytes') current.rx = parseInt(match[3], 10) || 0;
+    else current.tx = parseInt(match[3], 10) || 0;
+    byIndex.set(index, current);
   }
   flush();
   return stats;
@@ -56,11 +56,11 @@ export async function readIfaceTune(domain: string, mac: string): Promise<{ inAv
   } catch {
     return null;
   }
-  const gi = (k: string): number => {
-    const m = new RegExp(`^${k}:\\s*(\\d+)`, 'm').exec(out);
-    return m ? parseInt(m[1], 10) : 0;
+  const getValue = (key: string): number => {
+    const match = new RegExp(`^${key}:\\s*(\\d+)`, 'm').exec(out);
+    return match ? parseInt(match[1], 10) : 0;
   };
-  return { inAvg: gi('inbound\\.average'), outAvg: gi('outbound\\.average') };
+  return { inAvg: getValue('inbound\\.average'), outAvg: getValue('outbound\\.average') };
 }
 
 /** Real bytes occupied by the overlay (data + internal snapshot deltas), and
@@ -76,18 +76,18 @@ export async function diskUsage(
       // whose usage we most want to see.
       'info', '-U', '--output=json', `-f`, 'qcow2', `${storagePaths().vms}/${volName}.qcow2`,
     ], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
-    const info = JSON.parse(stdout) as { 'actual-size': number; 'virtual-size': number };
+    const imageInfo = JSON.parse(stdout) as { 'actual-size': number; 'virtual-size': number };
     let freeMb = 0;
     try {
-      const st = await fs.statfs(storagePaths().vms);
+      const fsStats = await fs.statfs(storagePaths().vms);
       // statfs: bsize * bavail = bytes available to an unprivileged writer
-      freeMb = Math.floor((Number(st.bsize) * Number(st.bavail)) / (1024 * 1024));
+      freeMb = Math.floor((Number(fsStats.bsize) * Number(fsStats.bavail)) / (1024 * 1024));
     } catch {
       freeMb = 0;
     }
     return {
-      actualBytes: Number(info['actual-size']) || 0,
-      virtualBytes: Number(info['virtual-size']) || 0,
+      actualBytes: Number(imageInfo['actual-size']) || 0,
+      virtualBytes: Number(imageInfo['virtual-size']) || 0,
       freeMb,
     };
   } catch {
@@ -113,8 +113,8 @@ export type DomStats = {
 function parseStatsOutput(out: string): Map<string, string> {
   const kv = new Map<string, string>();
   for (const line of out.split('\n')) {
-    const m = /^\s*([\w.]+)=(\S+)\s*$/.exec(line);
-    if (m) kv.set(m[1], m[2]);
+    const match = /^\s*([\w.]+)=(\S+)\s*$/.exec(line);
+    if (match) kv.set(match[1], match[2]);
   }
   return kv;
 }
@@ -124,11 +124,11 @@ function parseStatsOutput(out: string): Map<string, string> {
 function sumCpuTime(kv: Map<string, string>): { cpuTimeNs: number; ncpu: number } {
   let cpuTimeNs = 0;
   let ncpu = 0;
-  for (const [k, v] of kv) {
-    const m = /^vcpu\.(\d+)\.time$/.exec(k);
-    if (!m) continue;
-    const t = Number(v);
-    if (Number.isFinite(t)) { cpuTimeNs += t; ncpu += 1; }
+  for (const [key, value] of kv) {
+    const match = /^vcpu\.(\d+)\.time$/.exec(key);
+    if (!match) continue;
+    const timeNs = Number(value);
+    if (Number.isFinite(timeNs)) { cpuTimeNs += timeNs; ncpu += 1; }
   }
   if (!ncpu) ncpu = Number(kv.get('vcpu.current') ?? 0) || 0;
   return { cpuTimeNs, ncpu };
@@ -139,19 +139,19 @@ function sumCpuTime(kv: Map<string, string>): { cpuTimeNs: number; ncpu: number 
  *  whose write counters are meaningless noise. */
 function sumDiskIo(kv: Map<string, string>): { rdBytes: number; wrBytes: number; allocBytes: number } {
   const indices = new Set<string>();
-  for (const k of kv.keys()) {
-    const idx = /^block\.(\d+)\./.exec(k)?.[1];
-    if (idx !== undefined) indices.add(idx);
+  for (const key of kv.keys()) {
+    const index = /^block\.(\d+)\./.exec(key)?.[1];
+    if (index !== undefined) indices.add(index);
   }
   let rdBytes = 0;
   let wrBytes = 0;
   let allocBytes = 0;
-  for (const idx of indices) {
-    const path = kv.get(`block.${idx}.path`) ?? '';
-    if (!path.includes('/vms/')) continue;
-    rdBytes = Number(kv.get(`block.${idx}.rd.bytes`)) || 0;
-    wrBytes = Number(kv.get(`block.${idx}.wr.bytes`)) || 0;
-    allocBytes = Number(kv.get(`block.${idx}.allocation`)) || 0;
+  for (const index of indices) {
+    const diskPath = kv.get(`block.${index}.path`) ?? '';
+    if (!diskPath.includes('/vms/')) continue;
+    rdBytes = Number(kv.get(`block.${index}.rd.bytes`)) || 0;
+    wrBytes = Number(kv.get(`block.${index}.wr.bytes`)) || 0;
+    allocBytes = Number(kv.get(`block.${index}.allocation`)) || 0;
   }
   return { rdBytes, wrBytes, allocBytes };
 }

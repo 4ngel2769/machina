@@ -13,21 +13,21 @@ export function SnapshotsPanel({
   instanceId: string;
   instanceStatus: string;
 }) {
-  const s = useSnapshots(instanceId);
+  const snapshots = useSnapshots(instanceId);
   const live = instanceStatus === 'running';
   const canAct = instanceStatus !== 'provisioning';
 
   return (
     <div className="snapwrap">
-      <SnapHead snaps={s.snaps} disk={s.disk} planDiskGb={s.planDiskGb} busy={s.busy} confirm={s.confirm} />
+      <SnapHead snaps={snapshots.snaps} disk={snapshots.disk} planDiskGb={snapshots.planDiskGb} busy={snapshots.busy} confirm={snapshots.confirm} />
 
-      {s.msg && <div className="notice err" style={{ marginBottom: 12 }}>{s.msg}</div>}
+      {snapshots.msg && <div className="notice err" style={{ marginBottom: 12 }}>{snapshots.msg}</div>}
 
-      {canAct && <SnapNew s={s} live={live} canAct={canAct} />}
+      {canAct && <SnapNew snapshots={snapshots} live={live} canAct={canAct} />}
 
-      {s.confirm && <SnapConfirm s={s} mode={s.confirm} />}
+      {snapshots.confirm && <SnapConfirm snapshots={snapshots} mode={snapshots.confirm} />}
 
-      <SnapTable s={s} canAct={canAct} />
+      <SnapTable snapshots={snapshots} canAct={canAct} />
     </div>
   );
 }

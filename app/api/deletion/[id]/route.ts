@@ -14,16 +14,16 @@ import { logAudit } from '@/lib/services/audit';
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const g = guardMutation(req);
-  if (g) return g;
-  const { user: admin, response: e } = await requireAdmin();
-  if (e) return e;
+  const deniedMutation = guardMutation(req);
+  if (deniedMutation) return deniedMutation;
+  const { user: admin, response: denied } = await requireAdmin();
+  if (denied) return denied;
   const { id } = await ctx.params;
-  const rd = rawDb();
-  const r = rd.prepare(`select * from deletion_requests where id=?`).get(id) as
+  const raw = rawDb();
+  const requestRow = raw.prepare(`select * from deletion_requests where id=?`).get(id) as
     | { id: string; user_id: string; status: string } | undefined;
-  if (!r) return err('not found', 404);
-  if (r.status !== 'pending') return err('already handled', 409);
+  if (!requestRow) return err('not found', 404);
+  if (requestRow.status !== 'pending') return err('already handled', 409);
 
   const body = (await req.json().catch(() => ({}))) as { op?: string; note?: string };
   const op = body.op === 'fulfill' ? 'fulfill' : body.op === 'reject' ? 'reject' : null;
@@ -36,21 +36,21 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   // fulfill: destroy all user's VMs, wipe personal data, delete the account
-  const insts = rd.prepare(`select id from instances where user_id=?`).all(r.user_id) as { id: string }[];
-  for (const i of insts) {
-    await enqueue({ type: 'instance.delete', instanceId: i.id, userId: r.user_id, payload: {} }).catch(() => {});
+  const insts = raw.prepare(`select id from instances where user_id=?`).all(requestRow.user_id) as { id: string }[];
+  for (const inst of insts) {
+    await enqueue({ type: 'instance.delete', instanceId: inst.id, userId: requestRow.user_id, payload: {} }).catch(() => {});
   }
   // wipe personal data immediately (VM rows remain until destroy jobs finish)
-  rd.prepare(`delete from ssh_keys where user_id=?`).run(r.user_id);
-  rd.prepare(`delete from ledger where user_id=?`).run(r.user_id);
-  rd.prepare(`delete from instance_requests where user_id=?`).run(r.user_id);
-  rd.prepare(`delete from deletion_requests where user_id=?`).run(r.user_id);
+  raw.prepare(`delete from ssh_keys where user_id=?`).run(requestRow.user_id);
+  raw.prepare(`delete from ledger where user_id=?`).run(requestRow.user_id);
+  raw.prepare(`delete from instance_requests where user_id=?`).run(requestRow.user_id);
+  raw.prepare(`delete from deletion_requests where user_id=?`).run(requestRow.user_id);
   // remove the account
   const db = getDb();
-  await db.delete(users).where(eq(users.id, r.user_id));
+  await db.delete(users).where(eq(users.id, requestRow.user_id));
   rawDb().prepare(`update deletion_requests set status='fulfilled', fulfilled_at=?, fulfilled_by=? where id=?`).run(now(), admin.id, id);
 
-  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'gdpr.delete.fulfill', target: r.user_id, detail: { instances: insts.map((i) => i.id) } });
+  await logAudit({ actorId: admin.id, actorName: admin.name, action: 'gdpr.delete.fulfill', target: requestRow.user_id, detail: { instances: insts.map((inst) => inst.id) } });
   return json({ ok: true, status: 'fulfilled', destroyed: insts.length });
 }
 

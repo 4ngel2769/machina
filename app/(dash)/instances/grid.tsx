@@ -11,7 +11,7 @@ type Page = ReturnType<typeof useInstancesPage>;
 export function InstancesGrid({ page, isAdmin, onRequest }: {
   page: Page; isAdmin: boolean; onRequest: () => void;
 }) {
-  const planById = (id: string) => page.plans.find((p) => p.id === id);
+  const planById = (id: string) => page.plans.find((plan) => plan.id === id);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }} className="stagger">
       {page.loading && page.insts.length === 0 && Array.from({ length: 3 }).map((_, n) => (
@@ -29,8 +29,8 @@ export function InstancesGrid({ page, isAdmin, onRequest }: {
           />
         </div>
       )}
-      {page.insts.map((i) => (
-        <InstanceCard key={i.id} i={i} p={planById(i.planId)} spark={page.spark[i.id] ?? []} page={page} isAdmin={isAdmin} />
+      {page.insts.map((instance) => (
+        <InstanceCard key={instance.id} instance={instance} plan={planById(instance.planId)} spark={page.spark[instance.id] ?? []} page={page} isAdmin={isAdmin} />
       ))}
     </div>
   );

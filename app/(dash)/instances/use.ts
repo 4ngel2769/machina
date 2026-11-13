@@ -21,38 +21,38 @@ export function useInstancesPage() {
   // Only offer OS images that are actually usable. 'broken' is a quarantine by
   // the bootability audit, 'missing'/'downloading'/'failed' are not bootable
   // yet, and offering any of them means offering a VM that cannot start.
-  const readyImgs = imgs.filter((i) => i.status === 'ready');
+  const readyImgs = imgs.filter((image) => image.status === 'ready');
 
   const load = useCallback(async () => {
     /** Live hypervisor metrics for one running VM; empty array otherwise. */
-    const fetchSpark = (i: Inst) => {
-      if (i.status !== 'running') {
-        setSpark((p) => ({ ...p, [i.id]: [] }));
+    const fetchSpark = (instance: Inst) => {
+      if (instance.status !== 'running') {
+        setSpark((previous) => ({ ...previous, [instance.id]: [] }));
         return;
       }
-      fetch(`/api/instances/${i.id}/metrics?range=1h`, { cache: 'no-store' })
-        .then((x) => (x.ok ? x.json() : { points: [] }))
-        .then((m) => setSpark((p) => ({ ...p, [i.id]: m.points ?? [] })))
+      fetch(`/api/instances/${instance.id}/metrics?range=1h`, { cache: 'no-store' })
+        .then((metricsResponse) => (metricsResponse.ok ? metricsResponse.json() : { points: [] }))
+        .then((metrics) => setSpark((previous) => ({ ...previous, [instance.id]: metrics.points ?? [] })))
         .catch(() => {});
     };
-    const r = await fetch('/api/instances', { cache: 'no-store' });
-    if (r.ok) {
-      const j: Inst[] = await r.json();
-      setInsts(j);
-      for (const i of j) fetchSpark(i);
+    const instancesResponse = await fetch('/api/instances', { cache: 'no-store' });
+    if (instancesResponse.ok) {
+      const instances: Inst[] = await instancesResponse.json();
+      setInsts(instances);
+      for (const instance of instances) fetchSpark(instance);
     }
-    const a = await fetch('/api/catalog', { cache: 'no-store' });
-    if (a.ok) {
-      const j = await a.json();
-      setPlans((o) => (o.length ? o : j.plans));
-      setImgs(j.images);
-      setImgPickable(!!j.imagePickable);
-      setAssignedImage(j.assignedImageId ?? null);
+    const catalogResponse = await fetch('/api/catalog', { cache: 'no-store' });
+    if (catalogResponse.ok) {
+      const catalog = await catalogResponse.json();
+      setPlans((previous) => (previous.length ? previous : catalog.plans));
+      setImgs(catalog.images);
+      setImgPickable(!!catalog.imagePickable);
+      setAssignedImage(catalog.assignedImageId ?? null);
     }
-    const s = await fetch('/api/auth/session', { cache: 'no-store' });
-    if (s.ok) {
-      const j = await s.json();
-      setRole(j?.user?.role ?? 'user');
+    const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
+    if (sessionResponse.ok) {
+      const session = await sessionResponse.json();
+      setRole(session?.user?.role ?? 'user');
     }
     setLoading(false);
   }, []);
@@ -64,11 +64,11 @@ export function useInstancesPage() {
   // Preselect plan + OS once the catalog lands; never override a user pick.
   useEffect(() => {
     if (plans.length === 0) return;
-    setPlanId((o) => o || (plans[0]?.id ?? ''));
+    setPlanId((previous) => previous || (plans[0]?.id ?? ''));
   }, [plans]);
   useEffect(() => {
     if (imgs.length === 0) return;
-    setImageId((o) => o || (imgs.find((x) => x.status === 'ready')?.id ?? ''));
+    setImageId((previous) => previous || (imgs.find((image) => image.status === 'ready')?.id ?? ''));
   }, [imgs]);
 
   return {

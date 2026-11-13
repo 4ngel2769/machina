@@ -37,41 +37,41 @@ export function SnapHead({ snaps, disk, planDiskGb, busy, confirm }: {
   );
 }
 
-export function SnapNew({ s, live, canAct }: {
-  s: SnapshotsState; live: boolean; canAct: boolean;
+export function SnapNew({ snapshots, live, canAct }: {
+  snapshots: SnapshotsState; live: boolean; canAct: boolean;
 }) {
-  const nameErr = s.name && !NAME_RE.test(s.name)
+  const nameErr = snapshots.name && !NAME_RE.test(snapshots.name)
     ? 'lowercase letters, digits and dashes only'
     : '';
   return (
     <div className="snapnew">
       <div className="snappresets">
-        {PRESETS.map((p) => (
-          <button key={p} className="chip" onClick={() => s.setName(p)} disabled={Boolean(s.busy)}>
-            {p}
+        {PRESETS.map((preset) => (
+          <button key={preset} className="chip" onClick={() => snapshots.setName(preset)} disabled={Boolean(snapshots.busy)}>
+            {preset}
           </button>
         ))}
       </div>
       <div className="snaprow">
         <input
-          value={s.name}
+          value={snapshots.name}
           placeholder="snapshot name"
-          onChange={(e) => s.setName(e.target.value.toLowerCase())}
+          onChange={(event) => snapshots.setName(event.target.value.toLowerCase())}
           className={nameErr ? 'bad' : ''}
-          disabled={Boolean(s.busy)}
+          disabled={Boolean(snapshots.busy)}
         />
         <input
-          value={s.desc}
+          value={snapshots.desc}
           placeholder="note (optional)"
-          onChange={(e) => s.setDesc(e.target.value)}
-          disabled={Boolean(s.busy)}
+          onChange={(event) => snapshots.setDesc(event.target.value)}
+          disabled={Boolean(snapshots.busy)}
         />
         <button
           className="primary"
-          disabled={Boolean(s.busy) || !s.name || Boolean(nameErr)}
-          onClick={() => void s.post({ action: 'create', name: s.name, description: s.desc })}
+          disabled={Boolean(snapshots.busy) || !snapshots.name || Boolean(nameErr)}
+          onClick={() => void snapshots.post({ action: 'create', name: snapshots.name, description: snapshots.desc })}
         >
-          {s.busy && s.busy === s.name ? <Ring size={12} /> : null} take snapshot
+          {snapshots.busy && snapshots.busy === snapshots.name ? <Ring size={12} /> : null} take snapshot
         </button>
       </div>
       {nameErr && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{nameErr}</div>}
@@ -84,7 +84,7 @@ export function SnapNew({ s, live, canAct }: {
   );
 }
 
-export function SnapConfirm({ s, mode }: { s: SnapshotsState; mode: ConfirmState }) {
+export function SnapConfirm({ snapshots, mode }: { snapshots: SnapshotsState; mode: ConfirmState }) {
   return (
     <div className="notice warn" style={{ marginBottom: 12 }}>
       <div>
@@ -99,49 +99,49 @@ export function SnapConfirm({ s, mode }: { s: SnapshotsState; mode: ConfirmState
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
         <button
           className="primary"
-          onClick={() => void s.post({ action: 'revert', name: mode.snap.name, mode: mode.mode })}
-          disabled={Boolean(s.busy)}
+          onClick={() => void snapshots.post({ action: 'revert', name: mode.snap.name, mode: mode.mode })}
+          disabled={Boolean(snapshots.busy)}
         >
-          {s.busy ? <Ring size={12} /> : null} yes, roll back
+          {snapshots.busy ? <Ring size={12} /> : null} yes, roll back
         </button>
-        <button onClick={() => s.setConfirm(null)} disabled={Boolean(s.busy)}>cancel</button>
+        <button onClick={() => snapshots.setConfirm(null)} disabled={Boolean(snapshots.busy)}>cancel</button>
       </div>
     </div>
   );
 }
 
-function StateBadge({ s }: { s: Snap }) {
-  if (s.state === 'missing') return <span className="badge err">gone</span>;
-  if (s.current) return <span className="badge running">current</span>;
+function StateBadge({ snap }: { snap: Snap }) {
+  if (snap.state === 'missing') return <span className="badge err">gone</span>;
+  if (snap.current) return <span className="badge running">current</span>;
   return <span className="badge">disk</span>;
 }
 
-function SnapRow({ s, s2, canAct, setConfirm }: {
-  s: Snap; s2: SnapshotsState; canAct: boolean; setConfirm: (v: ConfirmState) => void;
+function SnapRow({ snap, state, canAct, setConfirm }: {
+  snap: Snap; state: SnapshotsState; canAct: boolean; setConfirm: (value: ConfirmState) => void;
 }) {
-  const dead = s.state === 'missing';
-  const dis = Boolean(s2.busy) || !canAct || dead;
+  const dead = snap.state === 'missing';
+  const dis = Boolean(state.busy) || !canAct || dead;
   return (
     <tr>
       <td>
-        <div className="mono">{s.name}</div>
-        {s.description && <div className="muted" style={{ fontSize: 12 }}>{s.description}</div>}
+        <div className="mono">{snap.name}</div>
+        {snap.description && <div className="muted" style={{ fontSize: 12 }}>{snap.description}</div>}
       </td>
-      <td title={new Date(s.createdAt).toLocaleString()}>
-        {s.createdAt ? relTime(s.createdAt) : '—'}
+      <td title={new Date(snap.createdAt).toLocaleString()}>
+        {snap.createdAt ? relTime(snap.createdAt) : '—'}
       </td>
-      <td><StateBadge s={s} /></td>
+      <td><StateBadge snap={snap} /></td>
       <td className="snapacts">
         <button
           disabled={dis}
-          onClick={() => setConfirm({ snap: s, mode: 'clean' })}
+          onClick={() => setConfirm({ snap, mode: 'clean' })}
           title="Shut the instance down, roll back, start it again"
         >
           roll back
         </button>
         <button
           disabled={dis}
-          onClick={() => setConfirm({ snap: s, mode: 'live' })}
+          onClick={() => setConfirm({ snap, mode: 'live' })}
           title="Roll back without shutting down first"
         >
           roll back live
@@ -149,7 +149,7 @@ function SnapRow({ s, s2, canAct, setConfirm }: {
         <button
           className="danger"
           disabled={dis}
-          onClick={() => void s2.post({ action: 'delete', name: s.name })}
+          onClick={() => void state.post({ action: 'delete', name: snap.name })}
         >
           delete
         </button>
@@ -158,9 +158,9 @@ function SnapRow({ s, s2, canAct, setConfirm }: {
   );
 }
 
-export function SnapTable({ s, canAct }: { s: SnapshotsState; canAct: boolean }) {
-  if (!s.loaded) return <div className="muted" style={{ padding: '18px 0' }}>loading snapshots…</div>;
-  if (s.snaps.length === 0) {
+export function SnapTable({ snapshots, canAct }: { snapshots: SnapshotsState; canAct: boolean }) {
+  if (!snapshots.loaded) return <div className="muted" style={{ padding: '18px 0' }}>loading snapshots…</div>;
+  if (snapshots.snaps.length === 0) {
     return <Empty text="No snapshots yet. Take one before a risky upgrade so you can come back to it." />;
   }
   return (
@@ -171,8 +171,8 @@ export function SnapTable({ s, canAct }: { s: SnapshotsState; canAct: boolean })
         </tr>
       </thead>
       <tbody>
-        {s.snaps.map((snap) => (
-          <SnapRow key={snap.name} s={snap} s2={s} canAct={canAct} setConfirm={s.setConfirm} />
+        {snapshots.snaps.map((snap) => (
+          <SnapRow key={snap.name} snap={snap} state={snapshots} canAct={canAct} setConfirm={snapshots.setConfirm} />
         ))}
       </tbody>
     </table>
