@@ -251,6 +251,7 @@ function Terminal({ instanceId }: { instanceId: string }) {
   const aliveRef = useRef(true);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triesRef = useRef(0);
+  const connectRef = useRef<(() => Promise<void>) | null>(null);
   const [state, setState] = useState<WsState>('idle');
   const [err, setErr] = useState('');
   const [persist, setPersist] = useState(true);
@@ -274,8 +275,6 @@ function Terminal({ instanceId }: { instanceId: string }) {
       void connectRef.current?.();
     }, delay);
   }, []);
-
-  const connectRef = useRef<(() => Promise<void>) | null>(null);
 
   const connect = useCallback(async () => {
     if (connRef.current || !aliveRef.current) return;
@@ -383,8 +382,9 @@ function Terminal({ instanceId }: { instanceId: string }) {
       scheduleReconnect();
     }
   }, [instanceId, persist, scheduleReconnect]);
-  connectRef.current = connect;
-
+  // The retry timer and the wake handlers outlive the render that scheduled
+  // them, so they call the latest connect through a ref.
+  useEffect(() => { connectRef.current = connect; });
   useEffect(() => {
     aliveRef.current = true;
     void connect();
@@ -513,7 +513,9 @@ function Console({ instanceId }: { instanceId: string }) {
       setState('error');
     }
   };
-  connectRef.current = connect;
+  // The retry timer and the wake handlers outlive the render that scheduled
+  // them, so they call the latest connect through a ref.
+  useEffect(() => { connectRef.current = connect; });
 
   useEffect(() => {
     aliveRef.current = true;

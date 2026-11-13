@@ -9,7 +9,7 @@ import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
 
 export async function GET(_req: NextRequest) {
-  const [, denied] = await requireAdmin();
+  const { response: denied } = await requireAdmin();
   if (denied) return denied;
 
   const available = await dockerAvailable();
@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [user, denied] = await requireAdmin();
+  const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

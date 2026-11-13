@@ -46,7 +46,7 @@ async function liveStats(name: string): Promise<Live> {
 }
 
 export async function GET(req: NextRequest) {
-  const [, e] = await requireAdmin();
+  const { response: e } = await requireAdmin();
   if (e) return e;
   const name = req.nextUrl.searchParams.get('name') ?? '';
   try {
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown> & { name?: string };
   const name = String(body.name ?? '');

@@ -26,7 +26,7 @@ function hostLog(): { rows: unknown[] } {
 }
 
 export async function GET(req: NextRequest) {
-  const [, e] = await requireAdmin();
+  const { response: e } = await requireAdmin();
   if (e) return e;
   if (req.nextUrl.searchParams.get('log')) return json(hostLog());
 
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   if (body.op === 'log') return json(hostLog());

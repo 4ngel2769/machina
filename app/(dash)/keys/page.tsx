@@ -74,7 +74,7 @@ export default function KeysPage() {
               <input id="k" value={pubKey} onChange={(e) => setPubKey(e.target.value)} placeholder="ssh-ed25519 AAAA… me@host" className="mono"
                 style={pubKey && !keyAlgo(pubKey) ? { borderColor: 'var(--warn)' } : undefined} />
               {pubKey && !keyAlgo(pubKey)
-                ? <div className="muted" style={{ marginTop: 4, color: 'var(--warn)' }}>doesn't look like an OpenSSH public key line</div>
+                ? <div className="muted" style={{ marginTop: 4, color: 'var(--warn)' }}>doesn&apos;t look like an OpenSSH public key line</div>
                 : null}
             </div>
             <button className="primary" type="submit" disabled={busy || !pubKey}>

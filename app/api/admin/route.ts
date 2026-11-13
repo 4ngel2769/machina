@@ -19,8 +19,8 @@ import { logAudit } from '@/lib/services/audit';
 import { syncState } from '@/lib/core/images';
 
 export async function GET(req: NextRequest) {
-  const g = await requireAdmin();
-  if (!g[0]) return g[1];
+  const { user: g, response: authError } = await requireAdmin();
+  if (!g) return authError;
   const limit = Math.min(200, Math.max(10, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get('offset') ?? 0));
   const rd0 = rawDb();
@@ -59,9 +59,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const g2 = await requireAdmin();
-  if (!g2[0]) return g2[1];
-  const admin = g2[0];
+  const { user: admin, response: authError } = await requireAdmin();
+  if (!admin) return authError;
   const body = (await req.json().catch(() => ({}))) as {
     op?: string; userId?: string; deltaCents?: number;
     name?: string; password?: string; role?: string; creditCents?: number;

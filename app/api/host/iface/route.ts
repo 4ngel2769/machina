@@ -8,7 +8,7 @@ import { listNetworks, bridges } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
 
 export async function GET() {
-  const [, e] = await requireAdmin();
+  const { response: e } = await requireAdmin();
   if (e) return e;
   try {
     const nets = await listNetworks().catch(() => []);
@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 

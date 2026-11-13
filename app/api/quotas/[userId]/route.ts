@@ -2,8 +2,7 @@
  * One account's quota: read it, edit it, and read the usage behind it.
  */
 import { NextRequest } from 'next/server';
-import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation } from '@/lib/api';
+import { json, err, guardMutation, requireAdmin } from '@/lib/api';
 import { rawDb } from '@/lib/db';
 import { quotaWithUsage, getHostCommitted, hostCapacity } from '@/lib/core/quota';
 import { now } from '@/lib/core/util';
@@ -11,18 +10,10 @@ import { logAudit } from '@/lib/services/audit';
 
 type Ctx = { params: Promise<{ userId: string }> };
 
-function requireAdmin() {
-  return requireUser().then((u) => {
-    if (!u) return [null, err('unauthorized', 401)] as const;
-    if (u.role !== 'admin') return [null, err('admin only', 403)] as const;
-    return [u, null] as const;
-  });
-}
-
 /** All users with their quota and live usage. Admin only: this is the whole
  *  capacity picture and every row is a customer. */
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const { userId } = await ctx.params;
   const rd = rawDb();
@@ -43,7 +34,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const { userId } = await ctx.params;
 

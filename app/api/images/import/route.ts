@@ -29,7 +29,7 @@ async function qemuImgInfo(file: string): Promise<Record<string, unknown>> {
 export async function POST(req: NextRequest) {
   const deniedMutation = guardMutation(req);
   if (deniedMutation) return deniedMutation;
-  const [user, denied] = await requireAdmin();
+  const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
 
   const id = String(req.nextUrl.searchParams.get('id') ?? '').trim().toLowerCase();
