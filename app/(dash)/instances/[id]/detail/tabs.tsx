@@ -8,6 +8,7 @@ import { relTime } from '@/app/ui/time';
 import { LogStream } from '@/app/ui/logstream';
 import { SnapshotsPanel } from '@/app/ui/snapshots';
 import { MetricsPanel } from '@/app/ui/metrics';
+import { SchedulePanel } from './schedule';
 import { Terminal } from './terminal';
 import { Console } from './console';
 import { TAB_LABEL, TABS, type Inst, type Job, type Tab } from './types';
@@ -77,9 +78,11 @@ export function TabBody({ tab, instance, jobs }: { tab: Tab; instance: Inst; job
       return <SnapshotsPanel instanceId={instance.id} instanceStatus={instance.status} />;
     case 'metrics':
       return <MetricsPanel instanceId={instance.id} instanceStatus={instance.status} />;
+    case 'schedule':
+      return <SchedulePanel instanceId={instance.id} instanceStatus={instance.status} />;
     case 'logs':
       return <LogStream lines={instance.logLines ?? []} live={instance.status === 'provisioning'} height={340} />;
-    case 'info':
+    default:
       return <InfoTab instance={instance} jobs={jobs} />;
   }
 }

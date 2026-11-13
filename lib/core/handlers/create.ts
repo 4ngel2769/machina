@@ -18,6 +18,7 @@ import { now } from '../util';
 import { eq } from 'drizzle-orm';
 import type { JobCtx } from '../handlers';
 import { ignore } from '@/lib/core/ignore';
+import { notifyInstance } from '@/lib/services/notify';
 
 type InstanceRow = {
   id: string; user_id: string; plan_id: string; image_id: string; name: string;
@@ -123,6 +124,7 @@ async function failProvisioning(instanceRow: InstanceRow, disk: { volName: strin
   await undefineDomain(instanceRow.domain_name);
   await deleteVolume(disk.volName);
   rawDb().prepare(`update instances set status='error', updated_at=? where id=?`).run(now(), instanceRow.id);
+  notifyInstance(instanceRow.user_id, 'error', instanceRow.name, 'provisioning failed — ssh never came up', `/instances/${instanceRow.id}`);
   throw new Error('provisioning timeout: ssh never came up (disk+domain cleaned)');
 }
 
@@ -149,6 +151,7 @@ export async function create(job: JobCtx, log: (m: string) => void): Promise<voi
   if (!(await waitSsh(instanceRow.ip, 150_000))) await failProvisioning(instanceRow, disk);
   rawDb().prepare(`update instances set status='running', vnc_socket=?, vnc_pass=?, updated_at=? where id=?`)
     .run(vncSocket, vncPass, now(), instanceRow.id);
+  notifyInstance(instanceRow.user_id, 'ok', instanceRow.name, 'is running', `/instances/${instanceRow.id}`);
   log('running');
 }
 

@@ -187,6 +187,18 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
 .toastdot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-top: 5px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
+/* --- job progress toasts (sonner custom) --- */
+.jobdot {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+}
+.jobdot.run { animation: jobdot-pulse 1.2s ease-in-out infinite; }
+.jobdot.err { background: var(--danger); animation: none; }
+@keyframes jobdot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
 /* --- sign-in page --- */
 .signin {
   min-height: 100dvh; display: flex; align-items: center; justify-content: center;

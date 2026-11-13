@@ -16,6 +16,8 @@ import { friendlyError } from '../errors';
 import { healStuckProvisioning } from './heal';
 import { auditImageBootability } from './image-audit';
 import { logInfo } from '@/lib/core/log';
+import { notify } from '@/lib/services/notify';
+import { runDueSchedules } from '@/lib/services/schedule';
 
 let tickInFlight = false;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -62,12 +64,23 @@ async function tick(): Promise<void> {
   tickInFlight = true;
   try {
     await reapProvisioning();
+    // Due schedules enqueue real lifecycle jobs; run before claiming so a
+    // fired schedule never waits a full poll behind an unrelated job.
+    try { await runDueSchedules(); } catch (scheduleError) {
+      logInfo(`[worker] schedule pass failed: ${(scheduleError as Error).message}`);
+    }
     const job = await claimNext();
     if (!job) return;
     logInfo(`[worker] job ${job.id}: ${job.type} ${job.instanceId ?? ''}`);
     const logs: string[] = [];
+    // Write-through: each step lands in jobs.log immediately, so the UI's
+    // 5s poll sees progress while the job runs instead of only after it
+    // settles. finishJob rewrites the same column with the full text anyway.
+    const persistLog = rawDb().prepare(`update jobs set log=? where id=?`);
     const log = (m: string) => {
-      logs.push(`[${new Date().toISOString()}] ${m}`);
+      const line = `[${new Date().toISOString()}] ${m}`;
+      logs.push(line);
+      persistLog.run(logs.join('\n').slice(-8000), job.id);
       logInfo(`[worker:${job.type}] ${m}`);
     };
     try {
@@ -80,6 +93,7 @@ async function tick(): Promise<void> {
       log(`FAILED: ${rawError}`);
       // raw tool output stays in the log; users get one readable sentence
       await finishJob(job.id, false, logs.join('\n'), friendlyError(rawError));
+      notifyJobFailure(job, friendlyError(rawError));
     }
   } finally {
     tickInFlight = false;
@@ -104,4 +118,15 @@ export async function reapProvisioning(): Promise<number> {
     logInfo(`[worker] reaped stranded provisioning instance ${instanceRow.id}`);
   }
   return rows.length;
+}
+
+/** Tell the job's owner when their work fails for a reason the handler did
+ *  not already narrate (handlers notify on their own success paths). */
+function notifyJobFailure(job: { type: string; instanceId: string | null; userId: string | null }, message: string): void {
+  if (!job.userId) return;
+  const row = job.instanceId
+    ? rawDb().prepare(`select name from instances where id=?`).get(job.instanceId) as { name: string } | undefined
+    : undefined;
+  const label = row?.name ?? job.type;
+  notify(job.userId, 'error', `${label}: ${job.type} failed`, message, job.instanceId ? `/instances/${job.instanceId}` : null);
 }

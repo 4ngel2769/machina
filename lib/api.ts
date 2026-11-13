@@ -4,7 +4,9 @@
 import { requireUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
 import { z } from 'zod';
+import { resolveToken, hasScope, TOKEN_PREFIX, type Scope } from '@/lib/services/apitoken';
 
 export function json(payload: unknown, status = 200): NextResponse {
   return NextResponse.json(payload, { status });
@@ -52,6 +54,23 @@ export async function requireAdmin(): Promise<AuthResult> {
   if (!user) return { user: null, response };
   if (user.role !== 'admin') return { user: null, response: err('admin only', 403) };
   return { user, response: null };
+}
+
+/**
+ * Scope gate for token-authenticated calls. Session-cookie requests are the
+ * UI and already carry full user rights, so this is a no-op for them; a
+ * machina_ bearer token must carry the named scope (admin:* covers admin
+ * surfaces). Call AFTER requireUser/requireAdmin — it re-reads the same
+ * Authorization header requireUser used.
+ */
+export async function requireScope(needed: Scope): Promise<NextResponse | null> {
+  const headerList = await headers();
+  const authHeader = headerList.get('authorization') ?? '';
+  if (!authHeader.startsWith(`Bearer ${TOKEN_PREFIX}`)) return null; // session path
+  const resolved = resolveToken(authHeader.slice(7).trim());
+  if (!resolved) return err('invalid token', 401);
+  if (!hasScope(resolved.scopes, needed)) return err(`token lacks scope ${needed}`, 403);
+  return null;
 }
 
 export function uuid(): string {

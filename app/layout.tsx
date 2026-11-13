@@ -2,6 +2,7 @@
  * Root layout: document shell, fonts and global styles.
  */
 import './globals.css';
+import 'sonner/dist/styles.css';
 
 export const metadata = {
   title: 'machina',

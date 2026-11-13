@@ -1,10 +1,13 @@
-/** Fixed top-right toast stack. `toast.ok|err|info(msg)`; errors linger longer. */
-
+/**
+ * Toast layer backed by sonner. `useToast().ok|err|info(msg)` keeps working
+ * for every existing call site; sonner renders them bottom-right, stacked,
+ * with its own dismiss and duration handling. Job toasts use toast.custom.
+ */
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useMemo } from 'react';
+import { Toaster, toast as sonner } from 'sonner';
 
-export type Toast = { id: number; kind: 'ok' | 'err' | 'info'; msg: string };
 type Ctx = { ok: (m: string) => void; err: (m: string) => void; info: (m: string) => void };
 
 const ToastCtx = createContext<Ctx>({ ok: () => {}, err: () => {}, info: () => {} });
@@ -14,32 +17,21 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const nextId = useRef(1);
-
-  const push = useCallback((kind: Toast['kind'], msg: string) => {
-    const id = nextId.current++;
-    setToasts((list) => [...list.slice(-3), { id, kind, msg }]);
-    setTimeout(() => setToasts((list) => list.filter((toast) => toast.id !== id)), kind === 'err' ? 6000 : 4000);
-  }, []);
-
   const ctx = useMemo<Ctx>(() => ({
-    ok: (message) => push('ok', message),
-    err: (message) => push('err', message),
-    info: (message) => push('info', message),
-  }), [push]);
+    ok: (message) => { sonner.success(message); },
+    err: (message) => { sonner.error(message, { duration: 8000 }); },
+    info: (message) => { sonner.info(message); },
+  }), []);
 
   return (
     <ToastCtx.Provider value={ctx}>
       {children}
-      <div className="toaststack" aria-live="polite">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast ${toast.kind}`}>
-            <span className="toastdot" aria-hidden />
-            <span>{toast.msg}</span>
-          </div>
-        ))}
-      </div>
+      <Toaster
+        position="bottom-right"
+        richColors
+        closeButton
+        toastOptions={{ style: { fontFamily: 'inherit' } }}
+      />
     </ToastCtx.Provider>
   );
 }

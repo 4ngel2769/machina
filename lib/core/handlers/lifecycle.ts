@@ -13,6 +13,7 @@ import { ensureThrottleState } from '../netmeter';
 import { now } from '../util';
 import type { JobCtx } from '../handlers';
 import { ignore } from '@/lib/core/ignore';
+import { notifyInstance } from '@/lib/services/notify';
 
 /** ACPI shutdown, then poll until libvirt reports it off; force after grace. */
 export async function shutdownAndWait(
@@ -36,7 +37,7 @@ export async function shutdownAndWait(
 
 export async function start(job: JobCtx, log: (m: string) => void): Promise<void> {
   const raw = rawDb();
-  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string } | undefined;
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; name: string; user_id: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
   log('starting');
   await startDomain(instanceRow.domain_name);
@@ -47,11 +48,12 @@ export async function start(job: JobCtx, log: (m: string) => void): Promise<void
   // attempt 1 of 3" on its page long after it was fine.
   raw.prepare(`update instances set status='running', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
     .run(now(), instanceRow.id);
+  notifyInstance(instanceRow.user_id, 'ok', instanceRow.name, 'started', `/instances/${instanceRow.id}`);
 }
 
 export async function stop(job: JobCtx, log: (m: string) => void): Promise<void> {
   const raw = rawDb();
-  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string } | undefined;
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; name: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
   const payload = JSON.parse(job.payload || '{}') as { force?: boolean; graceSec?: number };
   log('settle before stop');
@@ -70,11 +72,12 @@ export async function stop(job: JobCtx, log: (m: string) => void): Promise<void>
   log('stopped');
   raw.prepare(`update instances set status='stopped', auto_suspended=0, heal_count=0, updated_at=? where id=?`)
     .run(now(), instanceRow.id);
+  notifyInstance(instanceRow.user_id, 'info', instanceRow.name, 'stopped', `/instances/${instanceRow.id}`);
 }
 
 export async function del(job: JobCtx, log: (m: string) => void): Promise<void> {
   const raw = rawDb();
-  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string } | undefined;
+  const instanceRow = raw.prepare(`select * from instances where id=?`).get(job.instanceId) as { id: string; domain_name: string; user_id: string; mac: string; name: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
   log('settle before delete');
   await settleUser(instanceRow.user_id).catch(ignore('settle retries on the next tick'));
@@ -91,5 +94,6 @@ export async function del(job: JobCtx, log: (m: string) => void): Promise<void> 
   log('delete rows');
   raw.prepare(`delete from snapshots where instance_id=?`).run(instanceRow.id);
   raw.prepare(`delete from instances where id=?`).run(instanceRow.id);
+  notifyInstance(instanceRow.user_id, 'warn', instanceRow.name, 'was deleted', '/instances');
   log('deleted');
 }

@@ -199,6 +199,65 @@ export const quotas = sqliteTable('quotas', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+/** In-app notification feed: one row per event worth telling a user about. */
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  kind: text('kind').default('info').notNull(), // info | warn | error | ok
+  title: text('title').notNull(),
+  body: text('body').default('').notNull(),
+  link: text('link'),
+  readAt: integer('read_at'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [index('notif_user_idx').on(table.userId, table.readAt)]);
+
+/** Personal access tokens: only sha256(secret) is stored; plaintext shown once. */
+export const apiTokens = sqliteTable('api_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  prefix: text('prefix').notNull(), // first chars of the secret, for display
+  hash: text('hash').notNull(),     // sha256 hex of the full secret
+  scopes: text('scopes').default('[]').notNull(), // JSON array
+  lastUsedAt: integer('last_used_at'),
+  expiresAt: integer('expires_at'),
+  revokedAt: integer('revoked_at'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  index('apitok_user_idx').on(table.userId),
+  unique('apitok_hash_idx').on(table.hash),
+]);
+
+/** Per-sample bandwidth deltas for rate graphs (15-minute cadence). */
+export const netSamples = sqliteTable('net_samples', {
+  instanceId: text('instance_id').notNull(),
+  ts: integer('ts').notNull(),
+  rxDelta: integer('rx_delta').default(0).notNull(),
+  txDelta: integer('tx_delta').default(0).notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.instanceId, table.ts] }),
+  index('netsamp_ts_idx').on(table.ts),
+]);
+
+/** Scheduled lifecycle ops (start/stop at a future time). */
+export const scheduledOps = sqliteTable('scheduled_ops', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  instanceId: text('instance_id').notNull(),
+  action: text('action').notNull(), // start | stop
+  runAt: integer('run_at'),
+  dailyTime: text('daily_time'),
+  weeklyDow: integer('weekly_dow'),
+  nextRun: integer('next_run').notNull(),
+  lastRun: integer('last_run'),
+  status: text('status').default('active').notNull(),
+  lastError: text('last_error'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  index('schedue_due_idx').on(table.status, table.nextRun),
+  index('schedue_user_idx').on(table.userId),
+]);
+
 export type User = typeof users.$inferSelect;
 export type Instance = typeof instances.$inferSelect;
 export type Job = typeof jobs.$inferSelect;

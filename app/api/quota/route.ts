@@ -3,12 +3,14 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err } from '@/lib/api';
+import { json, err, requireScope } from '@/lib/api';
 import { quotaWithUsage, pct, getPendingUsage } from '@/lib/core/quota';
 
 export async function GET(_req: NextRequest) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('quota:read');
+  if (scopeDenied) return scopeDenied;
 
   // A user sees their own quota and their own usage. Admins get the full fleet
   // picture from /api/quotas instead, which is admin-gated.
