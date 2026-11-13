@@ -115,6 +115,24 @@ export function ChevronDownIcon(p: P) {
   );
 }
 
+export function ChevronRightIcon(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="m9 18 6-6-6-6" />
+    </Svg>
+  );
+}
+
+export function MenuIcon(p: P) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </Svg>
+  );
+}
+
 export function ExternalIcon(p: P) {
   return (
     <Svg {...p}>
@@ -372,7 +390,7 @@ export function PackageIcon(p: P) {
 
 export type IconName =
   | 'bell' | 'inbox' | 'check' | 'x' | 'info' | 'warn'
-  | 'arrow-right' | 'arrow-left' | 'chevron-up' | 'chevron-down' | 'external'
+  | 'arrow-right' | 'arrow-left' | 'chevron-up' | 'chevron-down' | 'chevron-right' | 'menu' | 'external'
   | 'server' | 'network' | 'database' | 'activity' | 'file-text' | 'cpu'
   | 'hard-drive' | 'disc' | 'layers' | 'camera' | 'radio' | 'key'
   | 'plus' | 'copy' | 'trash' | 'search' | 'refresh' | 'pause' | 'play'
@@ -381,7 +399,8 @@ export type IconName =
 const ICONS: Record<IconName, (p: P) => ReactElement> = {
   bell: BellIcon, inbox: InboxIcon, check: CheckIcon, x: XIcon, info: InfoIcon,
   warn: WarnIcon, 'arrow-right': ArrowRightIcon, 'arrow-left': ArrowLeftIcon,
-  'chevron-up': ChevronUpIcon, 'chevron-down': ChevronDownIcon, external: ExternalIcon,
+  'chevron-up': ChevronUpIcon, 'chevron-down': ChevronDownIcon,
+  'chevron-right': ChevronRightIcon, menu: MenuIcon, external: ExternalIcon,
   server: ServerIcon, network: NetworkIcon, database: DatabaseIcon, activity: ActivityIcon,
   'file-text': FileTextIcon, cpu: CpuIcon, 'hard-drive': HardDriveIcon, disc: DiscIcon,
   layers: LayersIcon, camera: CameraIcon, radio: RadioIcon, key: KeyIcon,

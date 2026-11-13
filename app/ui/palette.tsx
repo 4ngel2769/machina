@@ -39,7 +39,7 @@ const DESTS: Dest[] = [
 const SHORTCUTS: [string, string][] = [
   ['g h', 'home'], ['g i', 'instances'], ['g k', 'ssh keys'],
   ['g b', 'billing'], ['g s', 'specs'], ['g a', 'admin'],
-  ['/', 'focus search'], ['?', 'this palette'], ['esc', 'close'],
+  ['/', 'focus search'], ['[', 'toggle sidebar'], ['?', 'this palette'], ['esc', 'close'],
 ];
 
 export const PALETTE_OPEN_EVENT = 'machina:palette';
