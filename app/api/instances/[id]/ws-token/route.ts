@@ -29,9 +29,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   // Token is bound to the requester: user A's token never opens user B's relay.
+  // The VNC password rides along only for console tokens — the requester is
+  // already owner-or-admin verified above, and the WS token is 120s.
   return json({
     token: mintToken(id, typ, 120, user.id, user.role === 'admin'),
     expireSec: 120,
+    vncPass: typ === 'vnc' ? inst.vncPass : undefined,
     note: 'single use per channel; refresh via POST',
   });
 }

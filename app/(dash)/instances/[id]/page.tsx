@@ -485,7 +485,10 @@ function Console({ instanceId }: { instanceId: string }) {
       const wsUrl = `${proto}://${location.host}/api/instances/${instanceId}/console?token=${tok.token}`;
       const box = boxRef.current;
       if (!box) return;
-      const rfb = new RFB(box, wsUrl, {});
+      // QEMU runs VNC password=on; without credentials noVNC waits at the
+      // auth stage forever (the 'connecting…' hang). The ws-token route
+      // returns vncPass for console tokens, already owner/admin-gated.
+      const rfb = new RFB(box, wsUrl, tok.vncPass ? { credentials: { password: tok.vncPass } } : {});
       rfb.scaleViewport = true;
       // An idle VNC session is silent too, so it is reaped by the same proxy
       // rule as the terminal. Retry unless the user asked for the disconnect.
