@@ -82,6 +82,10 @@ export const config = {
     /** Largest ISO an admin may upload. An installer image is a few GB; the cap
      *  exists so a mistyped upload cannot fill the storage volume. */
     maxIsoGb: 16,
+    /** How many ISOs may sit in the library, and their combined size. Keeps a
+     *  series of uploads from becoming an unbounded disk consumer. */
+    maxIsoCount: 24,
+    maxIsoTotalGb: 64,
   },
   // Hypervisor metric sampling. 20s keeps the UI lively without the sampler
   // ever competing with the job worker for libvirt. Retention is a flat

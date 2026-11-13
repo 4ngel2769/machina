@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ChartBody } from './metrics/charts';
+import { NetPanel } from './metrics/net';
 import { RANGES, fmtRate, type Payload } from './metrics/format';
 
 /** The four headline numbers plus the range picker. */
@@ -93,6 +94,8 @@ export function MetricsPanel({ instanceId, instanceStatus }: { instanceId: strin
       )}
 
       <ChartBody payload={payload} loading={loading} off={off} />
+
+      <NetPanel instanceId={instanceId} off={off} />
     </div>
   );
 }

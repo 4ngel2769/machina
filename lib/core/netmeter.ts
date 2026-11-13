@@ -70,16 +70,23 @@ export async function sampleNetPass(): Promise<number> {
   let touched = 0;
   const up = db.prepare(`update net_monthly set rx_bytes=rx_bytes+?, tx_bytes=tx_bytes+?,
     rx_last=?, tx_last=?, updated_at=? where instance_id=? and month=?`);
+  const sampleAt = now();
+  const addSample = db.prepare(`insert or replace into net_samples (instance_id, ts, rx_delta, tx_delta) values (?,?,?,?)`);
   for (const ifaceStats of stats) {
     const instanceId = domToInstance.get(ifaceStats.domain);
     if (!instanceId) continue; // not ours (lab VMs etc.)
     const row = getRow(instanceId, month);
     const deltaRx = ifaceStats.rxBytes >= row.rx_last ? ifaceStats.rxBytes - row.rx_last : ifaceStats.rxBytes;
     const deltaTx = ifaceStats.txBytes >= row.tx_last ? ifaceStats.txBytes - row.tx_last : ifaceStats.txBytes;
-    up.run(deltaRx, deltaTx, ifaceStats.rxBytes, ifaceStats.txBytes, now(), instanceId, month);
+    up.run(deltaRx, deltaTx, ifaceStats.rxBytes, ifaceStats.txBytes, sampleAt, instanceId, month);
+    // Same deltas feed the rate graph. ts is the sample instant; two samples
+    // 15min apart give bytes-per-interval which the UI divides by elapsed.
+    addSample.run(instanceId, sampleAt, deltaRx, deltaTx);
     touched += 1;
   }
   if (touched) logInfo(`[netmeter] sampled ${touched} instance(s)`);
+  // The graph only needs recent history; keep a week of 15-minute samples.
+  db.prepare(`delete from net_samples where ts < ?`).run(sampleAt - 7 * 86_400_000);
   return touched;
 }
 

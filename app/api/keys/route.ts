@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, uuid, guardMutation, jsonBody } from '@/lib/api';
+import { json, err, uuid, guardMutation, jsonBody, requireScope } from '@/lib/api';
 import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { sshKeys } from '@/lib/db/schema';
@@ -14,6 +14,8 @@ import { logAudit } from '@/lib/services/audit';
 export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('keys:read');
+  if (scopeDenied) return scopeDenied;
   const rows = user.role === 'admin'
     ? await getDb().select().from(sshKeys)
     : await getDb().select().from(sshKeys).where(eq(sshKeys.userId, user.id));
@@ -23,6 +25,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const denied = guardMutation(req);
   if (denied) return denied;
+  const scopeDenied = await requireScope('keys:write');
+  if (scopeDenied) return scopeDenied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const body = await jsonBody(req, z.object({ label: z.string().optional(), pubKey: z.string().optional() }).passthrough());

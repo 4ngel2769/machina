@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { now } from '@/lib/core/util';
 import { provisionInstance } from '@/lib/core/provision';
 import { logAudit } from '@/lib/services/audit';
+import { notify } from '@/lib/services/notify';
 import { jsonBody } from '@/lib/api';
 import { z } from 'zod';
 
@@ -35,6 +36,7 @@ async function reject(requestRow: RequestRow, admin: { id: string; name: string 
   rawDb().prepare(`update instance_requests set status='rejected', reviewed_by=?, reviewed_at=?, review_note=? where id=?`).run(
     admin.id, now(), reviewNote(body), requestRow.id);
   await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.reject', target: requestRow.id });
+  notify(requestRow.user_id, 'warn', `request "${requestRow.name}" rejected`, reviewNote(body) ?? '', '/instances');
   return json({ ok: true, status: 'rejected' });
 }
 
@@ -56,6 +58,7 @@ async function approve(requestRow: RequestRow, id: string, admin: { id: string; 
     rawDb().prepare(`update instance_requests set status='approved', reviewed_by=?, reviewed_at=?, result_instance_id=?, review_note=? where id=?`).run(
       admin.id, now(), inst.id, reviewNote(body), id);
     await logAudit({ actorId: admin.id, actorName: admin.name, action: 'instance.request.approve', target: id, detail: { instanceId: inst.id } });
+    notify(requestRow.user_id, 'ok', `request "${requestRow.name}" approved`, 'provisioning started', `/instances/${inst.id}`);
     return json({ ok: true, status: 'approved', instanceId: inst.id });
   } catch (error) {
     return err((error as Error).message || 'provision failed', 400);

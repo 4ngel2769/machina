@@ -82,7 +82,7 @@ export function HostPanel() {
         ))}
       </div>
 
-      {err && <div className="notice err" style={{ marginTop: 12 }}>{err}</div>}
+      {err && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{err}</span><button onClick={inv.reload} style={{ fontSize: 12 }}>retry</button></div>}
 
       {tab === 'machines' && (
         <Machines

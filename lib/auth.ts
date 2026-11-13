@@ -3,8 +3,10 @@
  */
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { headers } from 'next/headers';
 import { rawDb } from '@/lib/db';
 import { verifyPassword, rateLimit } from '@/lib/core/crypto';
+import { resolveToken, TOKEN_PREFIX } from '@/lib/services/apitoken';
 
 /** Client address for the login throttle: first x-forwarded-for hop. */
 function requestIp(req: unknown): string {
@@ -78,13 +80,33 @@ export const auth = authConfig.auth;
 export const signIn = authConfig.signIn;
 export const signOut = authConfig.signOut;
 
-/** Session guard for API routes and pages. */
+type TokenUser = { id: string; name: string; role: string };
+
+/** Bearer-token path: resolve the secret, load the (still-active) user. */
+async function userFromToken(secret: string): Promise<TokenUser | null> {
+  const resolved = resolveToken(secret);
+  if (!resolved) return null;
+  const row = rawDb().prepare('select id, name, role from users where id=?').get(resolved.token.user_id) as
+    | { id: string; name: string; role: string } | undefined;
+  return row ?? null;
+}
+
+/** Session guard for API routes and pages. Accepts a next-auth session OR a
+ *  machina_ bearer token; the token path exists so scripts and integrations
+ *  can call the same routes without a cookie jar. */
 export async function requireUser(): Promise<{ id: string; name: string; role: string } | null> {
   const session = await auth();
-  if (!session?.user?.id) return null;
-  return {
-    id: String((session.user as { id: string }).id),
-    name: String(session.user.name ?? ''),
-    role: String((session.user as { role?: string }).role ?? 'user'),
-  };
+  if (session?.user?.id) {
+    return {
+      id: String((session.user as { id: string }).id),
+      name: String(session.user.name ?? ''),
+      role: String((session.user as { role?: string }).role ?? 'user'),
+    };
+  }
+  const headerList = await headers();
+  const authHeader = headerList.get('authorization') ?? '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+  const secret = authHeader.slice(7).trim();
+  if (!secret.startsWith(TOKEN_PREFIX)) return null;
+  return userFromToken(secret);
 }

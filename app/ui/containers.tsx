@@ -70,7 +70,7 @@ function ListBody({ list, allCount, shownCount, groups, actions }: {
   const empty = list.payload && shownCount === 0;
   return (
     <>
-      {list.error && <div className="notice err" style={{ marginTop: 12 }}>{list.error}</div>}
+      {list.error && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{list.error}</span><button onClick={list.reload} style={{ fontSize: 12 }}>retry</button></div>}
       {list.payload?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.payload.error}</div>}
       {!list.payload && <Empty text="reading docker…" />}
       {empty && (

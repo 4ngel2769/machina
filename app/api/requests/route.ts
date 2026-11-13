@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation } from '@/lib/api';
+import { json, err, guardMutation, requireScope } from '@/lib/api';
 import { getDb, rawDb } from '@/lib/db';
 import { users, plans, images } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -17,11 +17,14 @@ import { z } from 'zod';
 const requestBodySchema = z.object({
   name: z.string().optional(), planId: z.string().optional(),
   imageId: z.string().optional(), note: z.string().optional(),
+  id: z.string().optional(), op: z.string().optional(),
 }).passthrough();
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('requests:read');
+  if (scopeDenied) return scopeDenied;
   const raw = rawDb();
   const rows = user.role === 'admin'
     ? raw.prepare(`select * from instance_requests order by created_at desc`).all()
@@ -96,15 +99,37 @@ async function pickImageId(userId: string, bodyImageId: string | undefined) {
   return chosenImageId(bodyImageId);
 }
 
+/** A user withdraws their own pending request. Only pending rows can be
+ *  cancelled — an approved request already owns an instance and goes through
+ *  the deletion flow instead. */
+function cancelOwn(userId: string, requestId: string | undefined) {
+  if (!requestId) return err('id required');
+  const raw = rawDb();
+  const row = raw.prepare(`select id, status from instance_requests where id=? and user_id=?`).get(requestId, userId) as
+    | { id: string; status: string } | undefined;
+  if (!row) return err('not found', 404);
+  if (row.status !== 'pending') return err('only pending requests can be cancelled', 409);
+  raw.prepare(`update instance_requests set status='cancelled', reviewed_at=? where id=?`).run(now(), row.id);
+  return json({ ok: true, status: 'cancelled' });
+}
+
 export async function POST(req: NextRequest) {
   const denied = guardMutation(req);
   if (denied) return denied;
+  const scopeDenied = await requireScope('requests:write');
+  if (scopeDenied) return scopeDenied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   if (user.role === 'admin') return err('admins create directly via /api/instances', 400);
   if (!rateLimit(`req:${user.id}`, 5, 60 * 60_000)) return err('too many requests; slow down', 429);
 
   const body = await jsonBody(req, requestBodySchema);
+  if (body.op === 'cancel') return cancelOwn(user.id, body.id);
+  return submitValidated(user, body);
+}
+
+/** Name, plan and image checks then the quota-gated insert. */
+async function submitValidated(user: { id: string; name: string; role: string }, body: { name?: string; planId?: string; imageId?: string; note?: string }) {
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
   const pickedPlan = await pickPlan(body.planId);
@@ -114,7 +139,7 @@ export async function POST(req: NextRequest) {
   if ('refused' in picked) return picked.refused;
   const imageId = picked.imageId;
 
-  return await submitRequest(user, name, pickedPlan, imageId, body.note);
+  return submitRequest(user, name, pickedPlan, imageId, body.note);
 }
 
 /** Duplicate-name and quota gates, then the insert. */

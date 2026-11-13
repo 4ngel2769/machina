@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation, jsonBody } from '@/lib/api';
+import { json, err, guardMutation, requireScope, jsonBody } from '@/lib/api';
 import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans, images, users } from '@/lib/db/schema';
@@ -19,6 +19,8 @@ import { logAudit } from '@/lib/services/audit';
 export async function GET() {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('instances:read');
+  if (scopeDenied) return scopeDenied;
   const db = getDb();
   // Specs come off the joined plan, not off the catalog: a custom plan is
   // deliberately absent from the catalog, so reading sizes from there left
@@ -52,6 +54,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('instances:write');
+  if (scopeDenied) return scopeDenied;
   const denied = guardMutation(req);
   if (denied) return denied;
   // Non-admin users must REQUEST an instance (admin approves). Direct create
@@ -64,9 +68,13 @@ export async function POST(req: NextRequest) {
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
   if (!rateLimit(`create:${user.id}`, 10, 10 * 60_000)) return err('too many creations; slow down', 429);
 
+  return provision(user, name, body.planId, body.imageId);
+}
+
+async function provision(user: { id: string; name: string; role: string }, name: string, planId: string | undefined, imageId: string | undefined) {
   try {
     const created = await provisionInstance({
-      userId: user.id, name, planId: body.planId ?? '', imageId: body.imageId,
+      userId: user.id, name, planId: planId ?? '', imageId,
       actorName: user.name, actorRole: user.role,
     });
     return json({ id: created.id, ip: created.ip, name: created.name, status: 'provisioning' }, 201);

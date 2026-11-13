@@ -9,6 +9,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { Blobatar } from '@blobatar/react';
 import 'blobatar/motion.css';
+import { Bell } from '@/app/ui/bell';
 
 export function TopNav({ name, role }: { name: string; role: string }) {
   const pathname = usePathname();
@@ -37,6 +38,7 @@ export function TopNav({ name, role }: { name: string; role: string }) {
         ))}
       </nav>
       <div className="spacer" />
+      <Bell />
       <div style={{ position: 'relative' }}>
         <button className="profilebtn" onClick={() => setOpen((prev) => !prev)} aria-haspopup="menu" aria-expanded={open}>
           <Blobatar name={name} size={22} animate="hover" />
@@ -46,6 +48,8 @@ export function TopNav({ name, role }: { name: string; role: string }) {
         {open && (
           <div className="profilemenu" role="menu" onClick={() => setOpen(false)}>
             <Link href="/account" role="menuitem">account</Link>
+            <Link href="/notifications" role="menuitem">notifications</Link>
+            <Link href="/tokens" role="menuitem">api tokens</Link>
             <Link href="/billing" role="menuitem">billing</Link>
             <Link href="/specs" role="menuitem">specs</Link>
             {role === 'admin' && <Link href="/host" role="menuitem">host</Link>}

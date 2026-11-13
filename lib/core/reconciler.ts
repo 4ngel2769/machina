@@ -14,6 +14,7 @@ import { diskVolFromId, deleteVolume } from './disks';
 import { enqueue, inFlightForInstance } from './jobs';
 import { checkQuotas } from './netmeter';
 import { now } from './util';
+import { notify } from '@/lib/services/notify';
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
@@ -88,6 +89,7 @@ async function suspendBrokeUsers(): Promise<number> {
       await db.update(instances).set({ autoSuspended: 1, status: 'suspended', updatedAt: now() }).where(
         (await import('drizzle-orm')).eq(instances.id, instanceRow.id));
       logInfo(`[reconciler] auto-suspend ${instanceRow.id} (user ${instanceRow.userId} broke)`);
+      notify(instanceRow.userId, 'warn', `${instanceRow.name ?? instanceRow.id} auto-suspended`, 'balance exhausted — top up to restart', `/instances/${instanceRow.id}`);
       suspended += 1;
     }
   }

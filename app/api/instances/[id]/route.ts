@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, guardMutation, jsonBody } from '@/lib/api';
+import { json, err, guardMutation, requireScope, jsonBody } from '@/lib/api';
 import { z } from 'zod';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans } from '@/lib/db/schema';
@@ -213,6 +213,8 @@ function problemLine(status: string, lastFailed: JobRow | undefined) {
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
+  const scopeDenied = await requireScope('instances:read');
+  if (scopeDenied) return scopeDenied;
   const { id } = await ctx.params;
   const [inst, forbidden] = await load(id, user.id, user.role);
   if (forbidden) return forbidden;
@@ -223,6 +225,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const denied = guardMutation(req);
   if (denied) return denied;
+  const scopeDenied = await requireScope('instances:write');
+  if (scopeDenied) return scopeDenied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
@@ -234,12 +238,18 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (action === 'clone') return cloneInstance(user, inst, body);
   const refused = lifecycleRefusal(action, inst.status);
   if (refused) return refused;
+  if (!action) return err('unknown action');
   const active = rawDb().prepare(
     `select 1 from jobs where instance_id=? and status in ('queued','running')`,
   ).get(id);
   if (active) return err('a job is already in flight for this instance', 409);
 
   await logAudit({ actorId: user.id, actorName: user.name, action: `instance.${action}`, target: id });
+  return enqueueLifecycle(action, inst, id, Boolean(body.force));
+}
+
+/** Audit already written; this only picks the job type and enqueues. */
+async function enqueueLifecycle(action: string, inst: { userId: string }, id: string, force: boolean) {
   if (action === 'delete') {
     await enqueue({ type: 'instance.delete', instanceId: id, userId: inst.userId });
     return json({ ok: true, action, note: 'deleting: settle, destroy, cleanup' });
@@ -248,7 +258,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     type: action === 'start' ? 'instance.start' : 'instance.stop',
     instanceId: id,
     userId: inst.userId,
-    payload: { force: Boolean(body.force) },
+    payload: { force },
   });
   return json({ ok: true, action });
 }

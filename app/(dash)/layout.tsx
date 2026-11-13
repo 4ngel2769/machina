@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/auth';
 import { ToastProvider } from '@/app/ui/toast';
+import { JobToasts } from '@/app/ui/job-toasts';
 import { LoadBar } from '@/app/ui/loadbar';
 import { Shortcuts } from '@/app/ui/shortcuts';
 import { Palette } from '@/app/ui/palette';
@@ -35,6 +36,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <SessionGuard />
       <Shortcuts />
       <Palette role={user.role} />
+      <JobToasts />
     </ToastProvider>
   );
 }

@@ -85,17 +85,43 @@ function CpuLine({ series }: { series: Sample[] }) {
   );
 }
 
-export function InstanceCard({ instance, plan, spark, page, isAdmin }: {
+/** Small group picker in the card corner; assigns via localStorage. */
+function GroupPicker({ group, groupNames, onAssign }: {
+  group: string | null; groupNames: string[]; onAssign: (name: string | null) => void;
+}) {
+  return (
+    <select
+      value={group ?? ''}
+      onChange={(event) => onAssign(event.target.value || null)}
+      aria-label="instance group"
+      title="group"
+      style={{ fontSize: 11, padding: '1px 4px', maxWidth: 110, opacity: 0.85 }}
+    >
+      <option value="">—</option>
+      {groupNames.map((name) => <option key={name} value={name}>{name}</option>)}
+    </select>
+  );
+}
+
+export function InstanceCard({ instance, plan, spark, page, isAdmin, group, groupNames, onAssignGroup, selected, onToggle }: {
   instance: Inst; plan: Plan | undefined; spark: Sample[]; page: Page; isAdmin: boolean;
+  group: string | null; groupNames: string[]; onAssignGroup: (name: string | null) => void;
+  selected: boolean; onToggle: () => void;
 }) {
   const series = spark;
   const isLive = instance.status === 'running';
   const hasActiveJob = instance.activeJob && (instance.activeJob.status === 'running' || instance.activeJob.status === 'queued');
   return (
-    <div className="card card-hover" style={{ padding: 14, margin: 0, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-        <Link href={`/instances/${instance.id}`} style={{ fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{instance.name}</Link>
-        <StatusCue status={instance.status} jobType={hasActiveJob ? instance.activeJob!.type : undefined} />
+    <div className="card card-hover" style={{ padding: 14, margin: 0, position: 'relative', overflow: 'hidden', outline: selected ? '1px solid var(--accent)' : undefined }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 8 }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, cursor: 'pointer' }}>
+          <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`select ${instance.name}`} />
+          <Link href={`/instances/${instance.id}`} style={{ fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{instance.name}</Link>
+        </label>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 'none' }}>
+          <GroupPicker group={group} groupNames={groupNames} onAssign={onAssignGroup} />
+          <StatusCue status={instance.status} jobType={hasActiveJob ? instance.activeJob!.type : undefined} />
+        </span>
       </div>
       <PlanLine instance={instance} plan={plan} />
       <SpecLine instance={instance} plan={plan} />
