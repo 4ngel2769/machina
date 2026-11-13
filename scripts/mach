@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# mach — CLI for a machina installation.
+# Installed to /usr/local/bin by install.sh. Detects the install dir via
+# MACHINA_HOME, then common locations, then its own path.
+set -euo pipefail
+
+SERVICE=machina.service
+GFW_SERVICE=machina-gfw.service
+BACKUP_SERVICE=machina-backup.service
+BACKUP_TIMER=machina-backup.timer
+
+# --- locate the install -------------------------------------------------------
+find_home() {
+  if [[ -n "${MACHINA_HOME:-}" && -f "$MACHINA_HOME/server.ts" ]]; then echo "$MACHINA_HOME"; return; fi
+  for d in /opt/machina /home/*/machina "$HOME/machina"; do
+    [[ -f "$d/server.ts" ]] && { echo "$d"; return; }
+  done
+  # script lives in <repo>/scripts or was copied to /usr/local/bin — check
+  # whether we sit inside a repo checkout
+  local self
+  self=$(readlink -f "$0")
+  if [[ "$self" == */scripts/mach ]]; then echo "$(dirname "$(dirname "$self")")"; return; fi
+  echo ""
+}
+HOME_DIR="$(find_home)"
+DATA_DIR="${MACHINA_DATA_DIR:-/var/lib/machina}"
+ENV_FILE="$DATA_DIR/machina.env"
+UNIT_DIR=/etc/systemd/system
+
+# --- cosmetics -----------------------------------------------------------------
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_RESET=$'\033[0m'; C_DIM=$'\033[2m'; C_RED=$'\033[31m'; C_GRN=$'\033[32m'
+  C_YEL=$'\033[33m'; C_BLU=$'\033[34m'; C_CYN=$'\033[36m'
+else
+  C_RESET=; C_DIM=; C_RED=; C_GRN=; C_YEL=; C_BLU=; C_CYN=
+fi
+ok()   { printf '  %s✔%s %s\n' "$C_GRN" "$C_RESET" "$*"; }
+bad()  { printf '  %s✖%s %s\n' "$C_RED" "$C_RESET" "$*"; }
+warn() { printf '  %s!%s %s\n' "$C_YEL" "$C_RESET" "$*"; }
+info() { printf '  %s→%s %s\n' "$C_CYN" "$C_RESET" "$*"; }
+hdr()  { printf '\n%s%s%s\n' "$C_BLU" "$*" "$C_RESET"; }
+die()  { bad "$*"; exit 1; }
+need_root() { [[ $EUID -eq 0 ]] || die "this needs root — re-run with sudo"; }
+
+usage() {
+  cat <<'EOF'
+mach — manage a machina VM-rental installation
+
+usage: mach <command>
+
+  status            service, port, disk, libvirtd, docker — one screen
+  start|stop|restart   control machina.service (sudo)
+  logs [-f]         journalctl for machina.service (sudo)
+  update            git pull + npm ci + build + restart (MACHINA_HOME)
+  backup            run machina-backup.service now (sudo)
+  version           machina version + install paths
+  uninstall [--purge]  remove service + units + CLI (keeps data unless --purge)
+  help              this text
+
+env: MACHINA_HOME (install dir), MACHINA_DATA_DIR (default /var/lib/machina)
+EOF
+}
+
+svc_state() {
+  systemctl is-active "$SERVICE" 2>/dev/null || echo "inactive"
+}
+
+disk_free() {
+  df -h "$DATA_DIR" 2>/dev/null | awk 'NR==2{print $4" free of "$2}' || echo "?"
+}
+
+cmd_status() {
+  hdr "machina status"
+  local st; st=$(svc_state)
+  if [[ "$st" == "active" ]]; then ok "service: active"; else bad "service: $st"; fi
+
+  local port; port=$(grep -oP 'SERVER_PORT=\K\d+' "$ENV_FILE" 2>/dev/null || echo 3999)
+  if curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$port/api/version" 2>/dev/null; then
+    ok "http: 127.0.0.1:$port answering"
+  else
+    warn "http: 127.0.0.1:$port not answering"
+  fi
+
+  info "data dir: $DATA_DIR ($(disk_free))"
+  info "install:  ${HOME_DIR:-not found}"
+
+  if systemctl is-active --quiet libvirtd 2>/dev/null || systemctl is-active --quiet libvirtd.service 2>/dev/null; then
+    ok "libvirtd: active"
+  else
+    warn "libvirtd: not active"
+  fi
+
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    ok "docker: daemon reachable"
+  else
+    warn "docker: not reachable (containers page will be empty)"
+  fi
+
+  if systemctl is-enabled --quiet "$BACKUP_TIMER" 2>/dev/null; then
+    local next; next=$(systemctl list-timers "$BACKUP_TIMER" --no-pager 2>/dev/null | awk 'NR==2{print $1, $2, $3}')
+    ok "backup timer: armed (next: ${next:-?})"
+  else
+    warn "backup timer: not enabled"
+  fi
+
+  printf '\n'
+}
+
+svc_ctl() {
+  need_root
+  case "$1" in
+    start)   systemctl start "$SERVICE" ;;
+    stop)    systemctl stop "$SERVICE" ;;
+    restart) systemctl restart "$SERVICE" ;;
+  esac
+  sleep 1
+  cmd_status
+}
+
+cmd_logs() {
+  need_root
+  if [[ "${1:-}" == "-f" ]]; then journalctl -u "$SERVICE" -f
+  else journalctl -u "$SERVICE" -n "${2:-50}" --no-pager; fi
+}
+
+cmd_update() {
+  [[ -n "$HOME_DIR" ]] || die "no install found (set MACHINA_HOME)"
+  cd "$HOME_DIR"
+  hdr "updating machina in $HOME_DIR"
+  info "git pull"
+  git pull --ff-only || die "git pull failed (local changes? resolve first)"
+  info "npm ci"
+  if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+  info "build"
+  npm run build
+  info "restart"
+  need_root
+  systemctl restart "$SERVICE"
+  sleep 2
+  ok "updated and restarted"
+  cmd_status
+}
+
+cmd_backup() {
+  need_root
+  if systemctl cat "$BACKUP_SERVICE" >/dev/null 2>&1; then
+    info "running $BACKUP_SERVICE"
+    systemctl start "$BACKUP_SERVICE"
+    journalctl -u "$BACKUP_SERVICE" -n 15 --no-pager
+  else
+    die "backup unit not installed (re-run install.sh)"
+  fi
+}
+
+cmd_version() {
+  hdr "machina"
+  if [[ -f "$HOME_DIR/package.json" ]]; then
+    grep -oP '"version":\s*"\K[^"]+' "$HOME_DIR/package.json" | sed 's/^/  version: /'
+  fi
+  info "install dir: ${HOME_DIR:-not found}"
+  info "data dir:    $DATA_DIR"
+  info "service:     $(svc_state)"
+}
+
+cmd_uninstall() {
+  need_root
+  local purge=0
+  [[ "${1:-}" == "--purge" ]] && purge=1
+  hdr "uninstalling machina"
+  warn "this removes the systemd units, firewall ruleset, CLI and install dir"
+  [[ $purge -eq 1 ]] && warn "--purge also deletes $DATA_DIR (database, keys, images) — irreversible"
+  printf '  type "yes" to continue: '; read -r ans
+  [[ "$ans" == "yes" ]] || { info "aborted"; exit 0; }
+  systemctl disable --now "$SERVICE" "$GFW_SERVICE" "$BACKUP_TIMER" 2>/dev/null || true
+  rm -f "$UNIT_DIR/$SERVICE" "$UNIT_DIR/$GFW_SERVICE" "$UNIT_DIR/$BACKUP_SERVICE" "$UNIT_DIR/$BACKUP_TIMER"
+  rm -f /etc/nftables.d/machina-gfw.nft
+  rm -f /usr/local/bin/mach /usr/local/bin/machina-backup.sh
+  systemctl daemon-reload
+  [[ -n "$HOME_DIR" && "$HOME_DIR" != "/" ]] && rm -rf "$HOME_DIR"
+  if [[ $purge -eq 1 ]]; then rm -rf "$DATA_DIR"; else warn "kept $DATA_DIR (use --purge to delete)"; fi
+  ok "uninstalled"
+}
+
+case "${1:-help}" in
+  status)    cmd_status ;;
+  start)     svc_ctl start ;;
+  stop)      svc_ctl stop ;;
+  restart)   svc_ctl restart ;;
+  logs)      shift; cmd_logs "$@" ;;
+  update)    cmd_update ;;
+  backup)    cmd_backup ;;
+  version)   cmd_version ;;
+  uninstall) shift; cmd_uninstall "$@" ;;
+  help|-h|--help) usage ;;
+  *) die "unknown command: $1 (try 'mach help')" ;;
+esac
