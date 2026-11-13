@@ -15,6 +15,7 @@ import { now } from '../util';
 import { friendlyError } from '../errors';
 import { healStuckProvisioning } from './heal';
 import { auditImageBootability } from './image-audit';
+import { logInfo } from '@/lib/core/log';
 
 let tickInFlight = false;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -27,7 +28,7 @@ export function startWorker(): void {
   if (timer) return;
   timer = setInterval(() => { void tick(); }, config.workerPollMs);
   healTimer = setInterval(() => { try { healStuckProvisioning(); } catch (healError) {
-    console.log(`[worker] self-heal pass failed: ${(healError as Error).message}`);
+    logInfo(`[worker] self-heal pass failed: ${(healError as Error).message}`);
   } }, 30_000);
   // Metrics ride their OWN timer. They must never share the job worker's loop:
   // a sweep that blocked on a wedged guest would stall provisioning behind a
@@ -39,8 +40,8 @@ export function startWorker(): void {
   // Boot-time recovery: jobs stranded in 'running' by a mid-job server death
   // are re-queued (a dead worker never marks them done).
   const reclaimed = rawDb().prepare(`update jobs set status='queued', run_after=? where status='running'`).run(now());
-  if (reclaimed.changes > 0) console.log(`[worker] reclaimed ${reclaimed.changes} stranded running job(s)`);
-  console.log(`[worker] poll ${config.workerPollMs}ms`);
+  if (reclaimed.changes > 0) logInfo(`[worker] reclaimed ${reclaimed.changes} stranded running job(s)`);
+  logInfo(`[worker] poll ${config.workerPollMs}ms`);
   void auditImageBootability();
 }
 
@@ -63,11 +64,11 @@ async function tick(): Promise<void> {
     await reapProvisioning();
     const job = await claimNext();
     if (!job) return;
-    console.log(`[worker] job ${job.id}: ${job.type} ${job.instanceId ?? ''}`);
+    logInfo(`[worker] job ${job.id}: ${job.type} ${job.instanceId ?? ''}`);
     const logs: string[] = [];
     const log = (m: string) => {
       logs.push(`[${new Date().toISOString()}] ${m}`);
-      console.log(`[worker:${job.type}] ${m}`);
+      logInfo(`[worker:${job.type}] ${m}`);
     };
     try {
       const handler = HANDLERS[job.type];
@@ -100,7 +101,7 @@ export async function reapProvisioning(): Promise<number> {
   `).all(cutoff) as { id: string }[];
   for (const instanceRow of rows) {
     raw.prepare(`update instances set status='error', updated_at=? where id=?`).run(now(), instanceRow.id);
-    console.log(`[worker] reaped stranded provisioning instance ${instanceRow.id}`);
+    logInfo(`[worker] reaped stranded provisioning instance ${instanceRow.id}`);
   }
   return rows.length;
 }

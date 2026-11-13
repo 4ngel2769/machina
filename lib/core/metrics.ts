@@ -25,6 +25,7 @@ import { rawDb } from '@/lib/db';
 import { config } from '@/lib/config';
 import { domStats } from './driver';
 import { now } from './util';
+import { logInfo } from '@/lib/core/log';
 
 let inFlight = false;
 
@@ -60,11 +61,11 @@ export async function sampleMetrics(): Promise<void> {
         ins.run(instanceRow.id, ts, Math.round(stats.cpuTimeNs), stats.ncpu, stats.ramKb, stats.ramMaxKb,
           stats.rdBytes, stats.wrBytes, stats.allocBytes);
       } catch (insertError) {
-        console.log(`[metrics] insert failed for ${instanceRow.id}: ${(insertError as Error).message}`);
+        logInfo(`[metrics] insert failed for ${instanceRow.id}: ${(insertError as Error).message}`);
       }
     }
   } catch (sweepError) {
-    console.log(`[metrics] sweep failed: ${(sweepError as Error).message}`);
+    logInfo(`[metrics] sweep failed: ${(sweepError as Error).message}`);
   } finally {
     inFlight = false;
   }
@@ -75,9 +76,9 @@ export function pruneMetrics(): void {
   try {
     const db = rawDb();
     const deleted = db.prepare(`delete from metrics where ts < ?`).run(now() - config.metrics.retainMs).changes;
-    if (deleted > 0) console.log(`[metrics] pruned ${deleted} sample(s) older than ${Math.round(config.metrics.retainMs / 3600000)}h`);
+    if (deleted > 0) logInfo(`[metrics] pruned ${deleted} sample(s) older than ${Math.round(config.metrics.retainMs / 3600000)}h`);
   } catch (pruneError) {
-    console.log(`[metrics] prune failed: ${(pruneError as Error).message}`);
+    logInfo(`[metrics] prune failed: ${(pruneError as Error).message}`);
   }
 }
 

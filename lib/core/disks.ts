@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { storagePaths, config } from '@/lib/config';
 import { ignore } from '@/lib/core/ignore';
+import { logInfo } from '@/lib/core/log';
 
 const pexec = promisify(execFile);
 
@@ -61,7 +62,7 @@ export async function createBackedDisk(
 
   await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.vmsPool], { timeout: 30_000 }).catch((e) => {
     // Non-fatal: the domain XML references the file by absolute path anyway.
-    console.log(`[disks] pool-refresh failed (non-fatal): ${(e as Error).message}`);
+    logInfo(`[disks] pool-refresh failed (non-fatal): ${(e as Error).message}`);
   });
   return { volName, volPath };
 }
@@ -114,7 +115,7 @@ export async function copyDisk(
   }
 
   await pexec(config.virshBin, ['-c', config.virshUri, 'pool-refresh', config.vmsPool], { timeout: 30_000 }).catch((e) => {
-    console.log(`[disks] pool-refresh failed (non-fatal): ${(e as Error).message}`);
+    logInfo(`[disks] pool-refresh failed (non-fatal): ${(e as Error).message}`);
   });
   return { volName, volPath };
 }
@@ -125,7 +126,7 @@ export async function deleteVolume(volName: string): Promise<void> {
   try {
     await pexec(config.virshBin, ['-c', config.virshUri, 'vol-delete', file, '--pool', config.vmsPool]);
   } catch (e) {
-    console.log(`[disks] vol-delete ${file}: ${(e as Error).message}`);
+    logInfo(`[disks] vol-delete ${file}: ${(e as Error).message}`);
   }
   // Always rm as backstop — an overlapping pool registration must never leave
   // a 40 GB file behind because virsh disagreed about the name.

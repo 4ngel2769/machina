@@ -4,6 +4,7 @@
 import { getDb } from '@/lib/db';
 import { audit } from '@/lib/db/schema';
 import { newId } from '@/lib/core/crypto';
+import { logInfo } from '@/lib/core/log';
 
 /** Fire-and-forget audit rows; failures never break the caller. */
 export async function logAudit(input: {
@@ -24,6 +25,6 @@ export async function logAudit(input: {
       detail: typeof input.detail === 'string' ? input.detail : input.detail ? JSON.stringify(input.detail) : null,
     });
   } catch (e) {
-    console.log('[audit] write failed:', (e as Error).message);
+    logInfo('[audit] write failed:', (e as Error).message);
   }
 }

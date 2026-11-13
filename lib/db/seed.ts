@@ -6,6 +6,7 @@ import { plans, images, users } from './schema';
 import { config } from '@/lib/config';
 import { hashPassword, newId, randToken } from '@/lib/core/crypto';
 import { macFromId } from '@/lib/core/driver';
+import { logInfo } from '@/lib/core/log';
 
 /**
  * One-time repair for the macFromId collision bug: every instance id has the
@@ -30,7 +31,7 @@ function repairDuplicateMacs(): void {
     seen.add(mac);
     if (mac !== instanceRow.mac) {
       raw.prepare(`update instances set mac=? where id=?`).run(mac, instanceRow.id);
-      console.log(`[seed] repaired duplicate MAC for ${instanceRow.id}: ${instanceRow.mac} -> ${mac}`);
+      logInfo(`[seed] repaired duplicate MAC for ${instanceRow.id}: ${instanceRow.mac} -> ${mac}`);
     }
   }
 }

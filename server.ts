@@ -35,12 +35,13 @@ const app = next({ dev, turbopack: dev });
 // Worker wake-up needs to flow from enqueue(): jobs.ts registers a waker hook
 // that server swaps in at boot (avoids a circular import).
 import { setWaker } from '@/lib/core/jobs';
+import { logError, logInfo } from '@/lib/core/log';
 
 let wss: WebSocketServer;
 
 async function main(): Promise<void> {
   if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 24) {
-    console.error('[machina] refusing to boot: AUTH_SECRET missing or too short (need >=24 chars)');
+    logError('[machina] refusing to boot: AUTH_SECRET missing or too short (need >=24 chars)');
     process.exit(1);
   }
   await ensureSetupSafe();
@@ -60,7 +61,7 @@ async function main(): Promise<void> {
 
   const port = parseInt(process.env.SERVER_PORT || String(config.serverPort ?? 3999), 10);
   server.listen(port, () => {
-    console.log(`[machina] listening on :${port} (dev=${dev})`);
+    logInfo(`[machina] listening on :${port} (dev=${dev})`);
   });
 
   startWorker();
@@ -70,7 +71,7 @@ async function main(): Promise<void> {
   startHostSampler();
 
   const shutdown = () => {
-    console.log('[machina] shutting down');
+    logInfo('[machina] shutting down');
     stopWorker(); stopMetering(); stopNetmeter(); stopReconciler(); stopHostSampler();
     wss.close();
     server.close(() => process.exit(0));
@@ -140,6 +141,6 @@ async function handleUpgrade(
   });
 }
 main().catch((e) => {
-  console.error('[machina] boot failed:', e);
+  logError('[machina] boot failed:', e);
   process.exit(1);
 });
