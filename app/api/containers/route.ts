@@ -5,7 +5,8 @@
 import { NextRequest } from 'next/server';
 import { json, err, guardMutation, requireAdmin, jsonBody } from '@/lib/api';
 import { z } from 'zod';
-import { listContainers, dockerAvailable, parseCreate, createContainer } from '@/lib/host/docker';
+import { listContainers, dockerAvailable } from '@/lib/host/docker';
+import { parseCreate, createContainer } from '@/lib/host/docker-create';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
 

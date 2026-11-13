@@ -2,6 +2,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import { Fragment } from 'react';
 import { bytes } from '@/app/ui/host/shared';
 import type { useContainerActions } from './actions';
@@ -33,17 +34,27 @@ function StateCell({ container }: { container: Container }) {
   );
 }
 
-/** Stop/start/restart/remove for the row; restart only while running. */
+/** Stop/start/restart/pause/kill/remove for the row; restart only while running. */
 function RowActions({ container, actions }: { container: Container; actions: Actions }) {
   const { busy, act, showLogs, remove, openId, logs } = actions;
   const running = container.state === 'running';
+  const paused = container.state === 'paused';
   return (
     <>
+      <Link href={`/containers/${encodeURIComponent(container.id)}`} style={{ marginRight: 8 }}>open</Link>
       <button disabled={!!busy} onClick={() => void showLogs(container)}>{openId === container.id ? 'hide' : 'logs'}</button>{' '}
       {running && <button disabled={!!busy} onClick={() => void act(container, 'restart')}>restart</button>}{' '}
+      {paused
+        ? <button disabled={!!busy} onClick={() => void act(container, 'unpause')}>unpause</button>
+        : running && <button disabled={!!busy} onClick={() => void act(container, 'pause')}>pause</button>}{' '}
       {running
         ? <button className="danger" disabled={!!busy} onClick={() => void act(container, 'stop')}>stop</button>
         : <button disabled={!!busy} onClick={() => void act(container, 'start')}>start</button>}{' '}
+      {running && (
+        <button className="danger" disabled={!!busy} onClick={() => {
+          if (confirm(`Kill ${container.name}? SIGKILL — no shutdown hook runs.`)) void act(container, 'kill');
+        }}>kill</button>
+      )}{' '}
       {container.managed && <button className="danger" disabled={!!busy} onClick={() => void remove(container)}>remove</button>}
     </>
   );
@@ -84,7 +95,7 @@ export function ContainerGroup({ project, containers, actions }: {
           {containers.map((container) => (
             <Fragment key={container.id}>
               <tr>
-                <td className="mono">{container.service ?? container.name}</td>
+                <td className="mono"><Link href={`/containers/${encodeURIComponent(container.id)}`}>{container.service ?? container.name}</Link></td>
                 <td><StateCell container={container} /></td>
                 <td className="mono muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={container.image}>
                   {container.image}

@@ -11,7 +11,7 @@ import crypto from 'crypto';
 import { config } from '@/lib/config';
 import { now } from '@/lib/core/util';
 
-export type WsChannel = 'term' | 'vnc';
+export type WsChannel = 'term' | 'vnc' | 'exec' | 'logs';
 
 export interface WsTokenPayload {
   inst: string;
