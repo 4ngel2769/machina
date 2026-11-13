@@ -9,6 +9,9 @@ import {
   listNetworks, type NetIp,
 } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+
 
 const prefixOk = (raw: unknown, family: 'ipv4' | 'ipv6'): number => {
   const prefix = Number(raw);
@@ -45,6 +48,7 @@ export async function GET() {
 type Admin = { id: string; name: string };
 type Audit = (action: string, target: string, detail?: unknown) => Promise<unknown>;
 type Body = Record<string, unknown>;
+const netBodySchema = z.object({}).passthrough();
 
 const netName = (body: Body) => String(body.name ?? '');
 
@@ -121,7 +125,7 @@ export async function POST(req: NextRequest) {
   if (deniedMutation) return deniedMutation;
   const { user: admin, response: denied } = await requireAdmin();
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as Body;
+  const body = await jsonBody(req, netBodySchema);
   const op = String(body.op ?? '');
   const audit: Audit = async (action, target, detail) =>
     logAudit({ actorId: admin.id, actorName: admin.name, action: `host.net.${action}`, target, detail: (detail ?? null) as Record<string, unknown> | null });

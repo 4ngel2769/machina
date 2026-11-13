@@ -6,6 +6,15 @@ import { logAudit } from '@/lib/services/audit';
 import { addIface, deleteIface, listIfaces, type AddIface } from '@/lib/host/ifaces';
 import { listNetworks, bridges } from '@/lib/host/networks';
 import { friendlyError } from '@/lib/core/errors';
+import { jsonBody } from '@/lib/api';
+import { z } from 'zod';
+const ifaceBodySchema = z.object({
+  op: z.string().optional(), kind: z.string().optional(), name: z.string().optional(),
+  ports: z.string().optional(), parent: z.string().optional(), vlanId: z.number().optional(),
+  bondMode: z.string().optional(), address: z.string().optional(), listenPort: z.number().optional(),
+  peerPublicKey: z.string().optional(), peerEndpoint: z.string().optional(),
+  peerAllowedIps: z.string().optional(),
+}).passthrough();
 
 export async function GET() {
   const { response: denied } = await requireAdmin();
@@ -59,7 +68,7 @@ export async function POST(req: NextRequest) {
   if (deniedMutation) return deniedMutation;
   const { user: admin, response: denied } = await requireAdmin();
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = await jsonBody(req, ifaceBodySchema);
 
   try {
     if (body.op === 'delete') return await ifaceDelete(body, admin);

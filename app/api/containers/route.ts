@@ -3,7 +3,8 @@
  *  names exactly one container. */
 
 import { NextRequest } from 'next/server';
-import { json, err, guardMutation, requireAdmin } from '@/lib/api';
+import { json, err, guardMutation, requireAdmin, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { listContainers, dockerAvailable, parseCreate, createContainer } from '@/lib/host/docker';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = await jsonBody(req, z.object({}).passthrough());
   try {
     const spec = parseCreate(body);
     const id = await createContainer(spec);

@@ -1,7 +1,8 @@
 /** One container: recent output (GET) and start/stop/restart (POST). */
 
 import { NextRequest } from 'next/server';
-import { json, err, guardMutation, requireAdmin } from '@/lib/api';
+import { json, err, guardMutation, requireAdmin, jsonBody } from '@/lib/api';
+import { z } from 'zod';
 import { containerAction, containerLogs, isAction, validRef, removeContainer } from '@/lib/host/docker';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   if (!validRef(id)) return err('invalid container reference', 400);
 
-  const body = (await req.json().catch(() => ({}))) as { action?: unknown };
+  const body = await jsonBody(req, z.object({ action: z.unknown().optional() }).passthrough());
   if (!isAction(body.action)) return err('unknown action', 400);
 
   try {

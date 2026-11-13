@@ -4,6 +4,7 @@
 import { requireUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 export function json(payload: unknown, status = 200): NextResponse {
   return NextResponse.json(payload, { status });
@@ -55,4 +56,20 @@ export async function requireAdmin(): Promise<AuthResult> {
 
 export function uuid(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * Parse a JSON request body through a zod schema. Two failure shapes collapse
+ * to {} on purpose: unparseable JSON and a body that fails the schema both
+ * mean "the fields the handler needs are absent", and every handler already
+ * answers that with its own 400. Returning a typed record keeps `as {...}`
+ * casts out of the routes; fields are still narrowed by the handlers.
+ */
+export async function jsonBody<S extends z.ZodTypeAny>(
+  req: NextRequest,
+  schema: S,
+): Promise<z.infer<S> & Record<string, unknown>> {
+  const raw = await req.json().catch(() => ({}));
+  const parsed = schema.safeParse(raw);
+  return (parsed.success ? parsed.data : {}) as z.infer<S> & Record<string, unknown>;
 }
