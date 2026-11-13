@@ -4,12 +4,16 @@ import { json, err, guardMutation } from '@/lib/api';
 import { getDb, rawDb } from '@/lib/db';
 import { instances, plans } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import fs from 'fs';
 import { enqueue } from '@/lib/core/jobs';
 import { now } from '@/lib/core/util';
 import { decrypt } from '@/lib/core/crypto';
 import { bandState } from '@/lib/core/netmeter';
 import { logAudit } from '@/lib/services/audit';
-import { friendlyStep } from '@/lib/core/errors';
+import { friendlyStep, friendlyError } from '@/lib/core/errors';
+import { provisionInstance } from '@/lib/core/provision';
+import { diskVolFromId } from '@/lib/core/disks';
+import { storagePaths } from '@/lib/config';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,6 +53,56 @@ async function retryProvisioning(
   rd.prepare(`update instances set status='provisioning', heal_count=0, updated_at=? where id=?`).run(now(), inst.id);
   await logAudit({ actorId: user.id, actorName: user.name, action: 'instance.retry', target: inst.id });
   return json({ ok: true, action: 'retry', note: 'provisioning restarted — expect 60–90s' });
+}
+
+/**
+ * Clone goes through provisionInstance(), not a second row-creation path: the
+ * new VM needs its own IP, MAC, seed, quota reservation, billing rate and job,
+ * and every one of those already lives there. The only thing that differs is
+ * where the disk comes from.
+ */
+const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,40}$/;
+
+async function cloneInstance(
+  user: { id: string; name: string; role: string },
+  inst: { id: string; userId: string; status: string; planId: string; imageId: string },
+  body: { name?: string; planId?: string },
+) {
+  if (inst.status === 'running' || inst.status === 'paused') {
+    return err('stop the VM before cloning: a copy of a live disk is only crash-consistent', 409);
+  }
+  if (!['stopped', 'suspended', 'error'].includes(inst.status)) {
+    return err(`cannot clone a ${inst.status} instance`, 409);
+  }
+  const name = String(body.name ?? '').trim();
+  if (!NAME_RE.test(name)) return err('name must be 3-41 characters: letters, digits, dot, dash, underscore', 400);
+
+  const active = rawDb().prepare(
+    `select 1 from jobs where instance_id=? and status in ('queued','running')`,
+  ).get(inst.id);
+  if (active) return err('a job is already in flight for this instance', 409);
+
+  const sourceDisk = `${storagePaths().vms}/${diskVolFromId(inst.id)}.qcow2`;
+  if (!fs.existsSync(sourceDisk)) return err('the source disk is missing, so there is nothing to copy', 409);
+
+  try {
+    const out = await provisionInstance({
+      userId: user.id,
+      name,
+      planId: String(body.planId ?? inst.planId),
+      imageId: inst.imageId,
+      actorName: user.name,
+      actorRole: user.role,
+      copyFromPath: sourceDisk,
+    });
+    await logAudit({
+      actorId: user.id, actorName: user.name, action: 'instance.clone', target: out.id,
+      detail: { from: inst.id, name: out.name },
+    });
+    return json({ ok: true, action: 'clone', id: out.id, name: out.name, ip: out.ip, note: 'cloning — expect 60–90s' });
+  } catch (x) {
+    return err(friendlyError(x), 400);
+  }
 }
 
 async function load(id: string, userId: string, role: string) {
@@ -158,9 +212,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const [inst, e] = await load(id, user.id, user.role);
   if (e) return e;
-  const body = (await req.json().catch(() => ({}))) as { action?: string; force?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; force?: boolean; name?: string; planId?: string };
   const action = body.action;
   if (action === 'retry') return retryProvisioning(user, inst);
+  if (action === 'clone') return cloneInstance(user, inst, body);
   if (action !== 'start' && action !== 'stop' && action !== 'delete') return err('unknown action');
   const status = inst.status;
   if (status === 'provisioning') return err('instance still provisioning', 409);

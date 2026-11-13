@@ -90,8 +90,16 @@ domain XML, overlays and billing all keep reading one source of size.
 - **host** (`/host`) — every libvirt domain, vnet and interface, with structural
   edits (`--config`, XML backed up first), DHCP reservations and snapshots.
 - **containers** (`/containers`) — the Docker daemon: grouped by compose
-  project, live CPU/RAM, health, recent logs, start/stop/restart.
+  project, live CPU/RAM, health, recent logs, start/stop/restart. Admins can
+  also create a container from a pinned image (memory/CPU/port caps, no host
+  mounts, volumes or host networking) and remove only containers this console
+  created.
 - **admin** (`/admin`) — accounts, quotas, credits, role changes, plans.
+  Admins can also upload a standalone qcow2 as a new base image (streamed,
+  checksum-verified, backing files refused).
+- **instance page** — clone a stopped VM (full disk copy through the normal
+  provisioning path) and export its disk as a downloadable qcow2 via a
+  5-minute single-use link.
 
 ## Run it
 
@@ -121,3 +129,4 @@ mounted). It is a secondary shape; systemd on the host stays the supported one.
 - `SERVER_PORT` (default 3999)
 - `AUTH_SECRET`, `ADMIN_USER`, `ADMIN_PASSWORD` (bootstraps the admin row)
 - `MACHINA_MASTER_KEY` (optional; otherwise `<dbdir>/machina.key`, 0600)
+- `MACHINA_SPICE` (`1` adds a loopback SPICE graphics device to new domains; default off)

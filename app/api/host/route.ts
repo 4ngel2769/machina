@@ -4,6 +4,9 @@ import { rawDb } from '@/lib/db';
 import { listVms } from '@/lib/host/domains';
 import { listNetworks, bridges } from '@/lib/host/networks';
 import { listIfaces } from '@/lib/host/ifaces';
+import { listPools, refreshPool } from '@/lib/host/pools';
+import { logAudit } from '@/lib/services/audit';
+import { friendlyError } from '@/lib/core/errors';
 import os from 'os';
 import fs from 'fs';
 
@@ -37,6 +40,9 @@ export async function GET(req: NextRequest) {
   const ifaces = wantIfaces && Array.isArray(nets)
     ? await listIfaces(bridges(nets)).catch(() => [])
     : [];
+  // pool-info is one process per pool, so it is opt-in like the interface table.
+  const wantPools = Boolean(req.nextUrl.searchParams.get('pools'));
+  const pools = wantPools ? await listPools().catch(() => []) : [];
 
   const insts = rawDb().prepare(
     `select i.domain_name, i.id, i.plan_id, i.mac, i.ip, u.id uid, u.name uname, u.role urole, u.balance_cents
@@ -56,6 +62,7 @@ export async function GET(req: NextRequest) {
     networks: Array.isArray(nets) ? nets : [],
     networksError: Array.isArray(nets) ? null : (nets as { error: string }).error,
     interfaces: ifaces,
+    pools,
     instances: insts,
     users,
     host: {
@@ -73,9 +80,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [, e] = await requireAdmin();
+  const [admin, e] = await requireAdmin();
   if (e) return e;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   if (body.op === 'log') return json(hostLog());
+  if (body.op === 'poolRefresh') {
+    try {
+      const result = await refreshPool(String(body.name ?? ''));
+      await logAudit({ actorId: admin.id, actorName: admin.name, action: 'host.pool.refresh', target: String(body.name ?? ''), detail: null });
+      return json({ ok: true, result });
+    } catch (x) {
+      return err(friendlyError(x), 400);
+    }
+  }
   return err('unknown operation');
 }

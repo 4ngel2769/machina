@@ -19,6 +19,10 @@ export type ProvisionArgs = {
   /** Pending request being fulfilled; excluded from the quota sum so approving a
    *  request does not count that request against itself. */
   excludeRequestId?: string;
+  /** Absolute path of an existing guest disk to clone from. The create job
+   *  copies it instead of laying an overlay on the base image, so every other
+   *  step (IP, MAC, seed, quota, billing, job) stays the one shared path. */
+  copyFromPath?: string;
 };
 
 /** Shared provisioning entry point used by direct (admin) create and by
@@ -102,9 +106,12 @@ export async function provisionInstance(a: ProvisionArgs): Promise<{ id: string;
     updatedAt: now(),
   });
   await logAudit({ actorId: a.userId, actorName: a.actorName ?? a.userId, action: 'instance.create',
-    target: id, detail: { name: a.name, planId: plan.id, imageId: image.id } });
+    target: id, detail: { name: a.name, planId: plan.id, imageId: image.id, clone: Boolean(a.copyFromPath) } });
 
   await enqueue({ type: 'instance.create', instanceId: id, userId: a.userId,
-    payload: { planSnapshot: { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb } } });
+    payload: {
+      planSnapshot: { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb },
+      ...(a.copyFromPath ? { copyFromPath: a.copyFromPath } : {}),
+    } });
   return { id, name: a.name, ip };
 }

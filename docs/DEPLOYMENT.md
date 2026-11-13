@@ -97,6 +97,29 @@ sudo nft list table inet machina_gfw
 If the network is renumbered, the bridge name and subnet appear in
 `lib/config.ts` **and** `deploy/machina-gfw.nft`; change both.
 
+## Guest consoles
+
+Two channels exist, deliberately different:
+
+- **In-app console** — VNC over our websocket relay, browser-side noVNC. Works
+  for any user who can see the instance page. This is the default and does not
+  change.
+- **SPICE** — an additional `<graphics type='spice'>` element, loopback only.
+  For native clients on the host (or via an ssh tunnel). It is off by default;
+  turn it on per VM from the host console (`/host/<name>` → media card → spice),
+  or set `MACHINA_SPICE=1` to have new domains get it at provision time.
+
+To reach a guest's SPICE port from your workstation:
+
+```bash
+ssh -L 5930:127.0.0.1:<port> blade        # port is shown in the host console
+remote-viewer spice://127.0.0.1:5930
+```
+
+SPICE binds `127.0.0.1` on the host and has no password of its own; the ssh
+tunnel (or local shell) is the auth boundary. The guest firewall does not need
+a rule for it — the connection is host→guest over the bridge.
+
 ## Public access
 
 On blade the panel is bound to `127.0.0.1:3999` and published through a

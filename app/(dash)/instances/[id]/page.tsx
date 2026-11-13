@@ -72,6 +72,40 @@ export default function InstanceDetail() {
     void load(instanceIdFromPath());
   };
 
+  const clone = async () => {
+    const name = window.prompt('name for the clone (3-41 chars: letters, digits, dot, dash, underscore)');
+    if (!name) return;
+    setBusy(true);
+    const id = instanceIdFromPath();
+    const r = await fetch(`/api/instances/${id}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'clone', name }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? (j.note ?? 'clone queued') : j.error ?? 'clone failed');
+    setBusy(false);
+    void load(instanceIdFromPath());
+  };
+
+  const exportDisk = async () => {
+    setBusy(true);
+    const id = instanceIdFromPath();
+    try {
+      const r = await fetch(`/api/instances/${id}/export`, { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error ?? 'export failed'); return; }
+      const a = document.createElement('a');
+      a.href = j.url;
+      a.download = j.filename ?? `${id}.qcow2`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setMsg('export started — the link expires in 5 minutes');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!inst) return <h1>{msg || 'loading…'}</h1>;
 
   return (
@@ -106,6 +140,10 @@ export default function InstanceDetail() {
             ? <button disabled={busy} onClick={() => act('stop')}>stop</button> : null}
           {['stopped', 'suspended', 'error'].includes(inst.status)
             ? <button disabled={busy} onClick={() => act('start')}>start</button> : null}
+          {['stopped', 'suspended', 'error'].includes(inst.status)
+            ? <button disabled={busy} onClick={() => void clone()}>clone</button> : null}
+          {['stopped', 'suspended', 'error'].includes(inst.status)
+            ? <button disabled={busy} onClick={() => void exportDisk()}>export</button> : null}
           {['stopped', 'suspended', 'running', 'error'].includes(inst.status)
             ? <button className="danger" disabled={busy} onClick={() => act('delete')}>delete</button> : null}
         </div>
@@ -393,7 +431,10 @@ function Console({ instanceId }: { instanceId: string }) {
     setState('connecting');
     setErr('');
     try {
-      const [{ default: RFB }] = await Promise.all([import('@novnc/novnc/core/rfb.js')]);
+      // The package's "exports" map only exposes its root, so a deep path
+      // (@novnc/novnc/core/rfb.js) fails to resolve under Turbopack. Import the
+      // bare specifier instead.
+      const { default: RFB } = await import('@novnc/novnc');
       const tok = await (await fetch(`/api/instances/${instanceId}/ws-token`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ type: 'vnc' }),

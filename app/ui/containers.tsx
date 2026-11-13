@@ -18,7 +18,7 @@ type Container = {
   id: string; name: string; image: string; state: string; status: string;
   health: string | null; ports: string; project: string | null; service: string | null;
   createdAt: string; cpuPct: number | null; memMb: number | null; memLimitMb: number | null;
-  memPct: number | null; pids: number | null;
+  memPct: number | null; pids: number | null; managed: boolean;
 };
 type Payload = { available: boolean; containers: Container[]; error: string | null };
 
@@ -48,6 +48,12 @@ export function ContainersPanel() {
   const [busy, setBusy] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<string, string>>({});
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newImage, setNewImage] = useState('');
+  const [newMemory, setNewMemory] = useState('512');
+  const [newCpus, setNewCpus] = useState('1');
+  const [newPorts, setNewPorts] = useState('');
 
   const all = list.data?.containers ?? [];
   const shown = useMemo(() => {
@@ -104,6 +110,46 @@ export function ContainersPanel() {
     }
   }
 
+  async function create() {
+    setBusy('create');
+    try {
+      const ports = newPorts.trim() ? newPorts.split(',').map((spec) => {
+        const [host, container] = spec.trim().split(':').map(Number);
+        return { host, container };
+      }) : [];
+      const r = await fetch('/api/containers', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: newName, image: newImage, memoryMb: Number(newMemory), cpus: Number(newCpus), ports }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) toast.err(j.error ?? 'create failed');
+      else {
+        toast.ok(`created ${newName}`);
+        setCreateOpen(false); setNewName(''); setNewImage(''); setNewPorts('');
+        list.reload();
+      }
+    } catch {
+      toast.err('create: could not reach the server');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function remove(c: Container) {
+    if (!c.managed || !confirm(`Remove ${c.name}? This deletes the container, not its image.`)) return;
+    setBusy(`${c.id}:remove`);
+    try {
+      const r = await fetch(`/api/containers/${c.id}`, { method: 'DELETE' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) toast.err(j.error ?? 'remove failed');
+      else { toast.ok(`removed ${c.name}`); list.reload(); }
+    } catch {
+      toast.err('remove: could not reach the server');
+    } finally {
+      setBusy('');
+    }
+  }
+
   return (
     <>
       <h1>containers</h1>
@@ -127,7 +173,21 @@ export function ContainersPanel() {
           style={{ maxWidth: 260 }}
           aria-label="filter containers"
         />
+        <button onClick={() => setCreateOpen((v) => !v)}>{createOpen ? 'cancel' : 'create container'}</button>
       </div>
+
+      {createOpen && <div className="card" style={{ marginTop: 12 }}>
+        <h3>create a container</h3>
+        <div className="muted" style={{ marginBottom: 10 }}>No host mounts, volumes, host networking, devices, or extra capabilities. Pin the image tag. Published ports are reachable on the host.</div>
+        <div className="row">
+          <label>name <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="my-service" /></label>
+          <label>image <input value={newImage} onChange={(e) => setNewImage(e.target.value)} placeholder="ghcr.io/org/app:1.2.3" style={{ width: 280 }} /></label>
+          <label>memory MB <input type="number" min="128" max="8192" value={newMemory} onChange={(e) => setNewMemory(e.target.value)} style={{ width: 90 }} /></label>
+          <label>CPUs <input type="number" min="0.1" max="8" step="0.1" value={newCpus} onChange={(e) => setNewCpus(e.target.value)} style={{ width: 70 }} /></label>
+          <label>ports host:container <input value={newPorts} onChange={(e) => setNewPorts(e.target.value)} placeholder="18080:8080,18443:8443" style={{ width: 200 }} /></label>
+          <button disabled={!!busy || !newName || !newImage} onClick={() => void create()}>{busy === 'create' ? 'creating…' : 'create'}</button>
+        </div>
+      </div>}
 
       {list.error && <div className="notice err" style={{ marginTop: 12 }}>{list.error}</div>}
       {list.data?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.data.error}</div>}
@@ -178,7 +238,8 @@ export function ContainersPanel() {
                           : null}{' '}
                         {stop
                           ? <button className="danger" disabled={!!busy} onClick={() => void act(c, 'stop')}>stop</button>
-                          : <button disabled={!!busy} onClick={() => void act(c, 'start')}>start</button>}
+                          : <button disabled={!!busy} onClick={() => void act(c, 'start')}>start</button>}{' '}
+                        {c.managed ? <button className="danger" disabled={!!busy} onClick={() => void remove(c)}>remove</button> : null}
                       </td>
                     </tr>
                     {open === c.id && (

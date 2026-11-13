@@ -37,6 +37,11 @@ export default function AdminPage() {
   const [instName, setInstName] = useState('');
   const [instPlan, setInstPlan] = useState('');
   const [instImage, setInstImage] = useState('');
+  const [imgImportOpen, setImgImportOpen] = useState(false);
+  const [imgId, setImgId] = useState('');
+  const [imgName, setImgName] = useState('');
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgBusy, setImgBusy] = useState(false);
   const [quotas, setQuotas] = useState<{
     rows: {
       userId: string; name: string; role: string;
@@ -73,6 +78,21 @@ export default function AdminPage() {
     if (r.ok) toast.ok(`${label} done`);
     else toast.err(j.error ?? `${label} failed`);
     void load();
+  };
+
+  const importImage = async () => {
+    if (!imgFile || !imgId) { toast.err('pick an id and a qcow2 file first'); return; }
+    setImgBusy(true);
+    try {
+      const qs = new URLSearchParams({ id: imgId, name: imgName || imgId });
+      const r = await fetch(`/api/images/import?${qs}`, { method: 'POST', body: imgFile });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { toast.ok(`image ${imgId} imported`); setImgImportOpen(false); setImgId(''); setImgName(''); setImgFile(null); }
+      else toast.err(j.error ?? 'import failed');
+      void load();
+    } finally {
+      setImgBusy(false);
+    }
   };
 
   return (
@@ -142,6 +162,17 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => setImgImportOpen((v) => !v)}>{imgImportOpen ? 'cancel' : 'import image'}</button>
+            {imgImportOpen && (
+              <div className="row" style={{ marginTop: 10, alignItems: 'flex-end', gap: 10 }}>
+                <label>id<input style={{ width: 160 }} value={imgId} onChange={(e) => setImgId(e.target.value)} placeholder="my-distro-1" className="mono" /></label>
+                <label>display name<input style={{ width: 200 }} value={imgName} onChange={(e) => setImgName(e.target.value)} placeholder="optional" /></label>
+                <label>qcow2 file<input type="file" accept=".qcow2" onChange={(e) => setImgFile(e.target.files?.[0] ?? null)} /></label>
+                <button disabled={imgBusy || !imgId || !imgFile} onClick={() => void importImage()}>{imgBusy ? 'uploading…' : 'upload'}</button>
+              </div>
+            )}
+          </div>
         </div>
       </BorderBeam>
 
