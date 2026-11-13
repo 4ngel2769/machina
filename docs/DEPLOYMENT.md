@@ -158,16 +158,26 @@ insert-only, so re-running never clobbers an admin edit.
 
 ## Backup
 
-State is the SQLite DB plus the storage tree. Both, or neither:
+`deploy/install.sh` installs `machina-backup.timer` (nightly 03:15 + up to 20m
+jitter). Each run lands in `$MACHINA_BACKUP_DIR/<timestamp>/` containing:
 
-```bash
-sqlite3 /var/lib/machina/machina.db ".backup '/backup/machina-$(date +%F).db'"
-rsync -a --exclude 'vms/*.qcow2.~' /mnt/machina/images /mnt/machina/seeds /backup/
-```
+- `machina.db` — a consistent snapshot via `sqlite3 .backup` (safe on the live
+  WAL database)
+- `machina.key` — the AES master key, copied from next to the DB; without it
+  every stored root/VNC password is unreadable
+- `images/`, `seeds/`, `iso/` — rsynced from the storage dir
 
-Guest overlays are disposable (the base image plus the seed reconstructs the
-box); base images and `machina.key` are not — without the key, every stored
-root password and VNC password is unreadable.
+Guest overlays under `vms/` are deliberately excluded: a stopped overlay is
+reproducible from base image + seed, and copying a running one mid-write is
+corrupt anyway. The script keeps the newest 7 runs
+(`MACHINA_BACKUP_KEEP`).
+
+Manual run: `sudo systemctl start machina-backup.service`, or
+`MACHINA_BACKUP_DIR=/path scripts/machina-backup.sh`.
+
+Restore: stop the service, copy the snapshot DB back over
+`/var/lib/machina/machina.db`, restore `machina.key`, rsync the storage
+subdirs back, start the service.
 
 ## Troubleshooting
 

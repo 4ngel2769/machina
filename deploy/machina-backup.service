@@ -1,0 +1,15 @@
+[Unit]
+Description=machina backup (db + images/seeds/isos)
+Documentation=file:///home/angel/machina/docs/DEPLOYMENT.md
+After=machina.service
+
+[Service]
+Type=oneshot
+# Paths are defaults; the script reads the same MACHINA_* env the unit would.
+Environment=MACHINA_DB_PATH=/var/lib/machina/machina.db
+Environment=MACHINA_STORAGE_DIR=/mnt/8tbv1/machina
+Environment=MACHINA_BACKUP_DIR=/mnt/8tbv1/backups/machina
+ExecStart=/home/angel/machina/scripts/machina-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
