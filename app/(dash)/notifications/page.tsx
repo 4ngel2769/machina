@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
-import { Empty, Skeleton } from '@/app/ui/loaders';
+import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { InfoIcon, CheckIcon, WarnIcon, XIcon, BellIcon } from '@/app/ui/icons';
 import type { ReactNode } from 'react';
 
@@ -39,6 +39,7 @@ export default function NotificationsPage() {
   const toast = useToast();
   const [items, setItems] = useState<Notification[] | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const ready = useMinVisible(400);
 
   const load = useCallback(async () => {
     const response = await fetch('/api/notifications', { cache: 'no-store' });
@@ -67,6 +68,39 @@ export default function NotificationsPage() {
 
   return (
     <>
+      <NotificationsHeader
+        unread={items ? items.filter((item) => item.readAt === null).length : null}
+        filter={filter}
+        setFilter={setFilter}
+        onReadAll={() => void act('read-all')}
+      />
+      <NotificationBody ready={ready} items={items} shown={shown} filter={filter} act={act} />
+    </>
+  );
+}
+
+function NotificationBody({ ready, items, shown, filter, act }: {
+  ready: boolean;
+  items: Notification[] | null;
+  shown: Notification[];
+  filter: 'all' | 'unread';
+  act: (op: string, id?: string) => Promise<void>;
+}) {
+  if (!ready || !items) return <Skeleton h={160} />;
+  if (shown.length === 0) {
+    return <Empty icon="bell" text={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'} />;
+  }
+  return <NotificationList items={shown} act={act} />;
+}
+
+function NotificationsHeader({ unread, filter, setFilter, onReadAll }: {
+  unread: number | null;
+  filter: 'all' | 'unread';
+  setFilter: (mode: 'all' | 'unread') => void;
+  onReadAll: () => void;
+}) {
+  return (
+    <>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
         <h1 style={{ marginBottom: 0 }}>notifications</h1>
         <div className="spacer" />
@@ -74,39 +108,38 @@ export default function NotificationsPage() {
           {(['all', 'unread'] as const).map((mode) => (
             <button key={mode} className={filter === mode ? 'primary' : ''} onClick={() => setFilter(mode)}>{mode}</button>
           ))}
-          <button onClick={() => void act('read-all')}>mark all read</button>
+          <button onClick={onReadAll}>mark all read</button>
         </div>
       </div>
-      <div className="sub">{items ? `${items.filter((item) => item.readAt === null).length} unread` : 'loading…'}</div>
-
-      {!items && <Skeleton h={160} />}
-      {items && shown.length === 0 && <Empty icon="bell" text={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'} />}
-
-      {shown.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {shown.map((item) => {
-            const unread = item.readAt === null;
-            const inner = (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <span aria-hidden style={{ color: KIND_COLOR[item.kind], fontSize: 14, width: 16, textAlign: 'center', marginTop: 1, flex: 'none' }}>
-                  {KIND_ICON[item.kind]}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: unread ? 600 : 400 }}>{item.title}</div>
-                  {item.body && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{item.body}</div>}
-                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{ago(item.createdAt)}</div>
-                </div>
-                {unread && <span className="jobdot run" aria-label="unread" />}
-              </div>
-            );
-            return (
-              <div key={item.id} className="card" style={{ padding: '12px 16px', margin: 0, opacity: unread ? 1 : 0.65 }}>
-                {item.link ? <Link href={item.link} onClick={() => { if (unread) void act('read', item.id); }}>{inner}</Link> : inner}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="sub">{unread === null ? 'loading…' : `${unread} unread`}</div>
     </>
+  );
+}
+
+function NotificationList({ items, act }: { items: Notification[]; act: (op: string, id?: string) => Promise<void> }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items.map((item) => {
+        const unread = item.readAt === null;
+        const inner = (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span aria-hidden style={{ color: KIND_COLOR[item.kind], width: 16, marginTop: 3, flex: 'none', display: 'inline-flex' }}>
+              {KIND_ICON[item.kind]}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: unread ? 600 : 400 }}>{item.title}</div>
+              {item.body && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{item.body}</div>}
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{ago(item.createdAt)}</div>
+            </div>
+            {unread && <span className="jobdot run" aria-label="unread" />}
+          </div>
+        );
+        return (
+          <div key={item.id} className="card" style={{ padding: '12px 16px', margin: 0, opacity: unread ? 1 : 0.65 }}>
+            {item.link ? <Link href={item.link} onClick={() => { if (unread) void act('read', item.id); }}>{inner}</Link> : inner}
+          </div>
+        );
+      })}
+    </div>
   );
 }

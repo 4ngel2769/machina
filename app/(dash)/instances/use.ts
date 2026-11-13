@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Img, Inst, Plan, Sample } from './types';
 import { useInstanceMutations } from './mutations';
 import { useGroups } from './groups';
+import { useMinVisible } from '@/app/ui/loaders';
 import { ignore } from '@/lib/core/ignore';
 
 export type PendingRequest = {
@@ -85,6 +86,9 @@ export function useInstancesPage() {
   const [planId, setPlanId] = useState('');
   const [imageId, setImageId] = useState('');
   const groups = useGroups(userName);
+  // keep the skeleton up for a beat so fast loads don't flash one frame
+  const minVisible = useMinVisible(400);
+  const showLoading = loading || !minVisible;
 
   // Only offer OS images that are actually usable. 'broken' is a quarantine by
   // the bootability audit, 'missing'/'downloading'/'failed' are not bootable
@@ -132,7 +136,7 @@ export function useInstancesPage() {
   return {
     insts, plans, imgs, readyImgs, imgPickable, assignedImage, role, userName,
     requests, cancelRequest, bulkAct, groups,
-    spark, loading, busy,
+    spark, loading: showLoading, busy,
     planId, setPlanId, imageId, setImageId,
     load, create, requestInstance, act,
   };
