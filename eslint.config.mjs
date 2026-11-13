@@ -23,11 +23,13 @@ const config = [
       // safe fix changes behaviour, which a cleanup must not do.
       'react-hooks/set-state-in-effect': 'off',
       // On from B1.5, once the two ref writes during render are fixed.
-      'react-hooks/refs': 'off',
-      'react-hooks/immutability': 'off',
+      'react-hooks/refs': 'error',
+      'react-hooks/immutability': 'error',
       // On from B1.5, once the four raw quotes/apostrophes in JSX are escaped.
-      'react/no-unescaped-entities': 'off',
-      // On from B1.5 if the two remaining findings take a dependency-only fix.
+      'react/no-unescaped-entities': 'error',
+      // Deferred: both findings want a dependency change that alters when an
+      // effect or memo recomputes, which is a behaviour change. Left for a
+      // scoped hook PR alongside set-state-in-effect.
       'react-hooks/exhaustive-deps': 'off',
     },
   },

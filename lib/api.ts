@@ -30,22 +30,27 @@ export function guardMutation(req: NextRequest): NextResponse | null {
   return null;
 }
 
-/** Session guard. Returns [user, errorResponse]. */
-export async function session(): Promise<
-  [{ id: string; name: string; role: string }, null] | [null, NextResponse]
-> {
+/** Session guard. Exactly one of `user` / `response` is set, so callers
+ *  destructure and guard on the one they need:
+ *    const { user: admin, response } = await requireAdmin();
+ *    if (!admin) return response; */
+export type SessionUser = { id: string; name: string; role: string };
+
+export type AuthResult =
+  | { user: SessionUser; response: null }
+  | { user: null; response: NextResponse };
+
+export async function session(): Promise<AuthResult> {
   const user = await requireUser();
-  if (!user) return [null, err('unauthorized', 401)];
-  return [user, null];
+  if (!user) return { user: null, response: err('unauthorized', 401) };
+  return { user, response: null };
 }
 
-export async function requireAdmin(): Promise<
-  [{ id: string; name: string; role: string }, null] | [null, NextResponse]
-> {
-  const [user, e] = await session();
-  if (e) return [null, e];
-  if (user.role !== 'admin') return [null, err('admin only', 403)];
-  return [user, null];
+export async function requireAdmin(): Promise<AuthResult> {
+  const { user, response } = await session();
+  if (!user) return { user: null, response };
+  if (user.role !== 'admin') return { user: null, response: err('admin only', 403) };
+  return { user, response: null };
 }
 
 export function uuid(): string {

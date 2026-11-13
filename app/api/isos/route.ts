@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const [, e] = await requireAdmin();
+  const { response: e } = await requireAdmin();
   if (e) return e;
   try {
     return json({ isos: await listIsos(), maxIsoGb: config.limits.maxIsoGb });
@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
 
   const name = req.nextUrl.searchParams.get('name') ?? '';
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
 
   const name = req.nextUrl.searchParams.get('name') ?? '';

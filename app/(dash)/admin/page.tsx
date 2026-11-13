@@ -217,7 +217,7 @@ export default function AdminPage() {
           }}>save</button>
         </div>
         <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-          When "user can pick OS" is off and an OS is assigned, the user cannot choose — the assigned OS is used automatically.
+          When &quot;user can pick OS&quot; is off and an OS is assigned, the user cannot choose — the assigned OS is used automatically.
         </div>
       </div>
 

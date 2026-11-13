@@ -16,7 +16,7 @@ export default function TermsPage() {
         <p>Accounts are issued by an administrator and are personal. You are responsible for everything done under your account, including any virtual machine you run. Do not share credentials.</p>
 
         <h3>acceptable use</h3>
-        <p>Instances must not be used for anything unlawful, for resale, for crypto mining, for sending unsolicited bulk email or scanning third-party systems. You may not use an instance to attack, probe or gain access to the host machine, the operator's network, or any other instance.</p>
+        <p>Instances must not be used for anything unlawful, for resale, for crypto mining, for sending unsolicited bulk email or scanning third-party systems. You may not use an instance to attack, probe or gain access to the host machine, the operator&apos;s network, or any other instance.</p>
 
         <h3>billing</h3>
         <p>Virtual machines are metered per hour of running time against a prepaid internal credit balance. Usage is sampled periodically and settled hourly. When the balance reaches zero, instances are suspended; they resume when the balance is replenished. Unused balance is not refundable. Rates may change with reasonable notice.</p>

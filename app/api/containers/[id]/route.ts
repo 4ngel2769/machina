@@ -9,7 +9,7 @@ import { friendlyError } from '@/lib/core/errors';
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, ctx: Ctx) {
-  const [, denied] = await requireAdmin();
+  const { response: denied } = await requireAdmin();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!validRef(id)) return err('invalid container reference', 400);
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const g = guardMutation(req);
   if (g) return g;
-  const [user, denied] = await requireAdmin();
+  const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!validRef(id)) return err('invalid container reference', 400);
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   const g = guardMutation(req);
   if (g) return g;
-  const [user, denied] = await requireAdmin();
+  const { user: user, response: denied } = await requireAdmin();
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!validRef(id)) return err('invalid container reference', 400);

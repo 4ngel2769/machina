@@ -16,7 +16,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, ctx: Ctx) {
   const g = guardMutation(req);
   if (g) return g;
-  const [admin, e] = await requireAdmin();
+  const { user: admin, response: e } = await requireAdmin();
   if (e) return e;
   const { id } = await ctx.params;
   const rd = rawDb();
