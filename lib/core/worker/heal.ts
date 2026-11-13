@@ -16,6 +16,7 @@
 import { rawDb } from '@/lib/db';
 import { now } from '../util';
 import { ignore } from '@/lib/core/ignore';
+import { logInfo } from '@/lib/core/log';
 
 /** How many times we will re-run a provisioning job before giving up and
  *  showing the user an error. Bounded on purpose: an unbounded "self-heal"
@@ -117,13 +118,13 @@ function healOne(raw: RawDb, nowTs: number, stuckRow: StuckRow): 'healed' | 'gav
   ).get(stuckRow.instance_id) as { image_id: string; status: string | null; failure: string | null } | undefined;
   if (imageRow && imageRow.status && imageRow.status !== 'ready') {
     giveUp(raw, nowTs, stuckRow.instance_id, `the OS image "${imageRow.image_id}" is unusable: ${imageRow.failure ?? imageRow.status}`);
-    console.log(`[worker] ${stuckRow.instance_id} cannot be healed: image ${imageRow.image_id} is ${imageRow.status}`);
+    logInfo(`[worker] ${stuckRow.instance_id} cannot be healed: image ${imageRow.image_id} is ${imageRow.status}`);
     return 'gaveup';
   }
 
   if (stuckRow.heal_count >= HEAL_MAX) {
     giveUp(raw, nowTs, stuckRow.instance_id, 'gave up after ' + HEAL_MAX + ' automatic attempts — try again or contact the operator');
-    console.log(`[worker] self-heal gave up on ${stuckRow.instance_id} after ${HEAL_MAX} attempts`);
+    logInfo(`[worker] self-heal gave up on ${stuckRow.instance_id} after ${HEAL_MAX} attempts`);
     return 'gaveup';
   }
 
@@ -132,7 +133,7 @@ function healOne(raw: RawDb, nowTs: number, stuckRow: StuckRow): 'healed' | 'gav
   if (instanceRow) clearArtifacts(stuckRow.instance_id, instanceRow.domain_name);
   raw.prepare(`update instances set heal_count=heal_count+1, updated_at=? where id=?`).run(nowTs, stuckRow.instance_id);
   requeueJob(raw, nowTs, stuckRow);
-  console.log(`[worker] self-heal #${stuckRow.heal_count + 1} requeued ${stuckRow.instance_id}`);
+  logInfo(`[worker] self-heal #${stuckRow.heal_count + 1} requeued ${stuckRow.instance_id}`);
   return 'healed';
 }
 
@@ -151,7 +152,7 @@ export function healStuckProvisioning(): number {
   }
 
   if (healed || gaveUpCount) {
-    console.log(`[worker] self-heal pass: ${healed} requeued, ${gaveUpCount} given up`);
+    logInfo(`[worker] self-heal pass: ${healed} requeued, ${gaveUpCount} given up`);
   }
   return healed + gaveUpCount;
 }

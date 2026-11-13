@@ -9,6 +9,7 @@
  */
 import { rawDb } from '@/lib/db';
 import { ignore } from '@/lib/core/ignore';
+import { logInfo } from '@/lib/core/log';
 
 /** MBR signature present and not a GPT disk with no BIOS boot code. */
 function hasBiosBootloader(buf: Buffer): boolean {
@@ -52,9 +53,9 @@ export async function auditImageBootability(): Promise<void> {
       if (isBootable) continue;
       raw.prepare(`update images set status='broken', failure=? where id=?`)
         .run('image has no BIOS bootloader (UEFI-only build) — not bootable on this host', imageRow.id);
-      console.log(`[worker] image ${imageRow.id} marked broken: no BIOS bootloader`);
+      logInfo(`[worker] image ${imageRow.id} marked broken: no BIOS bootloader`);
     }
   } catch (auditError) {
-    console.log(`[worker] image bootability audit skipped: ${(auditError as Error).message}`);
+    logInfo(`[worker] image bootability audit skipped: ${(auditError as Error).message}`);
   }
 }

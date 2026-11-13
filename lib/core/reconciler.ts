@@ -18,13 +18,14 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { storagePaths } from '@/lib/config';
+import { logInfo } from '@/lib/core/log';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 export function startReconciler(): void {
   if (timer) return;
   timer = setInterval(() => { void reconcilePass().catch((passError) =>
-    console.log('[reconciler] pass failed:', (passError as Error).message)); }, 60_000);
-  console.log('[reconciler] loop 60s');
+    logInfo('[reconciler] pass failed:', (passError as Error).message)); }, 60_000);
+  logInfo('[reconciler] loop 60s');
 }
 
 export function stopReconciler(): void {
@@ -49,7 +50,7 @@ export async function reconcilePass(): Promise<{ fixed: number; suspended: numbe
   results.suspended += await suspendBrokeUsers();
   results.orphans += await cleanOrphans();
   // bandwidth quotas (throttle/clear live limits)
-  await checkQuotas().catch((quotaError) => console.log('[reconciler] quotas failed:', (quotaError as Error).message));
+  await checkQuotas().catch((quotaError) => logInfo('[reconciler] quotas failed:', (quotaError as Error).message));
   return results;
 }
 
@@ -86,7 +87,7 @@ async function suspendBrokeUsers(): Promise<number> {
         payload: { force: true, reason: 'auto-suspend (balance exhausted)' } });
       await db.update(instances).set({ autoSuspended: 1, status: 'suspended', updatedAt: now() }).where(
         (await import('drizzle-orm')).eq(instances.id, instanceRow.id));
-      console.log(`[reconciler] auto-suspend ${instanceRow.id} (user ${instanceRow.userId} broke)`);
+      logInfo(`[reconciler] auto-suspend ${instanceRow.id} (user ${instanceRow.userId} broke)`);
       suspended += 1;
     }
   }

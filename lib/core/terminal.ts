@@ -3,6 +3,7 @@
  */
 import type { WebSocket } from 'ws';
 import { attachKeepalive } from './ws-keepalive';
+import { logInfo } from '@/lib/core/log';
 
 /**
  * Web terminal: browser WS <-> ssh2 session on the guest (root@guest-ip:22,
@@ -138,7 +139,7 @@ export async function relayTerm(ws: WebSocket, bind: TermBind): Promise<void> {
     stopKeepalive();
     try { conn.end(); } catch { /* conn may already be ended */ }
     try { ws.close(); } catch { /* already closed */ }
-    console.log(`[term] ${bind.instanceId} closed: ${why}`);
+    logInfo(`[term] ${bind.instanceId} closed: ${why}`);
   };
   const fail = (msg: string) => {
     try { ws.send(JSON.stringify({ t: 'e', d: msg })); } catch { /* socket may already be closing */ }

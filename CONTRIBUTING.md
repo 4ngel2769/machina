@@ -180,6 +180,11 @@ route surface is already uniform, and `err()` IS the route-level Result.
 of `.catch(() => {})`, so the reason is readable at the call site. An empty
 `catch {}` is only acceptable with a comment saying why silence is correct.
 
+**Logging** goes through `lib/core/log.ts` (`logInfo`/`logWarn`/`logError`),
+never raw `console.*` in server code — the seam keeps one format and gives a
+future sink a single place to land. Client components (`app/**` rendered in the
+browser) still use `console.*` directly; the seam is a server-side module.
+
 ---
 
 ## 5. Testing

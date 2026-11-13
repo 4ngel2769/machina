@@ -6,6 +6,7 @@
  */
 import { config } from '@/lib/config';
 import { virsh } from './exec';
+import { logInfo } from '@/lib/core/log';
 
 export function macFromId(id: string): string {
   // Deterministic, collision-safe for our scale: 52:54:00:XX:XX:XX from an
@@ -71,7 +72,7 @@ export async function ensureIpLease(mac: string, ip: string): Promise<void> {
     await virsh(['net-update', config.network, 'add', 'ip-dhcp-host', `<host mac='${mac}' ip='${ip}'/>`, '--config']);
   } catch (leaseError) {
     // Not fatal: cloud-init sets a static IP anyway. DHCP entry is belt+braces.
-    console.log(`[driver] dhcp lease update failed (non-fatal): ${(leaseError as Error).message}`);
+    logInfo(`[driver] dhcp lease update failed (non-fatal): ${(leaseError as Error).message}`);
   }
 }
 

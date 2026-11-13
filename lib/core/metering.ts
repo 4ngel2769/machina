@@ -11,6 +11,7 @@ import { rawDb } from '@/lib/db';
 import { config } from '@/lib/config';
 import { newId } from './crypto';
 import { now } from './util';
+import { logInfo } from '@/lib/core/log';
 
 const SAMPLE_MIN = config.meters.sampleIntervalMin;
 
@@ -20,11 +21,11 @@ let settleTimer: ReturnType<typeof setInterval> | null = null;
 export function startMetering(): void {
   if (sampleTimer) return;
   sampleTimer = setInterval(() => { void samplePass().catch((e) =>
-    console.log('[metering] sample failed:', (e as Error).message)); }, SAMPLE_MIN * 60 * 1000);
+    logInfo('[metering] sample failed:', (e as Error).message)); }, SAMPLE_MIN * 60 * 1000);
   // settle every hour at :05
   settleTimer = setInterval(() => { void settleAll().catch((e) =>
-    console.log('[metering] settle-all failed:', (e as Error).message)); }, 3600 * 1000);
-  console.log(`[metering] sampler ${SAMPLE_MIN}min, settle hourly`);
+    logInfo('[metering] settle-all failed:', (e as Error).message)); }, 3600 * 1000);
+  logInfo(`[metering] sampler ${SAMPLE_MIN}min, settle hourly`);
 }
 
 export function stopMetering(): void {
@@ -46,7 +47,7 @@ export async function samplePass(): Promise<number> {
     for (const instanceRow of rows) ins.run(newId('use_'), instanceRow.id, SAMPLE_MIN / 60, ts);
   });
   tx();
-  if (rows.length) console.log(`[metering] sampled ${rows.length} running instance(s)`);
+  if (rows.length) logInfo(`[metering] sampled ${rows.length} running instance(s)`);
   return rows.length;
 }
 
@@ -55,7 +56,7 @@ export async function settleAll(): Promise<number> {
   const rows = db.prepare(`select distinct user_id from instances`).all() as { user_id: string }[];
   for (const userRow of rows) {
     try { void settleUser(userRow.user_id); } catch (e) {
-      console.log(`[metering] settle ${userRow.user_id} failed:`, (e as Error).message);
+      logInfo(`[metering] settle ${userRow.user_id} failed:`, (e as Error).message);
     }
   }
   return rows.length;
@@ -101,7 +102,7 @@ export async function settleUser(userId: string): Promise<number> {
     })();
     total += cents;
   }
-  if (total > 0) console.log(`[metering] settled ${userId}: -${total}c`);
+  if (total > 0) logInfo(`[metering] settled ${userId}: -${total}c`);
   return total;
 }
 

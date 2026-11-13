@@ -10,6 +10,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { logInfo } from '@/lib/core/log';
 
 export type IfaceSample = { t: number; rx: number; tx: number };
 export type IfaceTraffic = { rxBps: number; txBps: number; series: { t: number; rx: number; tx: number }[] };
@@ -52,7 +53,7 @@ export function startHostSampler(): void {
   if (timer) return;
   sampleOnce();
   timer = setInterval(sampleOnce, INTERVAL_MS);
-  console.log('[host] interface sampler 5s');
+  logInfo('[host] interface sampler 5s');
 }
 
 export function stopHostSampler(): void {

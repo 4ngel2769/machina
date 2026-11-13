@@ -8,6 +8,7 @@ import { mkdirSync, existsSync } from 'fs';
 import { storagePaths, config } from '@/lib/config';
 import { virsh, runBinary } from './exec';
 import { ignore } from '@/lib/core/ignore';
+import { logInfo } from '@/lib/core/log';
 
 async function poolExists(name: string): Promise<boolean> {
   try { await virsh(['pool-info', name]); return true; } catch { return false; }
@@ -37,7 +38,7 @@ async function ensureSetup(): Promise<void> {
       if (!(await poolExists(poolName))) await poolDefineDir(poolName, poolDir);
       await virsh(['pool-start', poolName]).catch(ignore('pool may already be active'));
     } catch (poolError) {
-      console.log(`[driver] pool ${poolName} ensure failed (non-fatal): ${(poolError as Error).message}`);
+      logInfo(`[driver] pool ${poolName} ensure failed (non-fatal): ${(poolError as Error).message}`);
     }
   }
 
@@ -55,7 +56,7 @@ async function ensureSetup(): Promise<void> {
     }
     await virsh(['net-start', config.network]).catch(ignore('net may already be active'));
   } catch (netError) {
-    console.log(`[driver] network ${config.network} ensure failed (non-fatal): ${(netError as Error).message}`);
+    logInfo(`[driver] network ${config.network} ensure failed (non-fatal): ${(netError as Error).message}`);
   }
 }
 
@@ -64,6 +65,6 @@ export async function ensureSetupSafe(): Promise<void> {
   try {
     await ensureSetup();
   } catch (setupError) {
-    console.log('[driver] ensureSetup failed (continuing degraded):', (setupError as Error).message);
+    logInfo('[driver] ensureSetup failed (continuing degraded):', (setupError as Error).message);
   }
 }

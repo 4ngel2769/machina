@@ -16,6 +16,7 @@ import { domNetStats, tuneIface, readIfaceTune, domState } from './driver';
 import { logAudit } from '@/lib/services/audit';
 import { now } from './util';
 import { ignore } from '@/lib/core/ignore';
+import { logInfo } from '@/lib/core/log';
 
 export const THROTTLE_KBS = 128; // ~1 Mbps each way once over quota
 export const GB = 1024 * 1024 * 1024;
@@ -25,8 +26,8 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function startNetmeter(intervalMs = 15 * 60 * 1000): void {
   if (timer) return;
   timer = setInterval(() => { void sampleNetPass().catch((sampleError) =>
-    console.log('[netmeter] sample failed:', (sampleError as Error).message)); }, intervalMs);
-  console.log('[netmeter] sampler 15min');
+    logInfo('[netmeter] sample failed:', (sampleError as Error).message)); }, intervalMs);
+  logInfo('[netmeter] sampler 15min');
 }
 
 export function stopNetmeter(): void {
@@ -78,7 +79,7 @@ export async function sampleNetPass(): Promise<number> {
     up.run(deltaRx, deltaTx, ifaceStats.rxBytes, ifaceStats.txBytes, now(), instanceId, month);
     touched += 1;
   }
-  if (touched) console.log(`[netmeter] sampled ${touched} instance(s)`);
+  if (touched) logInfo(`[netmeter] sampled ${touched} instance(s)`);
   return touched;
 }
 
@@ -109,7 +110,7 @@ async function throttleInstance(instanceRow: InstRow, used: number, quota: numbe
   }
   await logAudit({ action: 'net.throttled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
-  console.log(`[netmeter] throttled ${instanceRow.id} (${(used / GB).toFixed(2)}/${quota}GB)`);
+  logInfo(`[netmeter] throttled ${instanceRow.id} (${(used / GB).toFixed(2)}/${quota}GB)`);
 }
 
 /** Back under quota (raised limit, or a fresh month row): clear flag and limit. */
@@ -121,7 +122,7 @@ async function unthrottleInstance(instanceRow: InstRow, used: number, quota: num
   }
   await logAudit({ action: 'net.unthrottled', target: instanceRow.id,
     detail: { usedGb: +(used / GB).toFixed(2), quotaGb: quota } });
-  console.log(`[netmeter] unthrottled ${instanceRow.id}`);
+  logInfo(`[netmeter] unthrottled ${instanceRow.id}`);
 }
 
 /** Flag set but the live limit was lost (e.g. libvirt restart): put it back. */
@@ -129,7 +130,7 @@ async function healThrottle(instanceRow: InstRow): Promise<void> {
   const currentTune = await readIfaceTune(instanceRow.domain_name, instanceRow.mac).catch(() => null);
   if (!currentTune || (currentTune.inAvg === THROTTLE_KBS && currentTune.outAvg === THROTTLE_KBS)) return;
   await tuneIface(instanceRow.domain_name, instanceRow.mac, THROTTLE_KBS, THROTTLE_KBS).catch(ignore('iface may not exist yet'));
-  console.log(`[netmeter] re-applied throttle ${instanceRow.id}`);
+  logInfo(`[netmeter] re-applied throttle ${instanceRow.id}`);
 }
 
 type QuotaAction = 'throttle' | 'clear' | 'heal' | 'none';
@@ -174,7 +175,7 @@ export async function checkQuotas(): Promise<{ throttled: number; cleared: numbe
       if (action === 'throttle') result.throttled += 1;
       else if (action === 'clear') result.cleared += 1;
     } catch (quotaError) {
-      console.log(`[netmeter] quota ${instanceRow.id} failed:`, (quotaError as Error).message);
+      logInfo(`[netmeter] quota ${instanceRow.id} failed:`, (quotaError as Error).message);
     }
   }
   return result;
