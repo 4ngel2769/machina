@@ -14,6 +14,41 @@ const LABEL: Record<string, string> = {
   h: 'home', i: 'instances', k: 'ssh keys', b: 'billing', s: 'specs', a: 'admin',
 };
 
+function isTyping(e: KeyboardEvent): boolean {
+  const el = e.target as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+}
+
+function armGoTimer(timer: { current: ReturnType<typeof setTimeout> | null }, setPending: (v: boolean) => void) {
+  setPending(true);
+  if (timer.current) clearTimeout(timer.current);
+  timer.current = setTimeout(() => setPending(false), 1200);
+}
+
+function focusSearch(e: KeyboardEvent) {
+  const s = document.querySelector<HTMLInputElement>('input[data-search]');
+  if (s) { e.preventDefault(); s.focus(); }
+}
+
+function followGo(e: KeyboardEvent, setPending: (v: boolean) => void, router: ReturnType<typeof useRouter>) {
+  const dest = GO[e.key.toLowerCase()];
+  if (dest) { e.preventDefault(); setPending(false); router.push(dest); }
+}
+
+/** Esc, ?, / and the g-prefix; returns true when the key was consumed. */
+function specialKey(
+  e: KeyboardEvent,
+  setShow: React.Dispatch<React.SetStateAction<boolean>>,
+  setPending: React.Dispatch<React.SetStateAction<boolean>>,
+  timer: { current: ReturnType<typeof setTimeout> | null },
+): boolean {
+  if (e.key === 'Escape') { setShow(false); setPending(false); return true; }
+  if (e.key === '?') { e.preventDefault(); setShow((v) => !v); return true; }
+  if (e.key === '/') { focusSearch(e); return true; }
+  if (e.key === 'g' || e.key === 'G') { armGoTimer(timer, setPending); return true; }
+  return false;
+}
+
 /**
  * Keyboard navigation, vim-style. `g` then a key jumps; `?` toggles the
  * cheat-sheet; `/` focuses search when one exists; Esc closes things.
@@ -27,29 +62,10 @@ export function Shortcuts() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onKey = useCallback((e: KeyboardEvent) => {
-    const el = e.target as HTMLElement | null;
-    const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-    if (e.key === 'Escape') { setShow(false); setPending(false); return; }
-    if (typing) return;
-
-    if (e.key === '?') { e.preventDefault(); setShow((v) => !v); return; }
-    if (e.key === '/') {
-      const s = document.querySelector<HTMLInputElement>('input[data-search]');
-      if (s) { e.preventDefault(); s.focus(); }
-      return;
-    }
-    if (e.key === 'g' || e.key === 'G') {
-      setPending(true);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setPending(false), 1200);
-      return;
-    }
-    if (pending) {
-      const dest = GO[e.key.toLowerCase()];
-      if (dest) { e.preventDefault(); setPending(false); router.push(dest); }
-    }
+    if (isTyping(e)) return;
+    if (specialKey(e, setShow, setPending, timer)) return;
+    if (pending) followGo(e, setPending, router);
   }, [pending, router]);
 
   useEffect(() => {
