@@ -152,17 +152,6 @@ button, input, select, a, tr {
 .dock-bell { flex: none; display: flex; }
 .dock:not(.open) .dock-bell { display: none; }
 
-/* pull-tab: the way back when the dock is hidden */
-.dock-tab {
-  position: fixed; left: 0; top: 50%; transform: translateY(-50%);
-  z-index: 45; width: 26px; height: 64px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface); border: 1px solid var(--line);
-  border-left: none; border-radius: 0 10px 10px 0;
-  color: var(--text-3); cursor: pointer; padding: 0;
-  transition: color .15s ease, background .15s ease, width .15s ease;
-}
-.dock-tab:hover { color: var(--text); background: var(--surface-2); width: 30px; }
 .dock-backdrop {
   position: fixed; inset: 0; z-index: 35; display: none;
   background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
@@ -600,7 +589,6 @@ kbd {
   /* the dock becomes a full-height overlay panel; the icon rail only shows
      in dock mode on desktop, so force the open geometry via width */
   .dock { border-radius: 0; border-left: none; box-shadow: none; }
-  .dock-tab { display: flex; }
   .dock-backdrop { display: block; }
   /* mobile: content never reserves dock gutter */
   .layout { padding-left: 14px; }

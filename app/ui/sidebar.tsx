@@ -1,10 +1,9 @@
 /**
  * Left navigation as a floating dock.
  *
- * Three states, one morphing panel:
- *   hidden — off-canvas; a pull-tab on the left edge or shift+D brings it back
- *   dock   — floating icon rail, inset from the viewport edges
- *   open   — full sidebar with group labels
+ * Two states, one morphing panel:
+ *   dock — floating icon rail, inset from the viewport edges
+ *   open — full sidebar with group labels
  *
  * motion springs drive width/offsets/radius so dock -> sidebar reads as one
  * fluid shape change rather than two layouts swapping. The icon set is the
@@ -33,16 +32,15 @@ export function showDock() {
   window.dispatchEvent(new CustomEvent(DOCK_SHOW_EVENT));
 }
 
-export type DockMode = 'hidden' | 'dock' | 'open';
+export type DockMode = 'dock' | 'open';
 const MODE_KEY = 'machina.dock';
 
 function readMode(): DockMode {
   try {
     const saved = localStorage.getItem(MODE_KEY);
-    if (saved === 'hidden' || saved === 'dock' || saved === 'open') return saved;
+    if (saved === 'dock' || saved === 'open') return saved;
   } catch { /* private mode */ }
-  // mobile defaults to hidden; an explicit saved choice always wins
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches ? 'hidden' : 'dock';
+  return 'dock';
 }
 
 function writeMode(mode: DockMode) {
@@ -221,7 +219,7 @@ function DockFoot({ open, name }: { open: boolean; name: string }) {
  *  CSS transition on .layout animates it alongside the spring. */
 function useDockPad(mode: DockMode) {
   useEffect(() => {
-    const pad = mode === 'open' ? 248 : mode === 'dock' ? 94 : 0;
+    const pad = mode === 'open' ? 248 : 94;
     document.documentElement.style.setProperty('--dock-pad', `${pad}px`);
     return () => document.documentElement.style.setProperty('--dock-pad', '0px');
   }, [mode]);
@@ -231,9 +229,8 @@ const SPRING = { type: 'spring', stiffness: 380, damping: 34, mass: 0.9 } as con
 
 /** Panel geometry per state — all numbers so springs interpolate cleanly. */
 const GEOM = {
-  dock: { left: 14, top: 14, bottom: 14, width: 68, radius: 18, x: 0 },
-  open: { left: 0, top: 0, bottom: 0, width: 236, radius: 0, x: 0 },
-  hidden: { left: 14, top: 14, bottom: 14, width: 68, radius: 18, x: '-140%' },
+  dock: { left: 14, top: 14, bottom: 14, width: 68, radius: 18 },
+  open: { left: 0, top: 0, bottom: 0, width: 236, radius: 0 },
 } as const;
 
 export function Sidebar({ name, role }: { name: string; role: string }) {
@@ -254,34 +251,25 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
     writeMode(next);
   }, []);
 
-  // `[` cycles hidden -> dock -> open; shift+D (DOCK_SHOW_EVENT) toggles
-  // hidden <-> dock without disturbing an expanded sidebar.
-  const cycle = useCallback(() => {
+  // `[` and shift+D both toggle dock <-> open; there is no hidden state.
+  const toggle = useCallback(() => {
     setMode((was) => {
-      const next: DockMode = was === 'hidden' ? 'dock' : was === 'dock' ? 'open' : 'hidden';
-      writeMode(next);
-      return next;
-    });
-  }, []);
-
-  const showOrHide = useCallback(() => {
-    setMode((was) => {
-      const next: DockMode = was === 'hidden' ? 'dock' : 'hidden';
+      const next: DockMode = was === 'open' ? 'dock' : 'open';
       writeMode(next);
       return next;
     });
   }, []);
 
   useEffect(() => {
-    const onToggle = () => cycle();
-    const onShow = () => showOrHide();
+    const onToggle = () => toggle();
+    const onShow = () => toggle();
     window.addEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
     window.addEventListener(DOCK_SHOW_EVENT, onShow);
     return () => {
       window.removeEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
       window.removeEventListener(DOCK_SHOW_EVENT, onShow);
     };
-  }, [cycle, showOrHide]);
+  }, [toggle]);
 
   const toggleGroup = (id: string) => {
     setClosedGroups((prev) => {
@@ -293,7 +281,6 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
 
   const groups = GROUPS.filter((group) => !group.admin || role === 'admin');
   const open = mode === 'open';
-  const visible = mode !== 'hidden';
   const geom = GEOM[mode];
 
   useDockPad(mode);
@@ -309,19 +296,15 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
           bottom: geom.bottom,
           width: geom.width,
           borderRadius: geom.radius,
-          x: geom.x,
-          opacity: visible ? 1 : 0,
         }}
         transition={SPRING}
-        style={{ pointerEvents: visible ? 'auto' : 'none' }}
-        aria-hidden={!visible}
       >
         <div className="dock-head">
           <Link href="/home" className="dock-brand" aria-label="machina home">machina</Link>
           <button
             className="dock-collapse"
-            onClick={cycle}
-            aria-label={open ? 'collapse to dock' : mode === 'dock' ? 'expand sidebar' : 'show navigation'}
+            onClick={toggle}
+            aria-label={open ? 'collapse to dock' : 'expand sidebar'}
             title={open ? 'collapse' : 'expand'}
           >
             <ChevronRightIcon size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }} />
@@ -339,12 +322,6 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
         <DockFoot open={open} name={name} />
       </motion.aside>
 
-      {/* pull-tab: the way back when the dock is hidden */}
-      {!visible && (
-        <button className="dock-tab" onClick={() => setDockMode('dock')} aria-label="show navigation" title="show navigation (shift+D)">
-          <Icon name="menu" size={15} />
-        </button>
-      )}
       {open && <div className="dock-backdrop" onClick={() => setDockMode('dock')} aria-hidden />}
     </>
   );
