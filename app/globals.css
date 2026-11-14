@@ -59,6 +59,8 @@ button, input, select, a, tr {
   will-change: left, top, bottom, width, border-radius, transform, opacity;
 }
 .dock.open { border-radius: 0; border-left: none; box-shadow: none; }
+/* the user popup escapes the panel's rounded-corner clip while open */
+.dock.menu-open { overflow: visible; }
 
 .dock-head {
   display: flex; align-items: center; justify-content: space-between;
