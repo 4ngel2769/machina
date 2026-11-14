@@ -155,9 +155,14 @@ button, input, select, a, tr {
    picture, centred in the rail's width */
 .dock-avatar { padding: 6px 0; }
 .dock-avatar .blobatar, .dock-avatar canvas, .dock-avatar svg { display: block; margin: 0 auto; }
-/* the menu is position:fixed (set inline from the trigger's rect), so it
-   escapes the dock's overflow clip and the flex layout entirely */
-.dock-menu { position: relative; top: 0; right: auto; }
+/* opens upward from .dock-foot: bottom:100% puts the menu's lower edge at
+   the foot's top edge; the foot is the positioned ancestor (dock-user is
+   not positioned) so this is unambiguous in both dock and open states */
+.dock-menu {
+  position: absolute;
+  left: 10px; right: auto; top: auto; bottom: calc(100% + 4px);
+  max-height: min(70vh, 480px); overflow-y: auto;
+}
 .dock-menu-head { display: flex; align-items: center; gap: 10px; padding: 4px 6px 8px; }
 .dock-menu-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .dock-menu-role { font-size: 11px; color: var(--text-3); }
