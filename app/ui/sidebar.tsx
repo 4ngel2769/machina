@@ -15,7 +15,7 @@
  */
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
@@ -217,10 +217,33 @@ function DockFoot({ open, name, role, menuOpen, setMenuOpen }: {
   open: boolean; name: string; role: string;
   menuOpen: boolean; setMenuOpen: (value: boolean) => void;
 }) {
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // The menu is position:fixed so it escapes the dock's overflow clip AND
+  // the flex layout entirely — measure the trigger and park the menu's
+  // bottom edge just above it.
+  useLayoutEffect(() => {
+    if (!menuOpen || !btnRef.current) { setPos(null); return; }
+    const place = () => {
+      const rect = btnRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPos({ top: rect.top - 8, left: rect.left });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [menuOpen, open]);
+
   return (
     <div className="dock-foot">
       <div className="dock-user">
         <button
+          ref={btnRef}
           className={`profilebtn dock-profile${open ? '' : ' dock-avatar'}`}
           onClick={() => setMenuOpen(!menuOpen)}
           aria-haspopup="menu"
@@ -231,7 +254,11 @@ function DockFoot({ open, name, role, menuOpen, setMenuOpen }: {
           {open && <span>{name}</span>}
           {open && <ChevronDownIcon size={12} />}
         </button>
-        {menuOpen && <UserMenu name={name} role={role} onClose={() => setMenuOpen(false)} />}
+        {menuOpen && pos && (
+          <div style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateY(-100%)', zIndex: 60 }}>
+            <UserMenu name={name} role={role} onClose={() => setMenuOpen(false)} />
+          </div>
+        )}
       </div>
       {open && <div className="dock-bell"><Bell /></div>}
     </div>
