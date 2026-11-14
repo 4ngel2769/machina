@@ -162,12 +162,18 @@ function DockNav({ open, groups, pathname, closedGroups, onToggleGroup, onExpand
   );
 }
 
-/** The user popup: every account/settings/admin destination in one menu. */
+/** The user popup: every account/settings/admin destination in one menu.
+ *  stopPropagation on the menu matters: it is a sibling of the trigger
+ *  inside .dock-user, and a click on a menu item must not bubble back into
+ *  anything that toggles the menu closed before navigation runs. */
 function UserMenu({ name, role, onClose }: { name: string; role: string; onClose: () => void }) {
   const router = useRouter();
   const isAdmin = role === 'admin';
   return (
-    <div className="profilemenu dock-menu" role="menu" onClick={onClose}>
+    <div
+      className="profilemenu dock-menu" role="menu"
+      onClick={(event) => { event.stopPropagation(); onClose(); }}
+    >
       <div className="dock-menu-head">
         <Blobatar name={name} size={26} animate="hover" />
         <div>
@@ -207,14 +213,16 @@ function UserMenu({ name, role, onClose }: { name: string; role: string; onClose
   );
 }
 
-function DockFoot({ open, name, role }: { open: boolean; name: string; role: string }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+function DockFoot({ open, name, role, menuOpen, setMenuOpen }: {
+  open: boolean; name: string; role: string;
+  menuOpen: boolean; setMenuOpen: (value: boolean) => void;
+}) {
   return (
     <div className="dock-foot">
       <div className="dock-user">
         <button
           className={`profilebtn dock-profile${open ? '' : ' dock-avatar'}`}
-          onClick={() => setMenuOpen((was) => !was)}
+          onClick={() => setMenuOpen(!menuOpen)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label="account menu"
@@ -253,6 +261,7 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
   const pathname = usePathname();
   const [mode, setMode] = useState<DockMode>('dock');
   const [closedGroups, setClosedGroups] = useState<Record<string, boolean>>({});
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     setMode(readMode());
@@ -275,6 +284,18 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
       return next;
     });
   }, []);
+
+  // Click anywhere outside the dock closes the user popup (dock mode has no
+  // backdrop to catch it).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (event: MouseEvent) => {
+      const aside = document.querySelector('.dock');
+      if (aside && !aside.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen]);
 
   useEffect(() => {
     const onToggle = () => toggle();
@@ -304,7 +325,7 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
   return (
     <>
       <motion.aside
-        className={`dock${open ? ' open' : ''}`}
+        className={`dock${open ? ' open' : ''}${menuOpen ? ' menu-open' : ''}`}
         initial={false}
         animate={{
           left: geom.left,
@@ -335,10 +356,16 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
           />
         </nav>
 
-        <DockFoot open={open} name={name} role={role} />
+        <DockFoot open={open} name={name} role={role} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       </motion.aside>
 
-      {open && <div className="dock-backdrop" onClick={() => setDockMode('dock')} aria-hidden />}
+      {open && (
+        <div
+          className="dock-backdrop"
+          onClick={() => { setMenuOpen(false); setDockMode('dock'); }}
+          aria-hidden
+        />
+      )}
     </>
   );
 }
