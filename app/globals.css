@@ -160,7 +160,12 @@ button, input, select, a, tr {
    not positioned) so this is unambiguous in both dock and open states */
 .dock-menu {
   position: absolute;
-  left: 10px; right: auto; top: auto; bottom: calc(100% + 4px);
+  left: 10px; right: auto;
+  /* .profilemenu (defined later) sets top:calc(100% + 6px); both top and
+     bottom can't apply, so pin top:auto with !important to force the
+     bottom-anchored upward opening to win the cascade */
+  top: auto !important;
+  bottom: calc(100% + 4px);
   max-height: min(70vh, 480px); overflow-y: auto;
 }
 .dock-menu-head { display: flex; align-items: center; gap: 10px; padding: 4px 6px 8px; }
