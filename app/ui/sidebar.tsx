@@ -8,6 +8,10 @@
  * motion springs drive width/offsets/radius so dock -> sidebar reads as one
  * fluid shape change rather than two layouts swapping. The icon set is the
  * same in every state; only labels and chrome appear on expand.
+ *
+ * Everything account- or admin-shaped lives in the user popup at the bottom
+ * of the dock, not in the nav groups: profile, notifications, ssh keys,
+ * billing, api tokens, and (for admins) console/host/iso-library/terms.
  */
 'use client';
 
@@ -65,31 +69,6 @@ const GROUPS: NavGroup[] = [
     id: 'containers', label: 'containers', icon: 'package', admin: true,
     items: [
       { href: '/containers', label: 'all containers', icon: 'package' },
-    ],
-  },
-  {
-    id: 'host', label: 'host', icon: 'hard-drive', admin: true,
-    items: [
-      { href: '/host', label: 'machines', icon: 'server' },
-      { href: '/host/isos', label: 'iso library', icon: 'disc' },
-    ],
-  },
-  {
-    id: 'account', label: 'account', icon: 'key',
-    items: [
-      { href: '/keys', label: 'ssh keys', icon: 'key' },
-      { href: '/billing', label: 'billing', icon: 'activity' },
-      { href: '/account', label: 'profile', icon: 'inbox' },
-      { href: '/notifications', label: 'notifications', icon: 'bell' },
-      { href: '/tokens', label: 'api tokens', icon: 'key' },
-    ],
-  },
-  {
-    id: 'admin', label: 'admin', icon: 'power', admin: true,
-    items: [
-      { href: '/admin', label: 'console', icon: 'power' },
-      { href: '/terms', label: 'terms', icon: 'file-text' },
-      { href: '/privacy', label: 'privacy', icon: 'file-text' },
     ],
   },
 ];
@@ -183,31 +162,68 @@ function DockNav({ open, groups, pathname, closedGroups, onToggleGroup, onExpand
   );
 }
 
-function DockFoot({ open, name }: { open: boolean; name: string }) {
+/** The user popup: every account/settings/admin destination in one menu. */
+function UserMenu({ name, role, onClose }: { name: string; role: string; onClose: () => void }) {
   const router = useRouter();
+  const isAdmin = role === 'admin';
+  return (
+    <div className="profilemenu dock-menu" role="menu" onClick={onClose}>
+      <div className="dock-menu-head">
+        <Blobatar name={name} size={26} animate="hover" />
+        <div>
+          <div className="dock-menu-name">{name}</div>
+          <div className="dock-menu-role">{isAdmin ? 'admin' : 'user'}</div>
+        </div>
+      </div>
+      <div className="sep" />
+      <Link href="/account" role="menuitem">settings</Link>
+      <Link href="/notifications" role="menuitem">notifications</Link>
+      <Link href="/keys" role="menuitem">ssh keys</Link>
+      <Link href="/billing" role="menuitem">billing</Link>
+      <Link href="/tokens" role="menuitem">api tokens</Link>
+      {isAdmin && (
+        <>
+          <div className="sep" />
+          <div className="dock-menu-label">admin</div>
+          <Link href="/admin" role="menuitem">console</Link>
+          <Link href="/host" role="menuitem">host machines</Link>
+          <Link href="/host/isos" role="menuitem">iso library</Link>
+          <Link href="/terms" role="menuitem">terms</Link>
+          <Link href="/privacy" role="menuitem">privacy</Link>
+        </>
+      )}
+      {!isAdmin && (
+        <>
+          <div className="sep" />
+          <Link href="/terms" role="menuitem">terms</Link>
+          <Link href="/privacy" role="menuitem">privacy</Link>
+        </>
+      )}
+      <div className="sep" />
+      <button role="menuitem" onClick={() => signOut({ callbackUrl: '/signin' }).then(() => router.push('/signin'))}>
+        sign out
+      </button>
+    </div>
+  );
+}
+
+function DockFoot({ open, name, role }: { open: boolean; name: string; role: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="dock-foot">
       <div className="dock-user">
-        <button className="profilebtn dock-profile" onClick={() => setMenuOpen((was) => !was)} aria-haspopup="menu" aria-expanded={menuOpen}>
-          <Blobatar name={name} size={22} animate="hover" />
+        <button
+          className={`profilebtn dock-profile${open ? '' : ' dock-avatar'}`}
+          onClick={() => setMenuOpen((was) => !was)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="account menu"
+        >
+          <Blobatar name={name} size={open ? 22 : 34} animate="hover" />
           {open && <span>{name}</span>}
           {open && <ChevronDownIcon size={12} />}
         </button>
-        {menuOpen && (
-          <div className="profilemenu dock-menu" role="menu" onClick={() => setMenuOpen(false)}>
-            <Link href="/account" role="menuitem">account</Link>
-            <Link href="/notifications" role="menuitem">notifications</Link>
-            <Link href="/tokens" role="menuitem">api tokens</Link>
-            <div className="sep" />
-            <Link href="/terms" role="menuitem">terms</Link>
-            <Link href="/privacy" role="menuitem">privacy</Link>
-            <div className="sep" />
-            <button role="menuitem" onClick={() => signOut({ callbackUrl: '/signin' }).then(() => router.push('/signin'))}>
-              sign out
-            </button>
-          </div>
-        )}
+        {menuOpen && <UserMenu name={name} role={role} onClose={() => setMenuOpen(false)} />}
       </div>
       {open && <div className="dock-bell"><Bell /></div>}
     </div>
@@ -319,7 +335,7 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
           />
         </nav>
 
-        <DockFoot open={open} name={name} />
+        <DockFoot open={open} name={name} role={role} />
       </motion.aside>
 
       {open && <div className="dock-backdrop" onClick={() => setDockMode('dock')} aria-hidden />}
