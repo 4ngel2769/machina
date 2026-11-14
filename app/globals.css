@@ -140,9 +140,10 @@ button, input, select, a, tr {
 .dock-foot {
   flex: none; border-top: 1px solid var(--line);
   padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: relative;
 }
 .dock.open .dock-foot { flex-direction: row; }
-.dock-user { position: relative; flex: 1; min-width: 0; display: flex; }
+.dock-user { flex: 1; min-width: 0; display: flex; }
 .dock-profile {
   flex: 1; min-width: 0; justify-content: center;
   background: transparent; border: none; padding: 4px 6px;
@@ -154,7 +155,9 @@ button, input, select, a, tr {
    picture, centred in the rail's width */
 .dock-avatar { padding: 6px 0; }
 .dock-avatar .blobatar, .dock-avatar canvas, .dock-avatar svg { display: block; margin: 0 auto; }
-.dock-menu { left: 0; right: auto; bottom: calc(100% + 6px); top: auto; }
+/* the menu is position:fixed (set inline from the trigger's rect), so it
+   escapes the dock's overflow clip and the flex layout entirely */
+.dock-menu { position: relative; top: 0; right: auto; }
 .dock-menu-head { display: flex; align-items: center; gap: 10px; padding: 4px 6px 8px; }
 .dock-menu-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .dock-menu-role { font-size: 11px; color: var(--text-3); }
