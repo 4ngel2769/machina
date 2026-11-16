@@ -32,6 +32,10 @@ table inet machina_vnets {
         # cross-bridge forwarding = inter-tenant or tenant->machina0 traffic
         iifname "virbr-*" oifname "virbr-*" counter drop
         iifname "virbr-mu*" ct state established,related accept
+        # tenant IPv6 lives on ULA fd7a:115c:a1e0::/48 — local-only space, so
+        # it must never leave the host on a physical interface (the v4
+        # private-range drop below only matches ip daddr, not ip6)
+        iifname "virbr-mu*" ip6 daddr fd7a:115c:a1e0::/48 oifname != "virbr-*" counter drop
         # a user net's own subnet is L2; anything private it routes to is
         # either another tenant net or infrastructure — all refused
         iifname "virbr-mu*" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16 } drop

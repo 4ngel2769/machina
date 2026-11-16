@@ -202,4 +202,18 @@ export const MIGRATIONS_2: { version: string; sql: string }[] = [
       alter table quotas add column max_monthly_spend_cents integer;
     `,
   },
+  {
+    version: '20261116_0015',
+    sql: `
+      -- Per-user private network subnets, user-picked from RFC 6598 space.
+      -- v4_subnet is the /24 the tenant's VMs live on (NULL = legacy 10.231.x
+      -- allocation, kept for rows that predate the picker); v6_subnet is the
+      -- /64 SLAAC prefix carved from fd7a:115c:a1e0::/48. Both are unique so
+      -- two users can never claim the same block.
+      alter table user_nets add column v4_subnet text;
+      alter table user_nets add column v6_subnet text;
+      create unique index if not exists user_nets_v4_idx on user_nets(v4_subnet);
+      create unique index if not exists user_nets_v6_idx on user_nets(v6_subnet);
+    `,
+  },
 ];

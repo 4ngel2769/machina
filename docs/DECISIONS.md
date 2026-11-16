@@ -106,3 +106,27 @@ sites that must agree.
   info; sonner is reserved for the persistent job-progress toasts in
   `job-toasts.tsx`. No call site imports `sonner` directly — the palette
   routes through `useToast` for exactly this reason.
+
+## Tenant subnets (user-picked)
+
+- **Users pick their private vnet subnet**, Tailscale-style. IPv4 comes from
+  RFC 6598 `100.64.0.0/10` (must be a /24; anchors `100.64.0.0/24`,
+  `100.64.0.1/32`, `100.127.255.255/32` excluded); IPv6 comes from ULA
+  `fd7a:115c:a1e0::/48` (must be a /64). Both are unique-indexed in
+  `user_nets` — the friendly check in `usernetpick.ts` and the index are the
+  two halves of collision avoidance.
+- **The pick locks once any instance row exists.** Guest addresses are baked
+  into the cloud-init seed ISO at provision; changing the subnet under a live
+  or stopped VM strands it. Deleting every instance unlocks.
+- **`v4_subnet`/`v6_subnet` NULL = legacy.** Rows that predate the picker keep
+  `10.231.<idx>.0/24` via the `rowToNet` fallback; new rows always carry both
+  picks. `subnet`/`gateway` columns still hold the v4 values for readers that
+  predate the split.
+- **IPv6 is SLAAC-only.** libvirt `<ip family='ipv6' address='…::1' prefix='64'/>`
+  gives guests a /64 with router advertisements; no DHCPv6. There is no v6
+  NAT — ULA is local-only by design, and `machina-vnets.nft` drops ULA packets
+  that would egress a physical interface.
+- **Pick persists before first provision** (`/api/net`, admin mirror at
+  `/api/admin/users/[userId]/net`). The `user_nets` row is written with the
+  idx claimed but the libvirt network stays lazy — `ensureUserNet` defines it
+  with the picked subnets on first VM create. `reset` clears back to auto.
