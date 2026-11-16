@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
+import { DataGate } from '@/app/ui/datagate';
 import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Iso = { name: string; sizeMb: number; mtime: number; sha256: string | null; ownerId: string | null };
@@ -171,7 +172,14 @@ export default function MyIsosPage() {
         </label>
       </div>
 
-      {!ready || !list ? <Skeleton h={120} /> : <Shelf isos={shown} onDelete={(iso) => void remove(iso)} />}
+      <DataGate
+        data={list} loading={!ready || list === null}
+        isEmpty={() => shown.length === 0}
+        emptyIcon="hard-drive" emptyText="no isos yet — upload an installer image, then attach it from an instance"
+        skeleton={<Skeleton h={120} />}
+      >
+        {() => <Shelf isos={shown} onDelete={(iso) => void remove(iso)} />}
+      </DataGate>
     </>
   );
 }

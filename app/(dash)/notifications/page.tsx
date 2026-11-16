@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
-import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
+import { DataGate } from '@/app/ui/datagate';
+import { useMinVisible } from '@/app/ui/loaders';
 import { InfoIcon, CheckIcon, WarnIcon, XIcon, BellIcon } from '@/app/ui/icons';
 import type { ReactNode } from 'react';
 
@@ -86,11 +87,16 @@ function NotificationBody({ ready, items, shown, filter, act }: {
   filter: 'all' | 'unread';
   act: (op: string, id?: string) => Promise<void>;
 }) {
-  if (!ready || !items) return <Skeleton h={160} />;
-  if (shown.length === 0) {
-    return <Empty icon="bell" text={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'} />;
-  }
-  return <NotificationList items={shown} act={act} />;
+  return (
+    <DataGate
+      data={items} loading={!ready || items === null}
+      isEmpty={(rows) => shown.length === 0}
+      emptyIcon="bell"
+      emptyText={filter === 'unread' ? 'nothing unread — all caught up' : 'no notifications yet'}
+    >
+      {() => <NotificationList items={shown} act={act} />}
+    </DataGate>
+  );
 }
 
 function NotificationsHeader({ unread, filter, setFilter, onReadAll }: {

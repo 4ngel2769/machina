@@ -2,6 +2,8 @@
 
 'use client';
 
+import { Empty } from '@/app/ui/loaders';
+
 import { useEffect, useState } from 'react';
 import type { AdminState } from '../use';
 import type { DelReq, Img, InstReq, Plan } from '../types';
@@ -14,6 +16,7 @@ export function AuditCard({ admin }: { admin: AdminState }) {
       <table>
         <thead><tr><th>when</th><th>actor</th><th>action</th><th>target</th><th>detail</th></tr></thead>
         <tbody>
+          {admin.aud.length === 0 && <tr><td colSpan={5}><Empty icon="file-text" text="no audit entries" /></td></tr>}
           {admin.aud.map((entry) => (
             <tr key={entry.id}>
               <td>{new Date(entry.ts).toLocaleString()}</td>

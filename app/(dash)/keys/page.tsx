@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ThinkingOrb } from 'thinking-orbs';
 import { useToast } from '@/app/ui/toast';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { copyText } from '@/app/ui/clipboard';
 import { relTime } from '@/app/ui/time';
@@ -108,12 +109,21 @@ function KeysTable({ keys, loading, onDelete }: {
       <table>
         <thead><tr><th>label</th><th>algo</th><th>key</th><th>added</th><th /></tr></thead>
         <tbody>
-          {loading && Array.from({ length: 3 }).map((_, n) => (
-            <tr key={n}>{Array.from({ length: 5 }).map((__, cell) => (
-              <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 4 ? '40%' : '70%'} h={10} /></td>
-            ))}</tr>
-          ))}
-          {!loading && (keys ?? []).map((sshKey) => (
+          <DataGate
+            data={keys} loading={loading}
+            isEmpty={(rows) => rows.length === 0}
+            emptyIcon="key" emptyText="no keys — add one above, it lands in the next instance you create"
+            skeleton={(
+              <>
+                {Array.from({ length: 3 }).map((_, n) => (
+                  <tr key={n}>{Array.from({ length: 5 }).map((__, cell) => (
+                    <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 4 ? '40%' : '70%'} h={10} /></td>
+                  ))}</tr>
+                ))}
+              </>
+            )}
+          >
+            {(rows) => rows.map((sshKey) => (
             <tr key={sshKey.id}>
               <td>{sshKey.label}</td>
               <td>{keyAlgo(sshKey.pubKey)
@@ -128,8 +138,8 @@ function KeysTable({ keys, loading, onDelete }: {
                 </div>
               </td>
             </tr>
-          ))}
-          {!loading && (keys ?? []).length === 0 && <tr><td colSpan={5} className="empty">no keys — add one above, it lands in the next instance you create</td></tr>}
+            ))}
+          </DataGate>
         </tbody>
       </table>
     </div>

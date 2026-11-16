@@ -6,9 +6,10 @@
 
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@/app/ui/icons';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton } from '@/app/ui/loaders';
 import { TabBar, TabBody } from './detail/tabs';
-import { containerIdFromPath, type ContainerDetail } from './detail/types';
+import { containerIdFromPath, type ContainerDetail, type ContainerStats, type Tab } from './detail/types';
 import { useContainerDetail } from './detail/use';
 
 /** Lifecycle buttons for the header row. Kill is confirm-gated because SIGKILL
@@ -53,12 +54,24 @@ export default function ContainerDetailPage() {
   const id = containerIdFromPath();
   const { detail, err, busy, act, tab, setTab, stats, statsErr } = useContainerDetail(id);
 
-  if (!detail) {
-    return err
-      ? <h1>{err}</h1>
-      : <div><Skeleton w="40%" h={26} style={{ marginBottom: 8 }} /><Skeleton w="60%" h={12} /><div className="card" style={{ marginTop: 14 }}><Skeleton h={220} /></div></div>;
-  }
+  if (err && !detail) return <h1>{err}</h1>;
 
+  return (
+    <DataGate
+      data={detail} loading={!detail}
+      emptyIcon="package" emptyText="container gone"
+      skeleton={<div><Skeleton w="40%" h={26} style={{ marginBottom: 8 }} /><Skeleton w="60%" h={12} /><div className="card" style={{ marginTop: 14 }}><Skeleton h={220} /></div></div>}
+    >
+      {(container) => <ContainerBody id={id} container={container} busy={busy} act={act} tab={tab} setTab={setTab} stats={stats} statsErr={statsErr} />}
+    </DataGate>
+  );
+}
+
+function ContainerBody({ id, container: detail, busy, act, tab, setTab, stats, statsErr }: {
+  id: string; container: ContainerDetail; busy: string;
+  act: (action: string) => Promise<void>; tab: Tab; setTab: (t: Tab) => void;
+  stats: ContainerStats | null; statsErr: string;
+}) {
   const stateTone = detail.state === 'running' ? 'running' : detail.state === 'paused' ? 'suspended' : 'stopped';
   return (
     <>

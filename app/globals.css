@@ -158,13 +158,13 @@ button, input, select, a, tr {
 /* opens upward from .dock-foot: bottom:100% puts the menu's lower edge at
    the foot's top edge; the foot is the positioned ancestor (dock-user is
    not positioned) so this is unambiguous in both dock and open states */
-.dock-menu {
+/* Doubled class beats .profilemenu's single-class top rule regardless of
+   source order — the popup opens upward (bottom-anchored), so top:auto must
+   win over .profilemenu's downward top. */
+.dock-menu.dock-menu {
   position: absolute;
   left: 10px; right: auto;
-  /* .profilemenu (defined later) sets top:calc(100% + 6px); both top and
-     bottom can't apply, so pin top:auto with !important to force the
-     bottom-anchored upward opening to win the cascade */
-  top: auto !important;
+  top: auto;
   bottom: calc(100% + 4px);
   max-height: min(70vh, 480px); overflow-y: auto;
 }

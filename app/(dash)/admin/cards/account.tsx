@@ -9,6 +9,7 @@ import type { DelReq, Img, InstReq, Plan } from '../types';
 import { QuotaEditor } from '@/app/ui/quota';
 import { UserAdmin } from '@/app/ui/users';
 import { CustomBox } from '@/app/ui/custombox';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton } from '@/app/ui/loaders';
 
 export function QuotasCard({ admin }: { admin: AdminState }) {
@@ -34,8 +35,12 @@ export function QuotasCard({ admin }: { admin: AdminState }) {
           </span>
         </div>
       )}
-      {admin.quotas ? <QuotaEditor data={admin.quotas} onSaved={() => void admin.load()} />
-        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}><Skeleton h={34} /><Skeleton h={34} /><Skeleton h={34} /></div>}
+      <DataGate
+        data={admin.quotas} loading={!admin.quotas}
+        skeleton={<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}><Skeleton h={34} /><Skeleton h={34} /><Skeleton h={34} /></div>}
+      >
+        {(quotas) => <QuotaEditor data={quotas} onSaved={() => void admin.load()} />}
+      </DataGate>
     </div>
   );
 }

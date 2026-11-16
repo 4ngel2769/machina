@@ -2,6 +2,7 @@
 
 'use client';
 
+import { DataGate } from '@/app/ui/datagate';
 import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { InstanceCard } from './card';
 import type { useInstancesPage } from './use';
@@ -38,13 +39,25 @@ export function InstancesGrid({ page, isAdmin, onRequest, insts, selected, onTog
   const planById = (id: string) => page.plans.find((plan) => plan.id === id);
   const ready = useMinVisible(400);
   const pending = page.loading || !ready;
-  const showEmpty = !pending && insts.length === 0 && page.insts.length > 0;
-  const showFirstEmpty = !pending && page.insts.length === 0;
+  // Three states the hand-rolled version spelled out: still loading (only
+  // before the first payload lands), filtered-to-nothing, and genuinely
+  // empty. DataGate owns the pending/empty decision; the two empty texts
+  // differ, so isEmpty stays false and the empties render inside children.
+  const firstLoad = pending && page.insts.length === 0;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }} className="stagger">
-      {pending && page.insts.length === 0 && <SkeletonCards />}
-      {showEmpty && <div style={{ gridColumn: '1 / -1' }}><GridEmpty filtered isAdmin={isAdmin} onRequest={onRequest} /></div>}
-      {showFirstEmpty && <div style={{ gridColumn: '1 / -1' }}><GridEmpty filtered={false} isAdmin={isAdmin} onRequest={onRequest} /></div>}
+      <DataGate
+        data={page.insts} loading={firstLoad}
+        isEmpty={() => false}
+        skeleton={<SkeletonCards />}
+      >
+        {() => (
+          <>
+            {insts.length === 0 && page.insts.length > 0 && <div style={{ gridColumn: '1 / -1' }}><GridEmpty filtered isAdmin={isAdmin} onRequest={onRequest} /></div>}
+            {insts.length === 0 && page.insts.length === 0 && <div style={{ gridColumn: '1 / -1' }}><GridEmpty filtered={false} isAdmin={isAdmin} onRequest={onRequest} /></div>}
+          </>
+        )}
+      </DataGate>
       {insts.map((instance) => (
         <InstanceCard
           key={instance.id} instance={instance} plan={planById(instance.planId)}
