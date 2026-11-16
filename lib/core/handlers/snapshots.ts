@@ -11,7 +11,7 @@ import {
   destroyDomain, domState,
 } from '../driver';
 import { diskVolFromId } from '../disks';
-import { settleUser } from '../metering';
+import { settleUser, spendCapVerdict } from '../metering';
 import { now } from '../util';
 import { shutdownAndWait } from './lifecycle';
 import type { JobCtx } from '../handlers';
@@ -25,6 +25,13 @@ import { ignore } from '@/lib/core/ignore';
  * with it. Runs in the worker, not the request handler, because the check has
  * to be true at the moment the snapshot is actually taken.
  */
+/** Spend-cap gate for the snapshot path; throws the refusal sentence. */
+async function assertSpendCap(instanceRow: { user_id: string }): Promise<void> {
+  const { getQuota } = await import('@/lib/core/quota');
+  const refusal = spendCapVerdict(instanceRow.user_id, getQuota(instanceRow.user_id).maxMonthlySpendCents);
+  if (refusal) throw new Error(refusal);
+}
+
 async function assertSnapshotQuota(instanceId: string): Promise<void> {
   const raw = rawDb();
   const snapshotCount = (raw.prepare(`select count(*) c from snapshots where instance_id=?`).get(instanceId) as { c: number }).c;
@@ -41,9 +48,12 @@ async function assertSnapshotQuota(instanceId: string): Promise<void> {
       `host snapshot pool is full (${config.limits.snapshotPoolMax}) — delete some first`,
     );
   }
-  const instanceRow = raw.prepare(`select id, plan_id from instances where id=?`).get(instanceId) as
-    { id: string; plan_id: string } | undefined;
+  const instanceRow = raw.prepare(`select id, plan_id, user_id from instances where id=?`).get(instanceId) as
+    { id: string; plan_id: string; user_id: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');
+  // Spend cap applies to snapshots too: they are new disk commitments on a
+  // metered account, so a capped user cannot grow snapshots past it either.
+  await assertSpendCap(instanceRow);
   const plan = raw.prepare(`select disk_gb from plans where id=?`).get(instanceRow.plan_id) as
     { disk_gb: number } | undefined;
   const planGb = plan?.disk_gb ?? 0;

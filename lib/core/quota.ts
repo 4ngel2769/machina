@@ -18,6 +18,7 @@
 import { rawDb } from '@/lib/db';
 import { config } from '@/lib/config';
 import { now } from '@/lib/core/util';
+import { spendCapVerdict } from '@/lib/core/metering';
 import { getHostCommitted, hostCapacity, checkHostCapacity } from '@/lib/core/capacity';
 import type { Quota, Usage, Verdict, Deny } from '@/lib/core/quotatypes';
 
@@ -33,14 +34,14 @@ export function getQuota(userId: string): Quota {
     .prepare(
       `select max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running,
               max_iso_count, max_iso_total_gb, max_containers,
-              max_container_mem_mb, max_container_cpus, suspended, note
+              max_container_mem_mb, max_container_cpus, max_monthly_spend_cents, suspended, note
        from quotas where user_id = ?`,
     )
     .get(userId) as
-    | { max_vms: number | null; max_vcpus: number | null; max_memory_mb: number | null; max_disk_gb: number | null; max_running: number | null; max_iso_count: number | null; max_iso_total_gb: number | null; max_containers: number | null; max_container_mem_mb: number | null; max_container_cpus: number | null; suspended: number; note: string | null }
+    | { max_vms: number | null; max_vcpus: number | null; max_memory_mb: number | null; max_disk_gb: number | null; max_running: number | null; max_iso_count: number | null; max_iso_total_gb: number | null; max_containers: number | null; max_container_mem_mb: number | null; max_container_cpus: number | null; max_monthly_spend_cents: number | null; suspended: number; note: string | null }
     | undefined;
   if (!quotaRow) {
-    return { maxVms: null, maxVcpus: null, maxMemoryMb: null, maxDiskGb: null, maxRunning: null, maxIsoCount: null, maxIsoTotalGb: null, maxContainers: null, maxContainerMemMb: null, maxContainerCpus: null, suspended: false, note: null };
+    return { maxVms: null, maxVcpus: null, maxMemoryMb: null, maxDiskGb: null, maxRunning: null, maxIsoCount: null, maxIsoTotalGb: null, maxContainers: null, maxContainerMemMb: null, maxContainerCpus: null, maxMonthlySpendCents: null, suspended: false, note: null };
   }
   return {
     maxVms: quotaRow.max_vms,
@@ -53,6 +54,7 @@ export function getQuota(userId: string): Quota {
     maxContainers: quotaRow.max_containers,
     maxContainerMemMb: quotaRow.max_container_mem_mb,
     maxContainerCpus: quotaRow.max_container_cpus,
+    maxMonthlySpendCents: quotaRow.max_monthly_spend_cents,
     suspended: !!quotaRow.suspended,
     note: quotaRow.note,
   };
@@ -225,6 +227,13 @@ export function checkQuota(
   const quotaRow = getQuota(userId);
   if (quotaRow.suspended) {
     return { allowed: false, reason: 'your account is suspended — contact an admin' };
+  }
+  // Monthly spend ceiling: a hard stop on NEW metered commitments once the
+  // month's ledger debits reach the cap. Existing VMs keep running — the
+  // reconciler's suspend-at-zero remains the balance-level guard.
+  if (!opts.isAdmin) {
+    const spendRefusal = spendCapVerdict(userId, quotaRow.maxMonthlySpendCents);
+    if (spendRefusal) return { allowed: false, reason: spendRefusal };
   }
   const usage = getCommittedForNew(userId, opts.excludeRequestId);
   // An admin creating on someone's behalf is still bound by the HOST's limits,

@@ -106,6 +106,60 @@ export async function settleUser(userId: string): Promise<number> {
   return total;
 }
 
+/** What the user has already been charged for metered usage this month. */
+export function monthlySpendCents(userId: string): number {
+  const monthStart = startOfMonthTs();
+  const row = rawDb()
+    .prepare(`select coalesce(sum(-delta_cents),0) as spent from ledger where user_id=? and reason='meter' and created_at>=?`)
+    .get(userId, monthStart) as { spent: number };
+  return row.spent ?? 0;
+}
+
+/**
+ * Estimated charges not yet settled: unsettled usage weight per running
+ * instance, priced at its rate and capped by the plan's remaining monthly
+ * hours — the same math settleUser applies, read-only. The displayed balance
+ * lags reality by up to an hour; this is the "accrued so far" figure.
+ */
+export function pendingChargesCents(userId: string): { cents: number; hours: number } {
+  const db = rawDb();
+  const rows = db.prepare(`
+    select i.id as inst, i.rate_hourly_cents as rate, i.monthly_cap_min as cap,
+           i.last_settle_at as last,
+           coalesce(sum(u.weight),0) as hours
+    from instances i
+    join usage u on u.instance_id = i.id and u.ts > i.last_settle_at and u.ts <= ?
+    where i.user_id = ? and u.running = 1
+    group by i.id
+  `).all(now() - 1000, userId) as { inst: string; rate: number; cap: number; hours: number }[];
+
+  const monthStart = startOfMonthTs();
+  let cents = 0;
+  let hours = 0;
+  for (const row of rows) {
+    const billed = (db.prepare(`
+      select coalesce(sum(u.weight),0) as h from usage u
+      where u.instance_id = ? and u.ts >= ? and u.running = 1
+    `).get(row.inst, monthStart) as { h: number } | undefined)?.h ?? row.hours;
+    const leftHours = Math.max(0, row.cap / 60 - billed);
+    const chargeable = Math.min(row.hours, leftHours);
+    cents += Math.round(chargeable * row.rate);
+    hours += chargeable;
+  }
+  return { cents, hours: Math.round(hours * 100) / 100 };
+}
+
+/** Spend-cap gate shared by provision and snapshot paths. Returns a refusal
+ *  sentence or null. Admin bypass is the caller's job (isAdmin flag). */
+export function spendCapVerdict(userId: string, capCents: number | null): string | null {
+  if (capCents === null) return null;
+  const spent = monthlySpendCents(userId);
+  if (spent >= capCents) {
+    return `monthly spend cap reached: $${(spent / 100).toFixed(2)} of $${(capCents / 100).toFixed(2)} metered this month — ask an admin to raise it`;
+  }
+  return null;
+}
+
 /** Top up (admin): positive delta, ledger row 'topup'. */
 export function grantCents(userId: string, deltaCents: number, note: string): void {
   const db = rawDb();

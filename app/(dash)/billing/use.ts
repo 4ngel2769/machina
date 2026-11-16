@@ -15,7 +15,11 @@ type Running = { id: string; name: string; rateHourlyCents: number };
 
 export function useBilling(): {
   balance: number | null;
+  accruedCents: number;
+  accruedHours: number;
   ledger: Ledger[];
+  nextCursor: string | null;
+  ledgerBusy: boolean;
   loaded: boolean;
   cap: { running: number; max: number } | null;
   running: Running[];
@@ -23,10 +27,15 @@ export function useBilling(): {
   newPw: string; setNewPw: (v: string) => void;
   pwBusy: boolean;
   changePw: (event: React.FormEvent) => Promise<void>;
+  loadOlder: () => Promise<void>;
 } {
   const toast = useToast();
   const [balance, setBalance] = useState<number | null>(null);
+  const [accruedCents, setAccruedCents] = useState(0);
+  const [accruedHours, setAccruedHours] = useState(0);
   const [ledger, setLedger] = useState<Ledger[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
   const [cap, setCap] = useState<{ running: number; max: number } | null>(null);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -42,6 +51,9 @@ export function useBilling(): {
       const billing = await billingResponse.json();
       setBalance(billing.balanceCents);
       setLedger(billing.ledger);
+      setNextCursor(billing.nextCursor);
+      setAccruedCents(billing.accruedCents ?? 0);
+      setAccruedHours(billing.accruedHours ?? 0);
       setCap(billing.capacity);
     }
     setLoaded(true);
@@ -54,6 +66,18 @@ export function useBilling(): {
       .then((rows) => setRunning(rows.filter((instance: { status: string }) => instance.status === 'running')))
       .catch(ignore('billing fetch failure leaves the card empty'));
   }, []);
+
+  async function loadOlder() {
+    if (!nextCursor || ledgerBusy) return;
+    setLedgerBusy(true);
+    const response = await fetch(`/api/billing?before=${encodeURIComponent(nextCursor)}`, { cache: 'no-store' });
+    if (response.ok) {
+      const billing = await response.json();
+      setLedger((previous) => [...previous, ...billing.ledger]);
+      setNextCursor(billing.nextCursor);
+    }
+    setLedgerBusy(false);
+  }
 
   async function changePw(event: React.FormEvent) {
     event.preventDefault();
@@ -68,7 +92,10 @@ export function useBilling(): {
     setPwBusy(false);
   }
 
-  return { balance, ledger, cap, running, loaded: settled, currentPw, setCurrentPw, newPw, setNewPw, pwBusy, changePw };
+  return {
+    balance, accruedCents, accruedHours, ledger, nextCursor, ledgerBusy, loaded: settled,
+    cap, running, currentPw, setCurrentPw, newPw, setNewPw, pwBusy, changePw, loadOlder,
+  };
 }
 
 export type BillingState = ReturnType<typeof useBilling>;

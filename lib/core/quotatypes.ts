@@ -17,6 +17,8 @@ export type Quota = {
   maxContainers: number | null;
   maxContainerMemMb: number | null;
   maxContainerCpus: number | null;
+  /** Monthly metered-spend ceiling in cents. NULL = uncapped, 0 = none. */
+  maxMonthlySpendCents: number | null;
   suspended: boolean;
   note: string | null;
 };
