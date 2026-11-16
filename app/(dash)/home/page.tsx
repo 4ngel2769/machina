@@ -1,5 +1,7 @@
 /**
  * Dashboard home: greeting, instance summary and recent activity.
+ * One /api/home/summary poll carries everything — instances with joined plan
+ * specs, sparklines, balance, accrued charges and pending requests.
  */
 'use client';
 
@@ -11,53 +13,107 @@ import { ArrowRightIcon } from '@/app/ui/icons';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { ignore } from '@/lib/core/ignore';
 
-type Inst = { id: string; name: string; status: string; planId: string; ip: string; createdAt: number; rateHourlyCents: number };
-type Plan = { id: string; name: string; vcpu: number; ramMb: number };
 type Sample = { ts: number; running: number; weight: number };
+type Inst = {
+  id: string; name: string; status: string; planId: string; ip: string;
+  createdAt: number; rateHourlyCents: number; planName: string;
+  vcpu: number; ramMb: number; spark: Sample[];
+};
+type Summary = {
+  instances: Inst[];
+  balanceCents: number | null;
+  pendingRequests: number;
+  accruedCents: number;
+  accruedHours: number;
+};
+
+function StatCard({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div className="card statcard">
+      <div className="label">{label}</div>
+      <div className="value">{value}</div>
+      {sub ? <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+function Sparkline({ id, spark }: { id: string; spark: Sample[] }) {
+  const chartData = spark.map((sample) => ({ v: sample.running ? sample.weight * 100 : 0 }));
+  return (
+    <div style={{ width: 90, height: 28 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
+          <defs>
+            <linearGradient id={`g-${id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.45} />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" dataKey="v" stroke="var(--accent)" strokeWidth={1.5} fill={`url(#g-${id})`} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function VmRow({ instance }: { instance: Inst }) {
+  return (
+    <Link href={`/instances/${instance.id}`} className="vmrow" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <StatusCue status={instance.status} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500 }}>{instance.name}</div>
+        <div className="muted mono" style={{ fontSize: 11 }}>{instance.ip} · {instance.planName} · {instance.vcpu}v {instance.ramMb}MB</div>
+      </div>
+      <Sparkline id={instance.id} spark={instance.spark} />
+      <span className="muted mono" style={{ fontSize: 11, minWidth: 70, textAlign: 'right' }}>{instance.status}</span>
+    </Link>
+  );
+}
+
+function BalanceStat({ summary }: { summary: Summary | null }) {
+  const accrued = summary?.accruedCents ?? 0;
+  const text = summary?.balanceCents != null ? `$${(summary.balanceCents / 100).toFixed(2)}` : '—';
+  return (
+    <StatCard
+      label="balance"
+      value={text}
+      sub={accrued > 0 ? `+$${(accrued / 100).toFixed(2)} accrued (${summary!.accruedHours}h pending)` : undefined}
+    />
+  );
+}
+
+function VmList({ insts, pending }: { insts: Inst[]; pending: boolean }) {
+  if (insts.length === 0 && !pending) {
+    return (
+      <Empty
+        icon="server"
+        text="no VMs yet — request one from the instances page"
+        action={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
+      />
+    );
+  }
+  if (pending && insts.length === 0) {
+    return <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>;
+  }
+  return <>{insts.map((instance) => <VmRow key={instance.id} instance={instance} />)}</>;
+}
 
 export default function HomePage() {
-  const [insts, setInsts] = useState<Inst[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [balance, setBalance] = useState<number | null>(null);
-  const [pendingReqs, setPendingReqs] = useState(0);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [spark, setSpark] = useState<Record<string, Sample[]>>({});
   const ready = useMinVisible(400);
   const pending = loading || !ready;
 
   const load = useCallback(async () => {
-    const instancesResponse = await fetch('/api/instances', { cache: 'no-store' });
-    if (instancesResponse.ok) {
-      const instances: Inst[] = await instancesResponse.json();
-      setInsts(instances);
-      for (const instance of instances) {
-        fetch(`/api/instances/${instance.id}/usage`, { cache: 'no-store' })
-          .then((usageResponse) => usageResponse.ok ? usageResponse.json() : [])
-          .then((samples) => setSpark((previous) => ({ ...previous, [instance.id]: samples })))
-          .catch(ignore('usage fetch failure leaves the card empty'));
-      }
-    }
-    const billingResponse = await fetch('/api/billing', { cache: 'no-store' });
-    if (billingResponse.ok) {
-      const billing = await billingResponse.json();
-      setBalance(billing.balanceCents);
-    }
-    const requestsResponse = await fetch('/api/requests', { cache: 'no-store' });
-    if (requestsResponse.ok) {
-      const requests = await requestsResponse.json();
-      setPendingReqs(requests.filter((request: { status: string }) => request.status === 'pending').length);
-    }
-    const catalogResponse = await fetch('/api/catalog', { cache: 'no-store' });
-    if (catalogResponse.ok) {
-      const catalog = await catalogResponse.json();
-      setPlans(catalog.plans);
-    }
+    const response = await fetch('/api/home/summary', { cache: 'no-store' })
+      .catch(ignore('summary fetch failure leaves the page stale'));
+    if (response?.ok) setSummary(await response.json());
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { const t = setInterval(() => void load(), 10000); return () => clearInterval(t); }, [load]);
 
-  const planById = (id: string) => plans.find((plan) => plan.id === id);
+  const insts = summary?.instances ?? [];
   const running = insts.filter((instance) => instance.status === 'running').length;
   const stopped = insts.filter((instance) => instance.status === 'stopped').length;
 
@@ -67,10 +123,10 @@ export default function HomePage() {
       <div className="sub">your homelab at a glance</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
-        <div className="card statcard"><div className="label">balance</div><div className="value">${balance !== null ? (balance / 100).toFixed(2) : '—'}</div></div>
-        <div className="card statcard"><div className="label">running</div><div className="value">{running}<span className="muted" style={{ fontSize: 12 }}> / {insts.length}</span></div></div>
-        <div className="card statcard"><div className="label">stopped</div><div className="value">{stopped}</div></div>
-        <div className="card statcard"><div className="label">pending requests</div><div className="value">{pendingReqs}</div></div>
+        <BalanceStat summary={summary} />
+        <StatCard label="running" value={<>{running}<span className="muted" style={{ fontSize: 12 }}> / {insts.length}</span></>} />
+        <StatCard label="stopped" value={stopped} />
+        <StatCard label="pending requests" value={summary?.pendingRequests ?? 0} />
       </div>
 
       <div className="card">
@@ -78,42 +134,7 @@ export default function HomePage() {
           <h3 style={{ margin: 0 }}>your VMs</h3>
           <Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>open grid <ArrowRightIcon size={12} /></Link>
         </div>
-        {insts.length === 0 && !pending && (
-          <Empty
-            icon="server"
-            text="no VMs yet — request one from the instances page"
-            action={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
-          />
-        )}
-        {pending && insts.length === 0 && <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}
-        {!pending && insts.map((instance) => {
-          const plan = planById(instance.planId);
-          const samples = spark[instance.id] ?? [];
-          const chartData = samples.map((sample) => ({ v: sample.running ? sample.weight * 100 : 0 }));
-          return (
-            <Link key={instance.id} href={`/instances/${instance.id}`} className="vmrow" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <StatusCue status={instance.status} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500 }}>{instance.name}</div>
-                  <div className="muted mono" style={{ fontSize: 11 }}>{instance.ip} · {plan?.name} · {plan?.vcpu}v {plan?.ramMb}MB</div>
-                </div>
-                <div style={{ width: 90, height: 28 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
-                      <defs>
-                        <linearGradient id={`g-${instance.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.45} />
-                          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="v" stroke="var(--accent)" strokeWidth={1.5} fill={`url(#g-${instance.id})`} isAnimationActive={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <span className="muted mono" style={{ fontSize: 11, minWidth: 70, textAlign: 'right' }}>{instance.status}</span>
-            </Link>
-          );
-        })}
+        <VmList insts={insts} pending={pending} />
       </div>
     </>
   );

@@ -5,6 +5,7 @@ export type Quota = {
   maxDiskGb: number | null; maxRunning: number | null;
   maxIsoCount: number | null; maxIsoTotalGb: number | null;
   maxContainers: number | null; maxContainerMemMb: number | null; maxContainerCpus: number | null;
+  maxMonthlySpendCents: number | null;
   suspended: boolean; note: string | null;
 };
 export type Usage = {
@@ -27,6 +28,7 @@ export const FIELDS: Field[] = [
   { key: 'maxContainers', label: 'containers' },
   { key: 'maxContainerMemMb', label: 'container RAM', unit: 'MB' },
   { key: 'maxContainerCpus', label: 'container vCPU' },
+  { key: 'maxMonthlySpendCents', label: 'monthly spend cap', unit: 'cents' },
 ];
 
 /** "blank" is unlimited. The input holds a string precisely so an empty field

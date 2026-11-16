@@ -43,6 +43,7 @@ type Bounds = {
   disk?: number | null; running?: number | null;
   isoCount?: number | null; isoTotalGb?: number | null;
   containers?: number | null; containerMemMb?: number | null; containerCpus?: number | null;
+  spendCents?: number | null;
 };
 
 function parseBounds(body: Record<string, unknown>): Bounds | ReturnType<typeof err> {
@@ -59,6 +60,7 @@ function parseBounds(body: Record<string, unknown>): Bounds | ReturnType<typeof 
       containerMemMb: bound(body.maxContainerMemMb, 'maxContainerMemMb'),
       // cpus allow fractional values, so they get their own parser.
       containerCpus: boundCpus(body.maxContainerCpus),
+      spendCents: bound(body.maxMonthlySpendCents, 'maxMonthlySpendCents'),
     };
   } catch (parseError) {
     return err((parseError as Error).message, 400);
@@ -102,6 +104,7 @@ function mergeQuota(bounds: Bounds, suspended: number | undefined, note: string 
     max_containers: pick(bounds.containers, 'max_containers'),
     max_container_mem_mb: pick(bounds.containerMemMb, 'max_container_mem_mb'),
     max_container_cpus: pick(bounds.containerCpus, 'max_container_cpus'),
+    max_monthly_spend_cents: pick(bounds.spendCents, 'max_monthly_spend_cents'),
     suspended: suspended !== undefined ? suspended : Number(existing?.suspended ?? 0),
     note: note !== undefined ? note : (existing?.note as string | null) ?? null,
   };
@@ -111,8 +114,8 @@ function writeQuota(userId: string, merged: ReturnType<typeof mergeQuota>) {
   rawDb().prepare(
     `insert into quotas (user_id, max_vms, max_vcpus, max_memory_mb, max_disk_gb, max_running,
                          max_iso_count, max_iso_total_gb, max_containers, max_container_mem_mb, max_container_cpus,
-                         suspended, note, updated_at)
-     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                         max_monthly_spend_cents, suspended, note, updated_at)
+     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      on conflict(user_id) do update set
        max_vms=excluded.max_vms, max_vcpus=excluded.max_vcpus,
        max_memory_mb=excluded.max_memory_mb, max_disk_gb=excluded.max_disk_gb,
@@ -120,11 +123,13 @@ function writeQuota(userId: string, merged: ReturnType<typeof mergeQuota>) {
        max_iso_count=excluded.max_iso_count, max_iso_total_gb=excluded.max_iso_total_gb,
        max_containers=excluded.max_containers,
        max_container_mem_mb=excluded.max_container_mem_mb, max_container_cpus=excluded.max_container_cpus,
+       max_monthly_spend_cents=excluded.max_monthly_spend_cents,
        suspended=excluded.suspended,
        note=excluded.note, updated_at=excluded.updated_at`,
   ).run(userId, merged.max_vms, merged.max_vcpus, merged.max_memory_mb, merged.max_disk_gb,
     merged.max_running, merged.max_iso_count, merged.max_iso_total_gb, merged.max_containers,
-    merged.max_container_mem_mb, merged.max_container_cpus, merged.suspended, merged.note, now());
+    merged.max_container_mem_mb, merged.max_container_cpus, merged.max_monthly_spend_cents,
+    merged.suspended, merged.note, now());
 }
 
 /**

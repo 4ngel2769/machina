@@ -18,6 +18,11 @@ export function BalanceCard({ billing }: { billing: BillingState }) {
           {billing.balance !== null && billing.balance < 100
             ? <span className="badge suspended" title="auto-suspends when it hits zero">low balance</span>
             : null}
+          {billing.accruedCents > 0 && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              +${(billing.accruedCents / 100).toFixed(2)} accrued this cycle ({billing.accruedHours}h unsettled)
+            </div>
+          )}
         </div>
         <div>
           <div className="muted">host capacity</div>
@@ -84,7 +89,7 @@ export function PasswordCard({ billing }: { billing: BillingState }) {
 export function LedgerCard({ billing }: { billing: BillingState }) {
   return (
     <div className="card">
-      <h3>ledger (last 50)</h3>
+      <h3>ledger</h3>
       <table>
         <thead><tr><th>when</th><th>reason</th><th>delta</th><th>note</th></tr></thead>
         <tbody>
@@ -106,6 +111,13 @@ export function LedgerCard({ billing }: { billing: BillingState }) {
           {billing.loaded && billing.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
         </tbody>
       </table>
+      {billing.nextCursor && (
+        <div style={{ marginTop: 10 }}>
+          <button disabled={billing.ledgerBusy} onClick={() => void billing.loadOlder()}>
+            {billing.ledgerBusy ? 'loading…' : 'older entries'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

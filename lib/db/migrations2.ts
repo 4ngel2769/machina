@@ -192,4 +192,14 @@ export const MIGRATIONS_2: { version: string; sql: string }[] = [
       create index if not exists uct_user_idx on user_containers(user_id);
     `,
   },
+  {
+    version: '20261116_0014',
+    sql: `
+      -- Optional monthly spend ceiling per account, in cents. NULL = no cap
+      -- (the default); 0 = may not accrue metered spend at all. Enforced at
+      -- provision and snapshot time against ledger 'meter' debits for the
+      -- current calendar month.
+      alter table quotas add column max_monthly_spend_cents integer;
+    `,
+  },
 ];
