@@ -9,6 +9,7 @@ import { LogStream } from '@/app/ui/logstream';
 import { SnapshotsPanel } from '@/app/ui/snapshots';
 import { MetricsPanel } from '@/app/ui/metrics';
 import { SchedulePanel } from './schedule';
+import { MediaTab } from './media';
 import { Terminal } from './terminal';
 import { Console } from './console';
 import { TAB_LABEL, TABS, type Inst, type Job, type Tab } from './types';
@@ -66,23 +67,22 @@ function InfoTab({ instance, jobs }: { instance: Inst; jobs: Job[] }) {
   );
 }
 
+/** term/vnc need a running guest; everything else renders regardless. */
+function liveTab(tab: Tab, instanceId: string, isRunning: boolean) {
+  if (tab === 'term') return isRunning ? <Terminal instanceId={instanceId} /> : <div className="muted">terminal available when running</div>;
+  if (tab === 'vnc') return isRunning ? <Console instanceId={instanceId} /> : <div className="muted">console available when running</div>;
+  return null;
+}
+
 /** The card body for whichever tab is selected. */
 export function TabBody({ tab, instance, jobs }: { tab: Tab; instance: Inst; jobs: Job[] }) {
   const isRunning = instance.status === 'running';
-  switch (tab) {
-    case 'term':
-      return isRunning ? <Terminal instanceId={instance.id} /> : <div className="muted">terminal available when running</div>;
-    case 'vnc':
-      return isRunning ? <Console instanceId={instance.id} /> : <div className="muted">console available when running</div>;
-    case 'snapshots':
-      return <SnapshotsPanel instanceId={instance.id} instanceStatus={instance.status} />;
-    case 'metrics':
-      return <MetricsPanel instanceId={instance.id} instanceStatus={instance.status} />;
-    case 'schedule':
-      return <SchedulePanel instanceId={instance.id} instanceStatus={instance.status} />;
-    case 'logs':
-      return <LogStream lines={instance.logLines ?? []} live={instance.status === 'provisioning'} height={340} />;
-    default:
-      return <InfoTab instance={instance} jobs={jobs} />;
-  }
+  const live = liveTab(tab, instance.id, isRunning);
+  if (live) return live;
+  if (tab === 'snapshots') return <SnapshotsPanel instanceId={instance.id} instanceStatus={instance.status} />;
+  if (tab === 'metrics') return <MetricsPanel instanceId={instance.id} instanceStatus={instance.status} />;
+  if (tab === 'media') return <MediaTab instanceId={instance.id} running={isRunning} />;
+  if (tab === 'schedule') return <SchedulePanel instanceId={instance.id} instanceStatus={instance.status} />;
+  if (tab === 'logs') return <LogStream lines={instance.logLines ?? []} live={instance.status === 'provisioning'} height={340} />;
+  return <InfoTab instance={instance} jobs={jobs} />;
 }

@@ -35,7 +35,7 @@ async function withXmlFile<T>(prefix: string, xml: string, fn: (tempFile: string
 }
 
 /** Lowest unused device name on the vd or sd bus. */
-function freeSlot(used: Set<string>, prefix: 'vd' | 'sd'): string {
+export function freeSlot(used: Set<string>, prefix: 'vd' | 'sd'): string {
   for (let index = 0; index < 26; index += 1) {
     const candidate = `${prefix}${String.fromCharCode(97 + index)}`;
     if (!used.has(candidate)) return candidate;

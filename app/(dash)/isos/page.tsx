@@ -1,8 +1,5 @@
-/**
- * The caller's ISO shelf: upload, list and delete their own installer
- * images, bounded by their per-user tier (quotas) inside the global library
- * caps. Attach happens per-VM from the instance detail page.
- */
+/** ISO shelf: upload, list, delete — plus "attach to VM" straight from a tile. */
+
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,6 +13,7 @@ type IsoList = {
   quota: { maxIsoCount: number | null; maxIsoTotalGb: number | null };
   usage: { count: number; totalGb: number };
 };
+type Vm = { id: string; name: string; status: string };
 
 function fmtSize(mb: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
@@ -23,6 +21,52 @@ function fmtSize(mb: number): string {
 
 function fmtDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** VM picker that posts the attach once a target is chosen. Hidden until used. */
+function AttachMenu({ iso }: { iso: Iso }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [vms, setVms] = useState<Vm[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || vms !== null) return;
+    fetch('/api/instances', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((rows: Vm[]) => setVms(rows.filter((vm) => !['provisioning', 'deleting'].includes(vm.status))))
+      .catch(() => setVms([]));
+  }, [open, vms]);
+
+  const attach = async (vmId: string) => {
+    setBusy(true);
+    const response = await fetch(`/api/instances/${vmId}/media`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'attach', iso: iso.name }),
+    });
+    const body = await response.json().catch(() => ({}));
+    setBusy(false);
+    setOpen(false);
+    if (response.ok) toast.ok(`${iso.name} → ${body.note ?? 'attached'}`);
+    else toast.err(body.error ?? 'attach failed');
+  };
+
+  if (!open) {
+    return <button onClick={() => setOpen(true)}>attach</button>;
+  }
+  return (
+    <select
+      autoFocus disabled={busy || !vms?.length}
+      defaultValue="" onBlur={() => setOpen(false)}
+      onChange={(event) => { if (event.target.value) void attach(event.target.value); }}
+      style={{ minWidth: 150 }}
+    >
+      <option value="">{vms === null ? 'loading…' : vms.length ? 'pick a VM…' : 'no VMs'}</option>
+      {(vms ?? []).map((vm) => (
+        <option key={vm.id} value={vm.id}>{vm.name} · {vm.status}</option>
+      ))}
+    </select>
+  );
 }
 
 function IsoTile({ iso, onDelete }: { iso: Iso; onDelete: (iso: Iso) => void }) {
@@ -34,7 +78,8 @@ function IsoTile({ iso, onDelete }: { iso: Iso; onDelete: (iso: Iso) => void }) 
         {fmtSize(iso.sizeMb)} · {fmtDate(iso.mtime)}
         {iso.ownerId === null ? ' · shared shelf' : ''}
       </div>
-      <div style={{ marginTop: 10, textAlign: 'right' }}>
+      <div style={{ marginTop: 10, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <AttachMenu iso={iso} />
         {mine && <button onClick={() => onDelete(iso)}>delete</button>}
       </div>
     </div>
