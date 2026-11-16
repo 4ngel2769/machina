@@ -7,6 +7,7 @@ import type { AdminState } from '../use';
 import type { DelReq, Img, InstReq, Plan } from '../types';
 
 import { ThinkingOrb } from 'thinking-orbs';
+import { Empty } from '@/app/ui/loaders';
 import { BorderBeam } from 'border-beam';
 
 function ImageRow({ image, post }: { image: Img; post: AdminState['post'] }) {
@@ -57,6 +58,7 @@ export function ImagesCard({ admin }: { admin: AdminState }) {
         <table>
           <thead><tr><th>id</th><th>status</th><th>size</th><th>sha</th><th>updated</th><th /></tr></thead>
           <tbody>
+            {admin.imgs.length === 0 && <tr><td colSpan={6}><Empty icon="hard-drive" text="no images in the library" /></td></tr>}
             {admin.imgs.map((image) => <ImageRow key={image.id} image={image} post={admin.post} />)}
           </tbody>
         </table>

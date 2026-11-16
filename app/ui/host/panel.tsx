@@ -3,6 +3,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton } from '@/app/ui/loaders';
 import { usePoll } from './shared';
 import { useHostActions } from './panel/actions';
@@ -99,21 +100,23 @@ export function HostPanel() {
 
       {err && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{err}</span><button onClick={inv.reload} style={{ fontSize: 12 }}>retry</button></div>}
 
-      {!inv.payload && <HostSkeleton />}
-
-      {inv.payload && tab === 'machines' && (
-        <Machines
-          vms={filterVms(invPayload.vms, owner, roles)}
-          users={invPayload.users} instances={invPayload.instances}
-          owner={owner} setOwner={setOwner} busy={busy} vmPost={vmPost}
-        />
-      )}
-      {inv.payload && tab !== 'machines' && (
-        <TabBody
-          tab={tab} inv={invPayload} busy={busy} post={post} netPost={netPost}
-          log={log.payload} onViewOwner={viewOwner}
-        />
-      )}
+      <DataGate
+        data={inv.payload} loading={!inv.payload}
+        skeleton={<HostSkeleton />}
+      >
+        {(payload) => tab === 'machines' ? (
+          <Machines
+            vms={filterVms(payload.vms, owner, roles)}
+            users={payload.users} instances={payload.instances}
+            owner={owner} setOwner={setOwner} busy={busy} vmPost={vmPost}
+          />
+        ) : (
+          <TabBody
+            tab={tab} inv={payload} busy={busy} post={post} netPost={netPost}
+            log={log.payload} onViewOwner={viewOwner}
+          />
+        )}
+      </DataGate>
     </>
   );
 }

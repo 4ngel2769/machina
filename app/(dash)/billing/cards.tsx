@@ -3,6 +3,7 @@
 'use client';
 
 import { relTime } from '@/app/ui/time';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton } from '@/app/ui/loaders';
 import type { BillingState } from './use';
 
@@ -93,12 +94,21 @@ export function LedgerCard({ billing }: { billing: BillingState }) {
       <table>
         <thead><tr><th>when</th><th>reason</th><th>delta</th><th>note</th></tr></thead>
         <tbody>
-          {!billing.loaded && Array.from({ length: 4 }).map((_, n) => (
-            <tr key={n}>{Array.from({ length: 4 }).map((__, cell) => (
-              <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 3 ? '50%' : '75%'} h={10} /></td>
-            ))}</tr>
-          ))}
-          {billing.loaded && billing.ledger.map((entry) => (
+          <DataGate
+            data={billing.loaded ? billing.ledger : null} loading={!billing.loaded}
+            isEmpty={(rows) => rows.length === 0}
+            emptyIcon="file-text" emptyText="no movements yet"
+            skeleton={(
+              <>
+                {Array.from({ length: 4 }).map((_, n) => (
+                  <tr key={n}>{Array.from({ length: 4 }).map((__, cell) => (
+                    <td key={cell} style={{ padding: '10px' }}><Skeleton w={cell === 3 ? '50%' : '75%'} h={10} /></td>
+                  ))}</tr>
+                ))}
+              </>
+            )}
+          >
+            {(rows) => rows.map((entry) => (
             <tr key={entry.id}>
               <td title={new Date(entry.createdAt).toLocaleString()}>{relTime(entry.createdAt)}</td>
               <td>{entry.reason}</td>
@@ -107,8 +117,8 @@ export function LedgerCard({ billing }: { billing: BillingState }) {
               </td>
               <td className="copy">{entry.note ?? '—'}</td>
             </tr>
-          ))}
-          {billing.loaded && billing.ledger.length === 0 && <tr><td colSpan={4} className="empty">no movements yet</td></tr>}
+            ))}
+          </DataGate>
         </tbody>
       </table>
       {billing.nextCursor && (

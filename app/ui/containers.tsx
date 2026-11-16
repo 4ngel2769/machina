@@ -10,6 +10,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { DataGate } from '@/app/ui/datagate';
 import { Empty, Skeleton } from '@/app/ui/loaders';
 import { usePoll } from '@/app/ui/host/shared';
 import { useContainerActions } from './containers/actions';
@@ -65,30 +66,30 @@ function Toolbar({ filter, setFilter, q, setQ, createOpen, toggleCreate, broken,
 }
 
 /** Error banners and the loading/empty states under the toolbar. */
-function ListBody({ list, allCount, shownCount, groups, actions, showImages }: {
+function ListBody({ list, allCount, groups, actions, showImages }: {
   list: ReturnType<typeof usePoll<Payload>>;
-  allCount: number; shownCount: number;
+  allCount: number;
   groups: [string, Payload['containers']][];
   actions: ReturnType<typeof useContainerActions>;
   showImages: boolean;
 }) {
-  const empty = list.payload && shownCount === 0;
   return (
     <>
       {list.error && <div className="notice err" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><span>{list.error}</span><button onClick={list.reload} style={{ fontSize: 12 }}>retry</button></div>}
       {list.payload?.error && <div className="notice err" style={{ marginTop: 12 }}>{list.payload.error}</div>}
-      {!list.payload && (
-        <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-          <Skeleton h={34} />
-          <Skeleton h={34} />
-          <Skeleton h={34} />
-          <Skeleton h={34} />
-        </div>
-      )}
-      {empty && (
-        <Empty icon={allCount === 0 ? 'package' : 'search'} text={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'} />
-      )}
-      {groups.map(([project, containers]) => <ContainerGroup key={project} project={project} containers={containers} actions={actions} />)}
+      <DataGate
+        data={list.payload} loading={!list.payload}
+        isEmpty={() => groups.length === 0}
+        emptyIcon={allCount === 0 ? 'package' : 'search'}
+        emptyText={allCount === 0 ? 'no containers on this host' : 'nothing matches this filter'}
+        skeleton={(
+          <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+            <Skeleton h={34} /><Skeleton h={34} /><Skeleton h={34} /><Skeleton h={34} />
+          </div>
+        )}
+      >
+        {() => <>{groups.map(([project, containers]) => <ContainerGroup key={project} project={project} containers={containers} actions={actions} />)}</>}
+      </DataGate>
       {showImages && <ImagesSection />}
     </>
   );
@@ -131,7 +132,7 @@ export function ContainersPanel({ apiBase = '/api/containers', tenant = false, a
 
       {actions.createOpen && <CreateForm form={actions.form} setForm={actions.setForm} busy={actions.busy} create={actions.create} tenant={tenant} />}
 
-      <ListBody list={list} allCount={all.length} shownCount={shown.length} groups={groups} actions={actions} showImages={admin && showImages} />
+      <ListBody list={list} allCount={all.length} groups={groups} actions={actions} showImages={admin && showImages} />
     </>
   );
 }

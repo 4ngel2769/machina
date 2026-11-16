@@ -4,6 +4,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { DataGate } from '@/app/ui/datagate';
 import { Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Plan = { id: string; name: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; bandwidthGb: number; monthlyCapMin: number };
@@ -33,24 +34,34 @@ export default function SpecsPage() {
             <tr><th>plan</th><th>vCPU</th><th>RAM</th><th>disk</th><th>network</th><th>rate</th><th>monthly cap</th></tr>
           </thead>
           <tbody>
-            {loading && Array.from({ length: 4 }).map((_, n) => (
-              <tr key={n}>
-                {Array.from({ length: 7 }).map((__, cell) => (
-                  <td key={cell} style={{ padding: '12px 10px' }}><Skeleton w={cell === 0 ? '60%' : '70%'} h={10} /></td>
-                ))}
-              </tr>
-            ))}
-            {!loading && (plans ?? []).map((plan) => (
-              <tr key={plan.id}>
-                <td style={{ color: 'var(--text)', fontWeight: 500 }}>{plan.name}</td>
-                <td className="mono">{plan.vcpu}</td>
-                <td className="mono">{formatGigabytes(plan.ramMb)}</td>
-                <td className="mono">{plan.diskGb} GB</td>
-                <td className="mono">{plan.bandwidthGb} GB/mo</td>
-                <td className="mono" style={{ color: 'var(--accent)' }}>${(plan.hourlyRateCents / 100).toFixed(2)}/h</td>
-                <td className="mono muted">{plan.monthlyCapMin} min</td>
-              </tr>
-            ))}
+            <DataGate
+              data={plans} loading={loading}
+              isEmpty={(rows) => rows.length === 0}
+              emptyIcon="layers" emptyText="no plans published yet"
+              skeleton={(
+                <>
+                  {Array.from({ length: 4 }).map((_, n) => (
+                    <tr key={n}>
+                      {Array.from({ length: 7 }).map((__, cell) => (
+                        <td key={cell} style={{ padding: '12px 10px' }}><Skeleton w={cell === 0 ? '60%' : '70%'} h={10} /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
+              )}
+            >
+              {(rows) => rows.map((plan) => (
+                <tr key={plan.id}>
+                  <td style={{ color: 'var(--text)', fontWeight: 500 }}>{plan.name}</td>
+                  <td className="mono">{plan.vcpu}</td>
+                  <td className="mono">{formatGigabytes(plan.ramMb)}</td>
+                  <td className="mono">{plan.diskGb} GB</td>
+                  <td className="mono">{plan.bandwidthGb} GB/mo</td>
+                  <td className="mono" style={{ color: 'var(--accent)' }}>${(plan.hourlyRateCents / 100).toFixed(2)}/h</td>
+                  <td className="mono muted">{plan.monthlyCapMin} min</td>
+                </tr>
+              ))}
+            </DataGate>
           </tbody>
         </table>
       </div>

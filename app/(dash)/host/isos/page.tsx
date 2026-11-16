@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/app/ui/toast';
+import { DataGate } from '@/app/ui/datagate';
 import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Iso = { name: string; sizeMb: number; mtime: number; sha256: string | null };
@@ -158,11 +159,18 @@ export default function IsosPage() {
 }
 
 function IsoBody({ ready, list, isos, onDelete }: { ready: boolean; list: IsoList | null; isos: Iso[]; onDelete: (name: string) => void }) {
-  if (!ready || !list) return <Skeleton h={120} />;
-  if (isos.length === 0) return <Empty icon="hard-drive" text="no isos yet — upload an installer image to attach it to a VM" />;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-      {isos.map((iso) => <IsoCard key={iso.name} iso={iso} onDelete={onDelete} />)}
-    </div>
+    <DataGate
+      data={list} loading={!ready || list === null}
+      isEmpty={() => isos.length === 0}
+      emptyIcon="hard-drive" emptyText="no isos yet — upload an installer image to attach it to a VM"
+      skeleton={<Skeleton h={120} />}
+    >
+      {() => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+          {isos.map((iso) => <IsoCard key={iso.name} iso={iso} onDelete={onDelete} />)}
+        </div>
+      )}
+    </DataGate>
   );
 }

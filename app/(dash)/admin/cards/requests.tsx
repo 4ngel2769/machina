@@ -7,6 +7,7 @@ import type { AdminState } from '../use';
 import type { DelReq, Img, InstReq, Plan } from '../types';
 
 import { useToast } from '@/app/ui/toast';
+import { Empty } from '@/app/ui/loaders';
 
 async function decide(url: string, operation: string, okMsg: string, toast: ReturnType<typeof useToast>, reload: () => Promise<void>) {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: operation }) });
@@ -24,6 +25,7 @@ export function RequestsCard({ admin }: { admin: AdminState }) {
       <table>
         <thead><tr><th>user</th><th>name</th><th>plan</th><th>status</th><th>note</th><th>actions</th></tr></thead>
         <tbody>
+          {admin.reqs.length === 0 && <tr><td colSpan={6}><Empty icon="inbox" text="no instance requests" /></td></tr>}
           {admin.reqs.map((request) => (
             <ReqRow key={request.id} request={request} toast={toast} reload={admin.load} />
           ))}
@@ -68,6 +70,7 @@ export function DeletionsCard({ admin }: { admin: AdminState }) {
       <table>
         <thead><tr><th>user</th><th>status</th><th>requested</th><th>actions</th></tr></thead>
         <tbody>
+          {admin.delReqs.length === 0 && <tr><td colSpan={4}><Empty icon="inbox" text="no deletion requests" /></td></tr>}
           {admin.delReqs.map((delReq) => (
             <DelRow key={delReq.id} delReq={delReq} toast={toast} reload={admin.load} />
           ))}

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/app/ui/toast';
+import { DataGate } from '@/app/ui/datagate';
 import { Empty, Skeleton, useMinVisible } from '@/app/ui/loaders';
 
 type Token = {
@@ -181,8 +182,14 @@ export default function TokensPage() {
       {minted && <MintedCard secret={minted} onDone={() => setMinted(null)} />}
       <MintForm scopes={scopes} busy={busy} onMint={(n, p, d) => void mint(n, p, d)} />
 
-      {(!ready || !data) && <Skeleton h={120} />}
-      {ready && data && <TokenList tokens={tokens} onRevoke={(id) => void revoke(id)} />}
+      <DataGate
+        data={data} loading={!ready || data === null}
+        isEmpty={(payload) => payload.tokens.length === 0}
+        emptyIcon="key" emptyText="no tokens yet"
+        skeleton={<Skeleton h={120} />}
+      >
+        {(payload) => <TokenList tokens={payload.tokens} onRevoke={(id) => void revoke(id)} />}
+      </DataGate>
     </>
   );
 }

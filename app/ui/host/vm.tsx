@@ -5,7 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/app/ui/toast';
-import { Empty } from '@/app/ui/loaders';
+import { DataGate } from '@/app/ui/datagate';
+import { Skeleton } from '@/app/ui/loaders';
 import { ArrowLeftIcon } from '@/app/ui/icons';
 import { usePoll } from './shared';
 import { maxIsoGb, useIsoUpload, useVmOp, isosOf } from './vm/actions';
@@ -62,7 +63,17 @@ export function HostVm({ name }: { name: string }) {
   const cpuPct = useCpuHist(live, vm ? vm.vcpu : 1);
 
   if (query.error) return <><h1>{name}</h1><div className="notice err" style={{ marginTop: 12 }}>{query.error}</div><Link href="/host" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftIcon size={13} /> host</Link></>;
-  if (!vm) return <><h1>{name}</h1><Empty icon="cpu" text="reading the domain…" /></>;
+  if (!vm) {
+    return (
+      <DataGate
+        data={null} loading={!query.error}
+        emptyIcon="cpu" emptyText="reading the domain…"
+        skeleton={<><h1>{name}</h1><div className="card"><Skeleton h={200} /></div></>}
+      >
+        {() => null}
+      </DataGate>
+    );
+  }
 
   const running = vm.state === 'running';
   const onUpload = (file: File | null) => {

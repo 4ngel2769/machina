@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusCue } from '@/app/ui/status';
-import { Skeleton, Empty, useMinVisible } from '@/app/ui/loaders';
+import { DataGate } from '@/app/ui/datagate';
+import { Skeleton, useMinVisible } from '@/app/ui/loaders';
 import { ArrowRightIcon } from '@/app/ui/icons';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { ignore } from '@/lib/core/ignore';
@@ -82,20 +83,19 @@ function BalanceStat({ summary }: { summary: Summary | null }) {
   );
 }
 
-function VmList({ insts, pending }: { insts: Inst[]; pending: boolean }) {
-  if (insts.length === 0 && !pending) {
-    return (
-      <Empty
-        icon="server"
-        text="no VMs yet — request one from the instances page"
-        action={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
-      />
-    );
-  }
-  if (pending && insts.length === 0) {
-    return <div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>;
-  }
-  return <>{insts.map((instance) => <VmRow key={instance.id} instance={instance} />)}</>;
+function VmList({ summary, pending }: { summary: Summary | null; pending: boolean }) {
+  const insts = summary?.instances ?? [];
+  return (
+    <DataGate
+      data={summary} loading={pending && insts.length === 0}
+      isEmpty={() => insts.length === 0}
+      emptyIcon="server" emptyText="no VMs yet — request one from the instances page"
+      emptyAction={<Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>go to instances <ArrowRightIcon size={12} /></Link>}
+      skeleton={<div style={{ padding: '18px 0' }}><Skeleton h={10} w="60%" /><Skeleton h={10} w="40%" style={{ marginTop: 10 }} /></div>}
+    >
+      {() => <>{insts.map((instance) => <VmRow key={instance.id} instance={instance} />)}</>}
+    </DataGate>
+  );
 }
 
 export default function HomePage() {
@@ -134,7 +134,7 @@ export default function HomePage() {
           <h3 style={{ margin: 0 }}>your VMs</h3>
           <Link href="/instances" className="link-arrow" style={{ fontSize: 12, color: 'var(--accent)' }}>open grid <ArrowRightIcon size={12} /></Link>
         </div>
-        <VmList insts={insts} pending={pending} />
+        <VmList summary={summary} pending={pending} />
       </div>
     </>
   );
