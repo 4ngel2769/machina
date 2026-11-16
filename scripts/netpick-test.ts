@@ -1,4 +1,5 @@
 // Live check for the subnet picker: user pick, validation, lock, admin pick.
+import { randomBytes } from 'node:crypto';
 import { encode } from 'next-auth/jwt';
 import { rawDb } from '../lib/db/index.ts';
 
@@ -30,7 +31,8 @@ async function main() {
   const A = await sessionFor(admin);
 
   const n = `netpick${Date.now().toString(36).slice(-6)}`;
-  await call(A, '/api/admin', { method: 'POST', body: JSON.stringify({ op: 'createUser', name: n, password: 'Net-Pick-Test1!' }) });
+  const testPassword = randomBytes(24).toString('base64url');
+  await call(A, '/api/admin', { method: 'POST', body: JSON.stringify({ op: 'createUser', name: n, password: testPassword }) });
   const u = rd.prepare(`select id, name, role from users where name = ?`).get(n) as { id: string; name: string; role: string };
   const U = await sessionFor(u);
   console.log(`test user: ${u.name}`);
@@ -57,7 +59,7 @@ async function main() {
 
   // 6. duplicate v4 from a second user
   const n2 = `${n}b`;
-  await call(A, '/api/admin', { method: 'POST', body: JSON.stringify({ op: 'createUser', name: n2, password: 'Net-Pick-Test1!' }) });
+  await call(A, '/api/admin', { method: 'POST', body: JSON.stringify({ op: 'createUser', name: n2, password: testPassword }) });
   const u2 = rd.prepare(`select id, name, role from users where name = ?`).get(n2) as { id: string; name: string; role: string };
   const U2 = await sessionFor(u2);
   const dup = await call(U2, '/api/net', { method: 'POST', body: JSON.stringify({ v4: '100.77.4.0/24' }) });
