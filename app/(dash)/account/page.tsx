@@ -4,6 +4,7 @@
 'use client';
 
 import { DeletionCard, PasswordCard, ProfileCard, RequestsCard } from './cards';
+import { NetworkCard } from './network';
 import { useAccount } from './use';
 
 export default function AccountPage() {
@@ -15,6 +16,7 @@ export default function AccountPage() {
       <div className="sub">profile, credentials, data</div>
 
       <ProfileCard account={account} />
+      <NetworkCard />
       <PasswordCard account={account} />
       <RequestsCard account={account} />
       <DeletionCard account={account} />
