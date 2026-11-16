@@ -85,9 +85,12 @@ sites that must agree.
 ## API conventions
 
 - Every route goes through `lib/api.ts` helpers: `requireUser`/`requireAdmin`,
-  `requireScope` for token auth, `guardMutation` (same-host Origin) on every
-  POST/DELETE, `jsonBody` for parsing. The only unauthenticated routes are
-  `/api/health`, `/api/version`, `/api/auth/*`.
+  `guardMutation` (same-host Origin) on every POST/DELETE that changes state,
+  `jsonBody` for parsing. `requireScope` is for API-token auth only — session
+  routes do not call it. The only unauthenticated routes are `/api/health`,
+  `/api/version`, `/api/auth/*`. Exception: `POST /api/instances/[id]/ws-token`
+  skips `guardMutation` deliberately — it mints a 120s single-channel token,
+  changes no state, and is fetched same-origin by the terminal page.
 - UI fetches never send credentials cross-origin; `guardMutation` is the
   server-side half of that rule.
 
