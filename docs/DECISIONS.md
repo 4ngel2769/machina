@@ -130,3 +130,7 @@ sites that must agree.
   `/api/admin/users/[userId]/net`). The `user_nets` row is written with the
   idx claimed but the libvirt network stays lazy — `ensureUserNet` defines it
   with the picked subnets on first VM create. `reset` clears back to auto.
+- **Admin surface is API-only for now**: `GET/POST /api/admin/users/[userId]/net`
+  mirrors `/api/net` with `admin.net.pick` audit rows. No admin UI card yet —
+  the account page card is user-scoped; an admin picker belongs on the user
+  detail surface when one exists.
