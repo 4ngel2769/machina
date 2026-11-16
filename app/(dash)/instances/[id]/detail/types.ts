@@ -15,12 +15,12 @@ export type Inst = {
 export type Job = { id: string; type: string; status: string; error: string; createdAt: number };
 export type WsState = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
 
-export const TABS = ['term', 'vnc', 'metrics', 'snapshots', 'schedule', 'info', 'logs'] as const;
+export const TABS = ['term', 'vnc', 'metrics', 'snapshots', 'media', 'schedule', 'info', 'logs'] as const;
 export type Tab = (typeof TABS)[number];
 
 export const TAB_LABEL: Record<Tab, string> = {
   term: 'terminal', vnc: 'console (VNC)', metrics: 'metrics',
-  snapshots: 'snapshots', schedule: 'schedule', info: 'information', logs: 'activity',
+  snapshots: 'snapshots', media: 'media', schedule: 'schedule', info: 'information', logs: 'activity',
 };
 
 export function fmtGb(bytes: number): string {
