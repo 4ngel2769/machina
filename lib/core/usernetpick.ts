@@ -101,6 +101,22 @@ function parseV6(cidr: string): { hextets: number[]; prefix: number } | null {
   return hextets ? { hextets, prefix } : null;
 }
 
+/** RFC 5952 compression: longest run of zero hextets collapses to '::'. */
+function compressV6(h: number[]): string {
+  let bestStart = -1; let bestLen = 0;
+  for (let i = 0; i < 8; i += 1) {
+    if (h[i] !== 0) continue;
+    let j = i;
+    while (j < 8 && h[j] === 0) j += 1;
+    if (j - i > bestLen && j - i >= 2) { bestStart = i; bestLen = j - i; }
+    i = j - 1;
+  }
+  if (bestStart === -1) return h.map((x) => x.toString(16)).join(':');
+  const left = h.slice(0, bestStart).map((x) => x.toString(16)).join(':');
+  const right = h.slice(bestStart + bestLen).map((x) => x.toString(16)).join(':');
+  return `${left}::${right}`;
+}
+
 /** Canonical lowercase 'xxxx:.../64' for a v6 CIDR. */
 function canonV6(cidr: string): string | null {
   const parsed = parseV6(cidr);
@@ -111,8 +127,7 @@ function canonV6(cidr: string): string | null {
     if (i * 16 >= parsed.prefix) h[i] = 0;
     else h[i] &= (0xffff << (16 - (parsed.prefix - i * 16))) & 0xffff;
   }
-  const text = h.map((x) => x.toString(16)).join(':');
-  return `${text}/${parsed.prefix}`;
+  return `${compressV6(h)}/${parsed.prefix}`;
 }
 
 /** The /48 pool as hextets for containment checks. */
@@ -245,7 +260,7 @@ export function v6Gateway(cidr: string): string {
   const hextets = v6Hextets(addr!);
   if (!hextets) return `${addr}1`;
   hextets[7] = 1;
-  return hextets.map((h) => h.toString(16)).join(':');
+  return compressV6(hextets);
 }
 
 /** DHCP host range inside a /24: .50 - .250, same shape as the old scheme. */
