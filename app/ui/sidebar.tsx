@@ -9,9 +9,8 @@
  * fluid shape change rather than two layouts swapping. The icon set is the
  * same in every state; only labels and chrome appear on expand.
  *
- * Everything account- or admin-shaped lives in the user popup at the bottom
- * of the dock, not in the nav groups: profile, notifications, ssh keys,
- * billing, api tokens, and (for admins) console/host/iso-library/terms.
+ * The bottom popup holds account-level actions. Admin work has its own
+ * role-gated nav group so it does not get buried in that menu.
  */
 'use client';
 
@@ -69,6 +68,19 @@ const GROUPS: NavGroup[] = [
     id: 'containers', label: 'containers', icon: 'package', admin: true,
     items: [
       { href: '/containers', label: 'all containers', icon: 'package' },
+    ],
+  },
+  {
+    id: 'admin', label: 'admin', icon: 'key', admin: true,
+    items: [
+      { href: '/admin', label: 'overview', icon: 'activity' },
+      { href: '/admin/users', label: 'users & quotas', icon: 'key' },
+      { href: '/admin/requests', label: 'requests', icon: 'inbox' },
+      { href: '/admin/images', label: 'images', icon: 'hard-drive' },
+      { href: '/admin/plans', label: 'plans', icon: 'file-text' },
+      { href: '/admin/audit', label: 'audit', icon: 'clock' },
+      { href: '/host', label: 'host machines', icon: 'server' },
+      { href: '/host/isos', label: 'ISO library', icon: 'disc' },
     ],
   },
 ];
@@ -187,24 +199,9 @@ function UserMenu({ name, role, onClose }: { name: string; role: string; onClose
       <Link href="/keys" role="menuitem">ssh keys</Link>
       <Link href="/billing" role="menuitem">billing</Link>
       <Link href="/tokens" role="menuitem">api tokens</Link>
-      {isAdmin && (
-        <>
-          <div className="sep" />
-          <div className="dock-menu-label">admin</div>
-          <Link href="/admin" role="menuitem">console</Link>
-          <Link href="/host" role="menuitem">host machines</Link>
-          <Link href="/host/isos" role="menuitem">iso library</Link>
-          <Link href="/terms" role="menuitem">terms</Link>
-          <Link href="/privacy" role="menuitem">privacy</Link>
-        </>
-      )}
-      {!isAdmin && (
-        <>
-          <div className="sep" />
-          <Link href="/terms" role="menuitem">terms</Link>
-          <Link href="/privacy" role="menuitem">privacy</Link>
-        </>
-      )}
+      <div className="sep" />
+      <Link href="/terms" role="menuitem">terms</Link>
+      <Link href="/privacy" role="menuitem">privacy</Link>
       <div className="sep" />
       <button role="menuitem" onClick={() => signOut({ callbackUrl: '/signin' }).then(() => router.push('/signin'))}>
         sign out

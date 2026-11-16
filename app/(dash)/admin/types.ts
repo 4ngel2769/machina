@@ -1,4 +1,4 @@
-/** Shapes for the admin console page. */
+/** Shapes shared across the admin sub-pages. */
 
 export type User = {
   id: string; name: string; role: string; balanceCents: number; createdAt: number;

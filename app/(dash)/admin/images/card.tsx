@@ -3,14 +3,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AdminState } from '../use';
-import type { DelReq, Img, InstReq, Plan } from '../types';
+import type { Img } from '../types';
 
 import { ThinkingOrb } from 'thinking-orbs';
 import { Empty } from '@/app/ui/loaders';
 import { BorderBeam } from 'border-beam';
 
-function ImageRow({ image, post }: { image: Img; post: AdminState['post'] }) {
+type Post = (body: object, label?: string) => Promise<void>;
+
+function ImageRow({ image, post }: { image: Img; post: Post }) {
   return (
     <tr>
       <td>{image.name}</td>
@@ -33,17 +34,19 @@ function ImageRow({ image, post }: { image: Img; post: AdminState['post'] }) {
   );
 }
 
-export function ImagesCard({ admin }: { admin: AdminState }) {
+export function ImagesCard({ imgs, post, onImport }: {
+  imgs: Img[]; post: Post; onImport: (id: string, name: string, file: File | null, close: () => void) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const [imgId, setImgId] = useState('');
   const [imgName, setImgName] = useState('');
   const [imgFile, setImgFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const importImage = async () => {
+  const submitImport = async () => {
     setBusy(true);
     try {
-      await admin.importImage(imgId, imgName, imgFile, () => {
+      await onImport(imgId, imgName, imgFile, () => {
         setOpen(false); setImgId(''); setImgName(''); setImgFile(null);
       });
     } finally {
@@ -52,14 +55,14 @@ export function ImagesCard({ admin }: { admin: AdminState }) {
   };
 
   return (
-    <BorderBeam size="line" colorVariant="ice" active={admin.imgs.some((image) => image.status === 'downloading')} strength={0.9} theme="dark">
+    <BorderBeam size="line" colorVariant="ice" active={imgs.some((image) => image.status === 'downloading')} strength={0.9} theme="dark">
       <div className="card">
         <h3>images</h3>
         <table>
           <thead><tr><th>id</th><th>status</th><th>size</th><th>sha</th><th>updated</th><th /></tr></thead>
           <tbody>
-            {admin.imgs.length === 0 && <tr><td colSpan={6}><Empty icon="hard-drive" text="no images in the library" /></td></tr>}
-            {admin.imgs.map((image) => <ImageRow key={image.id} image={image} post={admin.post} />)}
+            {imgs.length === 0 && <tr><td colSpan={6}><Empty icon="hard-drive" text="no images in the library" /></td></tr>}
+            {imgs.map((image) => <ImageRow key={image.id} image={image} post={post} />)}
           </tbody>
         </table>
         <div style={{ marginTop: 10 }}>
@@ -69,7 +72,7 @@ export function ImagesCard({ admin }: { admin: AdminState }) {
               <label>id<input style={{ width: 160 }} value={imgId} onChange={(event) => setImgId(event.target.value)} placeholder="my-distro-1" className="mono" /></label>
               <label>display name<input style={{ width: 200 }} value={imgName} onChange={(event) => setImgName(event.target.value)} placeholder="optional" /></label>
               <label>qcow2 file<input type="file" accept=".qcow2" onChange={(event) => setImgFile(event.target.files?.[0] ?? null)} /></label>
-              <button disabled={busy || !imgId || !imgFile} onClick={() => void importImage()}>{busy ? 'uploading…' : 'upload'}</button>
+              <button disabled={busy || !imgId || !imgFile} onClick={() => void submitImport()}>{busy ? 'uploading…' : 'upload'}</button>
             </div>
           )}
         </div>
