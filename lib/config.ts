@@ -79,6 +79,10 @@ export const config = {
     snapshotGrowthRatio: 1.5,
     // Never create a snapshot with less than this free on the vms pool.
     snapshotFreeSpaceFloorMb: 2048,
+    // Per-instance caps above bound one tenant; this bounds ALL of them. Eight
+    // snapshots per VM across every tenant can still fill the pool, so the
+    // host-wide count gets its own ceiling.
+    snapshotPoolMax: 300,
     /** Largest ISO an admin may upload. An installer image is a few GB; the cap
      *  exists so a mistyped upload cannot fill the storage volume. */
     maxIsoGb: 16,

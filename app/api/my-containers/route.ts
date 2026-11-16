@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { listContainers, dockerAvailable } from '@/lib/host/docker';
 import { parseCreate, createContainer } from '@/lib/host/docker-create';
 import { checkContainerQuota } from '@/lib/core/quota';
+import { withKeyLock } from '@/lib/core/mutex';
 import { rawDb } from '@/lib/db';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
@@ -61,24 +62,29 @@ export async function POST(req: NextRequest) {
   if (!user) return err('unauthorized', 401);
 
   const body = await jsonBody(req, z.object({}).passthrough());
-  try {
-    const spec = parseCreate(body);
-    // Tenant creates are always private-network; ports are meaningless there.
-    const verdict = checkContainerQuota(user.id, { memoryMb: spec.memoryMb ?? 512, cpus: spec.cpus ?? 1 });
-    if (!verdict.allowed) return err(verdict.reason, 409);
-    const id = await createContainer({
-      ...spec,
-      network: 'user',
-      ownerId: user.id,
-      ownerName: user.name,
-    });
-    await logAudit({
-      actorId: user.id, actorName: user.name,
-      action: 'container.create', target: spec.name,
-      detail: { image: spec.image, memoryMb: spec.memoryMb, cpus: spec.cpus, network: 'user' },
-    });
-    return json({ ok: true, id, name: spec.name });
-  } catch (error) {
-    return err(friendlyError(error), 400);
-  }
+  // Serialize per user: check -> docker run -> registry insert spans seconds,
+  // so two concurrent creates could both pass the last quota slot. The lock
+  // makes the whole check+commit atomic for this user.
+  return withKeyLock(`ct:${user.id}`, async () => {
+    try {
+      const spec = parseCreate(body);
+      // Tenant creates are always private-network; ports are meaningless there.
+      const verdict = checkContainerQuota(user.id, { memoryMb: spec.memoryMb ?? 512, cpus: spec.cpus ?? 1 });
+      if (!verdict.allowed) return err(verdict.reason, 409);
+      const id = await createContainer({
+        ...spec,
+        network: 'user',
+        ownerId: user.id,
+        ownerName: user.name,
+      });
+      await logAudit({
+        actorId: user.id, actorName: user.name,
+        action: 'container.create', target: spec.name,
+        detail: { image: spec.image, memoryMb: spec.memoryMb, cpus: spec.cpus, network: 'user' },
+      });
+      return json({ ok: true, id, name: spec.name });
+    } catch (error) {
+      return err(friendlyError(error), 400);
+    }
+  });
 }

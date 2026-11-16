@@ -33,6 +33,14 @@ async function assertSnapshotQuota(instanceId: string): Promise<void> {
       `snapshot limit reached (${config.limits.maxSnapshotsPerInstance}) — delete one first`,
     );
   }
+  // Host-wide ceiling: per-instance caps multiply across tenants, so the pool
+  // gets one global count on top.
+  const poolCount = (raw.prepare(`select count(*) c from snapshots`).get() as { c: number }).c;
+  if (poolCount >= config.limits.snapshotPoolMax) {
+    throw new Error(
+      `host snapshot pool is full (${config.limits.snapshotPoolMax}) — delete some first`,
+    );
+  }
   const instanceRow = raw.prepare(`select id, plan_id from instances where id=?`).get(instanceId) as
     { id: string; plan_id: string } | undefined;
   if (!instanceRow) throw new Error('instance row missing');

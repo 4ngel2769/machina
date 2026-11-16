@@ -72,6 +72,53 @@ async function defineNet(net: UserNet): Promise<void> {
   }
 }
 
+/** Insert one candidate row. Returns 'mine' on success, 'retry' when another
+ *  user took the idx (unique-name collision), and throws anything else — a
+ *  locked DB or disk-full must not be retried as if it were a race. */
+function claimRow(raw: ReturnType<typeof rawDb>, userId: string, proposal: UserNet): 'mine' | 'retry' {
+  try {
+    raw.prepare(
+      `insert into user_nets (user_id, name, idx, subnet, gateway, created_at) values (?, ?, ?, ?, ?, ?)`,
+    ).run(userId, proposal.name, proposal.idx, proposal.subnet, proposal.gateway, Date.now());
+    return 'mine';
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? '';
+    if (code.startsWith('SQLITE_CONSTRAINT')) return 'retry';
+    throw error;
+  }
+}
+
+/** The row a concurrent same-user provision already wrote, if any. */
+function wonRow(raw: ReturnType<typeof rawDb>, userId: string): UserNet | null {
+  const won = raw.prepare(`select * from user_nets where user_id=?`).get(userId) as
+    | { user_id: string; name: string; idx: number; subnet: string; gateway: string }
+    | undefined;
+  return won ? rowToNet(won) : null;
+}
+
+/** Claim a free index, retrying when a concurrent provision took it. */
+function claimIndex(raw: ReturnType<typeof rawDb>, userId: string): UserNet {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const maxRow = raw.prepare(`select coalesce(max(idx), 0) as m from user_nets`).get() as { m: number };
+    const idx = maxRow.m + 1;
+    if (idx > MAX_NETS) throw new Error('user network pool exhausted');
+    const proposal: UserNet = {
+      userId,
+      name: `machina-u${idx}`,
+      idx,
+      subnet: `${POOL_BASE}.${idx}.0/24`,
+      gateway: `${POOL_BASE}.${idx}.1`,
+      ipRange: `${POOL_BASE}.${idx}.50 - ${POOL_BASE}.${idx}.250`,
+    };
+    if (claimRow(raw, userId, proposal) === 'mine') return proposal;
+    // Same user lost to their own concurrent provision: their row wins.
+    const won = wonRow(raw, userId);
+    if (won) return won;
+    // Different user took this idx: loop and claim the next one.
+  }
+  throw new Error('user network pool exhausted');
+}
+
 /** The user's network, creating it on first use. */
 export async function ensureUserNet(userId: string): Promise<UserNet> {
   const raw = rawDb();
@@ -86,30 +133,10 @@ export async function ensureUserNet(userId: string): Promise<UserNet> {
     return net;
   }
 
-  const maxRow = raw.prepare(`select coalesce(max(idx), 0) as m from user_nets`).get() as { m: number };
-  const idx = maxRow.m + 1;
-  if (idx > MAX_NETS) throw new Error('user network pool exhausted');
-
-  const candidate: UserNet = {
-    userId,
-    name: `machina-u${idx}`,
-    idx,
-    subnet: `${POOL_BASE}.${idx}.0/24`,
-    gateway: `${POOL_BASE}.${idx}.1`,
-    ipRange: `${POOL_BASE}.${idx}.50 - ${POOL_BASE}.${idx}.250`,
-  };
-
-  try {
-    raw.prepare(
-      `insert into user_nets (user_id, name, idx, subnet, gateway, created_at) values (?, ?, ?, ?, ?, ?)`,
-    ).run(userId, candidate.name, idx, candidate.subnet, candidate.gateway, Date.now());
-  } catch (insertError) {
-    // Lost a race with a concurrent provision for the same user: the other
-    // writer's row is the one that counts.
-    const won = raw.prepare(`select * from user_nets where user_id=?`).get(userId) as typeof existing;
-    if (won) return rowToNet(won);
-    throw insertError;
-  }
+  // idx is not UNIQUE but name is: two users provisioning at once can compute
+  // the same max(idx)+1, and the loser's insert fails on the name constraint —
+  // a retryable collision, not an error. claimIndex recomputes and retries.
+  const candidate = claimIndex(raw, userId);
 
   try {
     await defineNet(candidate);
