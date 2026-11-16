@@ -163,10 +163,11 @@ export function v6PickOk(cidr: string): boolean {
   return parsed.prefix === 64 && v6InPool(canon);
 }
 
-/** Lowest unclaimed v4 /24 in the pool, scanning from the bottom. */
-function autoV4(raw: ReturnType<typeof rawDb>): string {
+/** Lowest unclaimed v4 /24 in the pool, scanning from the bottom. `except`
+ *  skips one user's own row so re-picking auto does not collide with itself. */
+function autoV4(raw: ReturnType<typeof rawDb>, exceptUser?: string): string {
   const taken = new Set(
-    (raw.prepare(`select v4_subnet from user_nets where v4_subnet is not null`).all() as { v4_subnet: string }[])
+    (raw.prepare(`select v4_subnet from user_nets where v4_subnet is not null and user_id<>?`).all(exceptUser ?? '') as { v4_subnet: string }[])
       .map((row) => row.v4_subnet),
   );
   // Walk the third octet of 100.64.x.0/24 — 64 values per second octet, 64
@@ -180,10 +181,10 @@ function autoV4(raw: ReturnType<typeof rawDb>): string {
   throw new Error('RFC 6598 pool exhausted — every /24 is claimed');
 }
 
-/** Lowest unclaimed v6 /64 in the pool. */
-function autoV6(raw: ReturnType<typeof rawDb>): string {
+/** Lowest unclaimed v6 /64 in the pool; `except` skips the caller's row. */
+function autoV6(raw: ReturnType<typeof rawDb>, exceptUser?: string): string {
   const taken = new Set(
-    (raw.prepare(`select v6_subnet from user_nets where v6_subnet is not null`).all() as { v6_subnet: string }[])
+    (raw.prepare(`select v6_subnet from user_nets where v6_subnet is not null and user_id<>?`).all(exceptUser ?? '') as { v6_subnet: string }[])
       .map((row) => row.v6_subnet),
   );
   for (let h = 0; h <= 0xffff; h += 1) {
@@ -199,6 +200,11 @@ function subnetTaken(raw: ReturnType<typeof rawDb>, v4: string, v6: string, exce
     `select 1 from user_nets where (v4_subnet=? or v6_subnet=?) and user_id<>? limit 1`,
   ).get(v4, v6, exceptUser ?? '') as { 1: number } | undefined;
   return !!row;
+}
+
+/** True when v4 OR v6 collides with a row that is not this user's. */
+function pickClash(raw: ReturnType<typeof rawDb>, v4: string, v6: string, userId?: string): boolean {
+  return subnetTaken(raw, v4, v6, userId);
 }
 
 /** Validate one side of the pick; returns the canonical CIDR or throws. */
@@ -223,12 +229,12 @@ function checkedPick(kind: 'ipv4' | 'ipv6', raw: string | null | undefined): str
  * Throws with a human-readable reason on any violation — the API turns that
  * into a 400 and the UI shows it verbatim.
  */
-export function resolvePick(raw: ReturnType<typeof rawDb>, pick: { v4?: string | null; v6?: string | null } | null): NetPick {
+export function resolvePick(raw: ReturnType<typeof rawDb>, pick: { v4?: string | null; v6?: string | null } | null, exceptUser?: string): NetPick {
   const v4 = checkedPick('ipv4', pick?.v4);
   const v6 = checkedPick('ipv6', pick?.v6);
-  const finalV4 = v4 ?? autoV4(raw);
-  const finalV6 = v6 ?? autoV6(raw);
-  if (subnetTaken(raw, finalV4, finalV6)) {
+  const finalV4 = v4 ?? autoV4(raw, exceptUser);
+  const finalV6 = v6 ?? autoV6(raw, exceptUser);
+  if (pickClash(raw, finalV4, finalV6, exceptUser)) {
     throw new Error('that block is already claimed by another user');
   }
   return { v4: finalV4, v6: finalV6 };
@@ -293,7 +299,7 @@ export function setUserNetPick(userId: string, pick: { v4?: string | null; v6?: 
   if (count > 0) {
     throw new Error(`subnet is locked — this account has ${count} instance${count === 1 ? '' : 's'}; delete them all to change it`);
   }
-  const resolved = pick ? resolvePick(rawDb(), pick) : null;
+  const resolved = pick ? resolvePick(rawDb(), pick, userId) : null;
   const raw = rawDb();
   const existing = raw.prepare(`select idx from user_nets where user_id=?`).get(userId) as { idx: number } | undefined;
   if (!resolved) return clearPick(raw, userId, existing);
