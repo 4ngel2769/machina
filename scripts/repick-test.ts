@@ -2,7 +2,8 @@ import { encode } from 'next-auth/jwt';
 import { rawDb } from '../lib/db/index.ts';
 async function main() {
   const BASE = 'http://127.0.0.1:3999';
-  async function sessionFor(u: any) {
+  type U = { id: string; name: string; role: string };
+  async function sessionFor(u: U) {
     return `authjs.session-token=${await encode({ token: { sub: u.id, id: u.id, name: u.name, role: u.role }, secret: process.env.AUTH_SECRET as string, salt: 'authjs.session-token', maxAge: 900 })}`;
   }
   async function call(cookie: string, path: string, init: RequestInit = {}) {
@@ -10,11 +11,11 @@ async function main() {
     return { status: r.status, body: await r.json().catch(() => ({})) };
   }
   const rd = rawDb();
-  const admin = rd.prepare(`select id, name, role from users where role='admin' limit 1`).get() as any;
+  const admin = rd.prepare(`select id, name, role from users where role='admin' limit 1`).get() as U;
   const A = await sessionFor(admin);
   const n = `repick${Date.now().toString(36).slice(-5)}`;
   await call(A, '/api/admin', { method: 'POST', body: JSON.stringify({ op: 'createUser', name: n, password: 'Repick-Test1!' }) });
-  const u = rd.prepare(`select id, name, role from users where name=?`).get(n) as any;
+  const u = rd.prepare(`select id, name, role from users where name=?`).get(n) as U;
   const U = await sessionFor(u);
   console.log('pick1:', JSON.stringify((await call(U, '/api/net', { method: 'POST', body: JSON.stringify({ v4: '100.88.9.0/24' }) })).body));
   console.log('repick same:', JSON.stringify(await call(U, '/api/net', { method: 'POST', body: JSON.stringify({ v4: '100.88.9.0/24' }) })));

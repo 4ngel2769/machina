@@ -71,7 +71,9 @@ async function main() {
   const rst = await call(U2, '/api/net', { method: 'POST', body: JSON.stringify({ reset: true }) });
   console.log(`user2 reset -> ${rst.status}`, JSON.stringify(rst.body));
 
-  // cleanup
+  // cleanup test audit noise as well as all account/network rows
+  rd.prepare(`delete from audit where actor_name in (?, ?)`).run(u.name, u2.name);
+  rd.prepare(`delete from audit where action in ('net.pick', 'admin.net.pick') and target in (?, ?)`).run(u.id, u2.id);
   rd.prepare(`delete from user_nets where user_id in (?, ?)`).run(u.id, u2.id);
   rd.prepare(`delete from users where id in (?, ?)`).run(u.id, u2.id);
   rd.prepare(`delete from quotas where user_id not in (select id from users)`).run();

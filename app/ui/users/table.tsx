@@ -82,12 +82,26 @@ function OsCell({ user }: { user: AdminUser }) {
   return <td className="muted" style={{ fontSize: 12 }}>{text}</td>;
 }
 
+function FundingControls({ user, state }: { user: AdminUser; state: UserAdminState }) {
+  if (state.topupFor !== user.id) return null;
+  const amount = Number(state.topup);
+  const valid = Number.isFinite(amount) && amount !== 0;
+  return (
+    <>
+      <div className="qfield">
+        <span>adjust credit ($, negative allowed)</span>
+        <input style={{ width: 110 }} value={state.topup} onChange={(event) => state.setTopup(event.target.value)}
+          inputMode="decimal" className="mono" autoFocus />
+      </div>
+      <button disabled={state.busy || !valid} onClick={() => {
+        const cents = Math.round(amount * 100);
+        if (cents !== 0) void state.send({ op: 'topup', userId: user.id, deltaCents: cents }, 'credit adjustment');
+      }}>add credit</button>
+    </>
+  );
+}
+
 function ManageRow({ user, state, suspended }: { user: AdminUser; state: UserAdminState; suspended: boolean }) {
-  async function addCredit() {
-    const cents = Math.round(Number(state.topup || '0') * 100);
-    if (!Number.isFinite(cents) || cents === 0) return;
-    void state.send({ op: 'topup', userId: user.id, deltaCents: cents }, 'credit adjustment');
-  }
   return (
     <tr>
       <td colSpan={6} className="quotaedit">
@@ -104,12 +118,7 @@ function ManageRow({ user, state, suspended }: { user: AdminUser; state: UserAdm
             }}
           >set password</button>
 
-          <div className="qfield">
-            <span>adjust credit ($, negative allowed)</span>
-            <input style={{ width: 110 }} value={state.topup} onChange={(event) => state.setTopup(event.target.value)}
-              inputMode="decimal" className="mono" />
-          </div>
-          <button disabled={state.busy} onClick={() => void addCredit()}>add credit</button>
+          <FundingControls user={user} state={state} />
         </div>
 
         <div className="row">
@@ -176,6 +185,9 @@ function UserRow({ user, allocation, state }: { user: AdminUser; allocation: All
             : <span className="badge ready">active</span>}
         </td>
         <td className="snapacts">
+          <button onClick={() => open && state.topupFor === user.id ? state.closeTopup() : state.startTopup(user.id)}>
+            {open && state.topupFor === user.id ? 'close funding' : 'fund'}
+          </button>
           <button onClick={() => state.startEdit(user.id)}>{open ? 'cancel' : 'manage'}</button>
         </td>
       </tr>

@@ -13,8 +13,11 @@ export function useUserAdmin(onChanged: () => void): {
   setPw: (value: string) => void;
   topup: string;
   setTopup: (value: string) => void;
+  topupFor: string | null;
+  closeTopup: () => void;
   send: (body: Record<string, unknown>, label: string) => Promise<boolean>;
   startEdit: (id: string) => void;
+  startTopup: (id: string) => void;
   suspend: (id: string, next: boolean) => Promise<void>;
 } {
   const toast = useToast();
@@ -23,6 +26,9 @@ export function useUserAdmin(onChanged: () => void): {
   const [msg, setMsg] = useState('');
   const [pw, setPw] = useState('');
   const [topup, setTopup] = useState('10');
+  // Which row the credit input belongs to: only the row a "fund" click opened
+  // shows it, so the table stays a table instead of every row growing a form.
+  const [topupFor, setTopupFor] = useState<string | null>(null);
 
   async function send(body: Record<string, unknown>, label: string): Promise<boolean> {
     setBusy(true);
@@ -55,6 +61,22 @@ export function useUserAdmin(onChanged: () => void): {
     setOpen(open === id ? null : id);
     setPw('');
     setTopup('10');
+    setTopupFor(null);
+    setMsg('');
+  }
+
+  /** One-click funding: opens the manage row AND marks it as the credit target. */
+  function startTopup(id: string) {
+    setOpen(id);
+    setTopupFor(id);
+    setTopup('10');
+    setPw('');
+    setMsg('');
+  }
+
+  function closeTopup() {
+    setTopupFor(null);
+    setOpen(null);
     setMsg('');
   }
 
@@ -79,7 +101,7 @@ export function useUserAdmin(onChanged: () => void): {
     }
   }
 
-  return { open, busy, msg, pw, setPw, topup, setTopup, send, startEdit, suspend };
+  return { open, busy, msg, pw, setPw, topup, setTopup, topupFor, send, startEdit, startTopup, closeTopup, suspend };
 }
 
 export type UserAdminState = ReturnType<typeof useUserAdmin>;

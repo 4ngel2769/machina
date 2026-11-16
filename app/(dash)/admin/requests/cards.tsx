@@ -2,9 +2,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { AdminState } from '../use';
-import type { DelReq, Img, InstReq, Plan } from '../types';
+import type { DelReq, InstReq } from '../types';
 
 import { useToast } from '@/app/ui/toast';
 import { Empty } from '@/app/ui/loaders';
@@ -16,22 +14,21 @@ async function decide(url: string, operation: string, okMsg: string, toast: Retu
   void reload();
 }
 
-export function RequestsCard({ admin }: { admin: AdminState }) {
+export function RequestsCard({ reqs, reload }: { reqs: InstReq[]; reload: () => Promise<void> }) {
   const toast = useToast();
-  const pending = admin.reqs.filter((request) => request.status === 'pending').length;
+  const pending = reqs.filter((request) => request.status === 'pending').length;
   return (
     <div className="card">
       <h3>instance requests ({pending} pending)</h3>
       <table>
         <thead><tr><th>user</th><th>name</th><th>plan</th><th>status</th><th>note</th><th>actions</th></tr></thead>
         <tbody>
-          {admin.reqs.length === 0 && <tr><td colSpan={6}><Empty icon="inbox" text="no instance requests" /></td></tr>}
-          {admin.reqs.map((request) => (
-            <ReqRow key={request.id} request={request} toast={toast} reload={admin.load} />
+          {reqs.length === 0 && <tr><td colSpan={6}><Empty icon="inbox" text="no instance requests" /></td></tr>}
+          {reqs.map((request) => (
+            <ReqRow key={request.id} request={request} toast={toast} reload={reload} />
           ))}
         </tbody>
       </table>
-      <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>approve/reject via the request id: use the buttons (wired to /api/requests/[id])</div>
     </div>
   );
 }
@@ -61,18 +58,18 @@ function ReqRow({ request, toast, reload }: { request: InstReq; toast: ReturnTyp
   );
 }
 
-export function DeletionsCard({ admin }: { admin: AdminState }) {
+export function DeletionsCard({ delReqs, reload }: { delReqs: DelReq[]; reload: () => Promise<void> }) {
   const toast = useToast();
-  const pending = admin.delReqs.filter((delReq) => delReq.status === 'pending').length;
+  const pending = delReqs.filter((delReq) => delReq.status === 'pending').length;
   return (
     <div className="card">
       <h3>deletion requests ({pending} pending)</h3>
       <table>
         <thead><tr><th>user</th><th>status</th><th>requested</th><th>actions</th></tr></thead>
         <tbody>
-          {admin.delReqs.length === 0 && <tr><td colSpan={4}><Empty icon="inbox" text="no deletion requests" /></td></tr>}
-          {admin.delReqs.map((delReq) => (
-            <DelRow key={delReq.id} delReq={delReq} toast={toast} reload={admin.load} />
+          {delReqs.length === 0 && <tr><td colSpan={4}><Empty icon="inbox" text="no deletion requests" /></td></tr>}
+          {delReqs.map((delReq) => (
+            <DelRow key={delReq.id} delReq={delReq} toast={toast} reload={reload} />
           ))}
         </tbody>
       </table>
