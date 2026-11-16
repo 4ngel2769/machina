@@ -10,6 +10,7 @@ import { requireUser } from '@/lib/auth';
 import { isoLimits } from '@/lib/host/iso-limits';
 import { listIsos, saveIso, deleteIso, isoOwner } from '@/lib/host/iso';
 import { checkIsoUpload } from '@/lib/core/quota';
+import { withKeyLock } from '@/lib/core/mutex';
 import { logAudit } from '@/lib/services/audit';
 import { friendlyError } from '@/lib/core/errors';
 
@@ -57,24 +58,30 @@ export async function POST(req: NextRequest) {
   if (!user) return err('unauthorized', 401);
 
   const name = req.nextUrl.searchParams.get('name') ?? '';
-  const declared = Number(req.headers.get('content-length') ?? 0);
-  // Quota first: it is cheaper than reading the body and gives the better
-  // error. The per-file cap inside checkIsoUpload covers the declared length.
-  const verdict = checkIsoUpload(user.id, declared || 0);
-  if (!verdict.allowed) return err(verdict.reason, declared > isoLimits().maxIsoGb * 1024 ** 3 ? 413 : 409);
+  // Serialize per user: the pre-check runs on the DECLARED length and the
+  // post-check only fires after the body lands, so two concurrent uploads
+  // could otherwise both pass the last free slot. The lock makes
+  // check -> stream -> register -> verify atomic for this user.
+  return withKeyLock(`iso:${user.id}`, async () => {
+    const declared = Number(req.headers.get('content-length') ?? 0);
+    // Quota first: it is cheaper than reading the body and gives the better
+    // error. The per-file cap inside checkIsoUpload covers the declared length.
+    const verdict = checkIsoUpload(user.id, declared || 0);
+    if (!verdict.allowed) return err(verdict.reason, declared > isoLimits().maxIsoGb * 1024 ** 3 ? 413 : 409);
 
-  try {
-    const iso = await saveIso(name, req.body, user.id);
-    const violation = await verifyAfterUpload(user.id, iso);
-    if (violation) return err(violation, 409);
-    await logAudit({
-      actorId: user.id, actorName: user.name, action: 'iso.upload',
-      target: iso.name, detail: { sizeMb: iso.sizeMb },
-    });
-    return json({ ok: true, iso });
-  } catch (error) {
-    return err(friendlyError(error), 400);
-  }
+    try {
+      const iso = await saveIso(name, req.body, user.id);
+      const violation = await verifyAfterUpload(user.id, iso);
+      if (violation) return err(violation, 409);
+      await logAudit({
+        actorId: user.id, actorName: user.name, action: 'iso.upload',
+        target: iso.name, detail: { sizeMb: iso.sizeMb },
+      });
+      return json({ ok: true, iso });
+    } catch (error) {
+      return err(friendlyError(error), 400);
+    }
+  });
 }
 
 export async function DELETE(req: NextRequest) {

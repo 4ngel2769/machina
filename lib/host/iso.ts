@@ -87,14 +87,6 @@ function unregisterIso(name: string): void {
   rawDb().prepare(`delete from iso_uploads where name=?`).run(name);
 }
 
-/** The owner's ISO count and combined size, for quota display. */
-export function isoUsageFor(userId: string): { count: number; totalBytes: number } {
-  const row = rawDb()
-    .prepare(`select count(*) as n, coalesce(sum(size_bytes),0) as bytes from iso_uploads where owner_id=?`)
-    .get(userId) as { n: number; bytes: number };
-  return { count: row.n ?? 0, totalBytes: row.bytes ?? 0 };
-}
-
 /**
  * Stream a request body to disk. Never buffered: a multi-GB installer read into
  * memory would take the process down, and the cap is enforced while writing so

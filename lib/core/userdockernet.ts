@@ -44,6 +44,49 @@ async function defineNet(net: UserDockernet): Promise<void> {
   ], { timeout: 30_000 });
 }
 
+/** Insert one candidate row. 'mine' on success, 'retry' on a unique
+ *  collision (another user took the idx, or this user already has a row);
+ *  anything else throws — a locked DB must not be retried as a race. */
+function claimRow(raw: ReturnType<typeof rawDb>, userId: string, proposal: UserDockernet): 'mine' | 'retry' {
+  try {
+    raw.prepare(
+      `insert into user_dockernets (user_id, name, idx, subnet, created_at) values (?, ?, ?, ?, ?)`,
+    ).run(userId, proposal.name, proposal.idx, proposal.subnet, Date.now());
+    return 'mine';
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? '';
+    if (code.startsWith('SQLITE_CONSTRAINT')) return 'retry';
+    throw error;
+  }
+}
+
+/** The row a concurrent same-user provision already wrote, if any. */
+function wonRow(raw: ReturnType<typeof rawDb>, userId: string): UserDockernet | null {
+  const won = raw.prepare(`select * from user_dockernets where user_id=?`).get(userId) as
+    | { user_id: string; name: string; idx: number; subnet: string }
+    | undefined;
+  return won ? rowToNet(won) : null;
+}
+
+/** Claim a free index, retrying when a concurrent provision took it. */
+function claimIndex(raw: ReturnType<typeof rawDb>, userId: string): UserDockernet {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const maxRow = raw.prepare(`select coalesce(max(idx), 0) as m from user_dockernets`).get() as { m: number };
+    const idx = maxRow.m + 1;
+    if (idx > MAX_NETS) throw new Error('container network pool exhausted');
+    const proposal: UserDockernet = {
+      userId,
+      name: `machina-cu${idx}`,
+      idx,
+      subnet: `${POOL_BASE}.${idx}.0/24`,
+    };
+    if (claimRow(raw, userId, proposal) === 'mine') return proposal;
+    const won = wonRow(raw, userId);
+    if (won) return won;
+  }
+  throw new Error('container network pool exhausted');
+}
+
 /** The user's docker network, creating it on first use. */
 export async function ensureUserDockernet(userId: string): Promise<UserDockernet> {
   const raw = rawDb();
@@ -58,26 +101,9 @@ export async function ensureUserDockernet(userId: string): Promise<UserDockernet
     return net;
   }
 
-  const maxRow = raw.prepare(`select coalesce(max(idx), 0) as m from user_dockernets`).get() as { m: number };
-  const idx = maxRow.m + 1;
-  if (idx > MAX_NETS) throw new Error('container network pool exhausted');
-
-  const candidate: UserDockernet = {
-    userId,
-    name: `machina-cu${idx}`,
-    idx,
-    subnet: `${POOL_BASE}.${idx}.0/24`,
-  };
-
-  try {
-    raw.prepare(
-      `insert into user_dockernets (user_id, name, idx, subnet, created_at) values (?, ?, ?, ?, ?)`,
-    ).run(userId, candidate.name, idx, candidate.subnet, Date.now());
-  } catch (insertError) {
-    const won = raw.prepare(`select * from user_dockernets where user_id=?`).get(userId) as typeof existing;
-    if (won) return rowToNet(won);
-    throw insertError;
-  }
+  // Same idx-claim race as usernet.ts: name is UNIQUE, idx is not, so a lost
+  // insert means another user took this index — retry with the next one.
+  const candidate = claimIndex(raw, userId);
 
   try {
     await defineNet(candidate);
