@@ -6,7 +6,8 @@
  */
 
 import { rawDb } from '@/lib/db';
-import { getQuota, getUsage, type Verdict } from '@/lib/core/quota';
+import { getQuota, getUsage } from '@/lib/core/quota';
+import type { Verdict } from '@/lib/core/quotatypes';
 import { isoLimits } from '@/lib/host/iso-limits';
 
 const deny = (reason: string): Verdict => ({ allowed: false, reason });

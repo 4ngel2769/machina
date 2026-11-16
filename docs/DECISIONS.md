@@ -1,0 +1,79 @@
+# Domain decisions
+
+Rules that are easy to break because they live in code, not schema comments.
+Each entry says what the rule is and why it exists. If you change one, change
+it everywhere it is enforced — quota semantics in particular have four call
+sites that must agree.
+
+## Quotas
+
+- **NULL = unlimited, 0 = none.** Never coerce 0 to null. A missing quota row
+  means unlimited for pre-existing accounts, but `grantDefaultQuota()` writes
+  an explicit all-zeros row for newly minted accounts — that row is what makes
+  "no allocation yet" a refusal instead of an open door.
+- **Usage counts ALL instances**, running or stopped: a stopped VM still holds
+  its overlay, IP lease and disk. Counting only running VMs lets a user stop
+  everything, create a hundred, and start them all at once.
+- **Pending requests count as reservations** (`getPendingUsage`), or a
+  1-VM-quota user fires ten requests that all pass and finds out at approval.
+  Approval must pass `excludeRequestId` or the request counts against itself.
+- **Plan join, not snapshot.** Instance size resolves through the CURRENT
+  plan, so resizing cannot escape a quota. `instances` stores `plan_id` only.
+- **Two questions, two modules.** `quota.ts` = "may THIS user create?";
+  `capacity.ts` = "does the HOST have room?". `quotatypes.ts` holds the
+  shared shapes so the two never import each other.
+- **Custom specs are `plans` rows with `custom=1`**, not per-instance columns.
+  `plan_id` is the single source of size for quotas, domain XML, overlays and
+  billing — a second sizing path would have to be mirrored in all four.
+  Custom plans are hidden from the catalog and rejected by `/api/requests`,
+  but stay in the admin table; `drop` refuses while referenced.
+
+## ISO library
+
+- **Ownership lives in `iso_uploads`, not the filesystem.** One row per
+  filename; unowned files are the shared admin shelf (read-only to tenants).
+- **Attach rights = own uploads + the shared shelf.** A tenant may attach any
+  ISO they can see in `/api/isos/mine`; the shelf files attach but cannot be
+  deleted by the tenant.
+- **Quota is checked twice**: pre-upload on the declared Content-Length
+  (cheap refusal), post-upload on the real size inside `saveIso`
+  (`alreadyRegistered` so nothing double-counts). A violation rolls the file
+  back. Per-user `withKeyLock` serializes check->commit for one user.
+
+## Networks
+
+- **One private net per user**: libvirt `machina-u<idx>` on 10.231.x.0/24 for
+  VMs, docker `machina-cu<idx>` on 10.240.x.0/24 for containers. Same-user
+  guests reach each other; cross-tenant traffic is dropped by
+  `machina-vnets`/docker bridge isolation. `user_nets`/`user_dockernets` rows
+  are claimed BEFORE the net exists so concurrent first-uses cannot pick the
+  same idx — the claim retries on SQLITE_CONSTRAINT.
+- **Bridge names are short on purpose**: `virbr-mu<idx>` because IFNAMSIZ caps
+  interface names at 15 chars and the firewall matches that prefix.
+
+## Billing
+
+- **Metering records truth, the reconciler acts on it.** 15-min `usage`
+  samples -> hourly `settleUser` -> ledger debits honoring the plan's monthly
+  cap (extra hours past cap are simply not billed, never negative).
+  Suspend-at-zero belongs to the reconciler only.
+- **Netmeter**: monthly rx+tx deltas per instance; over-quota sets a live
+  `domiftune` throttle (128 kB/s each way) plus a `net_monthly.throttled`
+  flag. Counter resets are absorbed — a reading below the anchor counts as
+  the delta.
+
+## Jobs
+
+- **`jobs` table is the source of truth**, not libvirt/docker state. Workers
+  claim with `status='queued' AND run_after<=now AND attempts<max_attempts`,
+  `image.sync` sorts last. `finishJob` requeues with backoff until
+  `max_attempts`, then fails.
+
+## API conventions
+
+- Every route goes through `lib/api.ts` helpers: `requireUser`/`requireAdmin`,
+  `requireScope` for token auth, `guardMutation` (same-host Origin) on every
+  POST/DELETE, `jsonBody` for parsing. The only unauthenticated routes are
+  `/api/health`, `/api/version`, `/api/auth/*`.
+- UI fetches never send credentials cross-origin; `guardMutation` is the
+  server-side half of that rule.
