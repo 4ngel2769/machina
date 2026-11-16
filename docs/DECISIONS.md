@@ -53,6 +53,19 @@ sites that must agree.
 
 ## Billing
 
+- **Spend cap is a hard stop, not a throttle.** `quotas.max_monthly_spend_cents`
+  (NULL=uncapped, 0=none) is enforced in `checkQuota` for non-admin
+  provisions and in the snapshot job via `spendCapVerdict()`. At the cap new
+  work is refused; running VMs are NOT killed — the cap stops growth, the
+  balance-zero reconciler still owns suspension.
+- **Accrued charges are display-only.** `pendingChargesCents()` computes what
+  `settleUser` WILL debit from unsettled usage rows. `/api/billing` and
+  `/api/home/summary` both surface it; it is never written to the ledger
+  early, or the hourly settle would double-count.
+- **Custom plan floor is 1¢/h, deliberately.** `customRateCents` computes
+  vCPU+RAM+disk and floors at 1 so a huge-but-cheap spec can never bill zero —
+  zero rate means metering takes nothing and auto-suspend can never fire.
+  If plans ever need sub-cent pricing, raise precision, not the floor.
 - **Metering records truth, the reconciler acts on it.** 15-min `usage`
   samples -> hourly `settleUser` -> ledger debits honoring the plan's monthly
   cap (extra hours past cap are simply not billed, never negative).
@@ -77,3 +90,16 @@ sites that must agree.
   `/api/health`, `/api/version`, `/api/auth/*`.
 - UI fetches never send credentials cross-origin; `guardMutation` is the
   server-side half of that rule.
+
+## Module boundaries
+
+- **`lib/host/` is the docker+iso+networks layer; `lib/core/driver` is the
+  libvirt boundary.** The split is deliberate and stays: `lib/host/*` talks
+  to docker, iso storage and per-user networks; every libvirt call goes
+  through `virsh()` in `lib/core/driver`. Do NOT add a `lib/virt/` tree —
+  two libvirt facades would drift. If `lib/host/` grows past ~15 files,
+  split docker out as `lib/host/docker/` instead.
+- **Toast rule is structural**: `useToast()` (sileo) for transient ok/err/
+  info; sonner is reserved for the persistent job-progress toasts in
+  `job-toasts.tsx`. No call site imports `sonner` directly — the palette
+  routes through `useToast` for exactly this reason.

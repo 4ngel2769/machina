@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { useToast } from '@/app/ui/toast';
 
 type Dest = { label: string; href: string; group: string; admin?: boolean; keywords?: string };
 type Inst = { id: string; name: string; status: string };
@@ -58,22 +58,26 @@ function instanceActions(inst: Inst): { label: string; action: string }[] {
   return actions;
 }
 
-/** POST a lifecycle action and toast the outcome, like the card buttons do. */
-function runInstanceAction(inst: Inst, action: string): void {
+type Toast = ReturnType<typeof useToast>;
+
+/** POST a lifecycle action and toast the outcome through sileo — the
+ *  palette is a transient surface, so it never touches sonner (which is
+ *  reserved for the persistent job-progress toasts). */
+function runInstanceAction(inst: Inst, action: string, toast: Toast): void {
   if (action === 'delete' && !window.confirm(`delete ${inst.name}?`)) return;
   void fetch(`/api/instances/${inst.id}`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ action }),
   }).then(async (response) => {
     const body = await response.json().catch(() => ({}));
-    if (response.ok) toast.success(`${action}: ${body.status ?? 'ok'}`);
-    else toast.error(body.error ?? `${action} failed`);
+    if (response.ok) toast.ok(`${action}: ${body.status ?? 'ok'}`);
+    else toast.err(body.error ?? `${action} failed`);
   });
 }
 
 function buildHits(
   q: string, showKeys: boolean, instances: Inst[], role: string,
-  close: () => void, router: ReturnType<typeof useRouter>,
+  close: () => void, router: ReturnType<typeof useRouter>, toast: Toast,
 ): Hit[] {
   const out: Hit[] = [];
   const needle = q.trim().toLowerCase();
@@ -92,7 +96,7 @@ function buildHits(
       push(action.label, inst.status, 'instances', () => {
         close();
         if (action.action === '__open') router.push(`/instances/${inst.id}`);
-        else runInstanceAction(inst, action.action);
+        else runInstanceAction(inst, action.action, toast);
       }, inst.id);
     }
   }
@@ -159,6 +163,7 @@ function HitList({ grouped, sel, onHover, onPick }: {
 
 export function Palette({ role }: { role: string }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -205,8 +210,8 @@ export function Palette({ role }: { role: string }) {
   useEffect(() => { setSel(0); }, [q, showKeys]);
 
   const hits = useMemo(
-    () => buildHits(q, showKeys, instances, role, close, router),
-    [q, showKeys, instances, role, close, router],
+    () => buildHits(q, showKeys, instances, role, close, router, toast),
+    [q, showKeys, instances, role, close, router, toast],
   );
   const grouped = useMemo(() => groupHits(hits), [hits]);
 

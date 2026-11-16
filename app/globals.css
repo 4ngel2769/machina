@@ -549,8 +549,12 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
 
 .link-arrow { display: inline-flex; align-items: center; gap: 4px; }
 
-/* horizontal scroll for anything that would otherwise overflow its card */
-.card > table, .tablewrap > table { display: block; overflow-x: auto; }
+/* horizontal scroll for anything that would otherwise overflow its card;
+   a max-height turns the same block into the vertical scroller, which is
+   what lets thead stick. 70vh keeps short tables untouched. */
+.card > table, .tablewrap > table {
+  display: block; overflow-x: auto; overflow-y: auto; max-height: 70vh;
+}
 .card > table > thead, .card > table > tbody, .card > table > tfoot,
 .tablewrap > table > thead, .tablewrap > table > tbody, .tablewrap > table > tfoot {
   display: table; width: 100%; min-width: 560px;
@@ -559,6 +563,13 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
 .tablewrap > table td, .tablewrap > table th { white-space: nowrap; }
 .card > table td.wrap, .card > table th.wrap,
 .tablewrap > table td.wrap, .tablewrap > table th.wrap { white-space: normal; }
+
+/* sticky headers inside that scroller: th needs an opaque background or the
+   rows scroll visibly through the header text. --surface matches .card. */
+.card > table thead th, .tablewrap > table thead th,
+.card > table > thead > tr > th, .tablewrap > table > thead > tr > th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface);
+}
 
 /* --------------------------------------------------------- log streaming */
 .logview {
