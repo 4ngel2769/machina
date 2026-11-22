@@ -201,13 +201,15 @@ export function UserTable({ users, allocations, state }: {
 }) {
   const allocOf = (id: string) => allocations.find((allocation) => allocation.userId === id);
   return (
-    <table className="quotatable">
-      <thead>
-        <tr><th>account</th><th>credit</th><th>allocation</th><th>OS mode</th><th>state</th><th /></tr>
-      </thead>
-      <tbody>
-        {users.map((user) => <UserRow key={user.id} user={user} allocation={allocOf(user.id)} state={state} />)}
-      </tbody>
-    </table>
+    <div className="tablewrap">
+      <table className="quotatable">
+        <thead>
+          <tr><th>account</th><th>credit</th><th>allocation</th><th>OS mode</th><th>state</th><th /></tr>
+        </thead>
+        <tbody>
+          {users.map((user) => <UserRow key={user.id} user={user} allocation={allocOf(user.id)} state={state} />)}
+        </tbody>
+      </table>
+    </div>
   );
 }

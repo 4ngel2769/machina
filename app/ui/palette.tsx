@@ -161,6 +161,24 @@ function HitList({ grouped, sel, onHover, onPick }: {
   );
 }
 
+/** Keep Tab inside the dialog so focus cannot reach the page behind it. */
+function trapTab(panel: HTMLDivElement | null, event: React.KeyboardEvent<HTMLDivElement>): void {
+  if (event.key !== 'Tab') return;
+  const focusable = panel?.querySelectorAll<HTMLElement>(
+    'input, button, a[href], [tabindex]:not([tabindex="-1"])',
+  );
+  if (!focusable?.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 export function Palette({ role }: { role: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -170,6 +188,7 @@ export function Palette({ role }: { role: string }) {
   const [showKeys, setShowKeys] = useState(false);
   const [instances, setInstances] = useState<Inst[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => { setOpen(false); setQ(''); setSel(0); setShowKeys(false); }, []);
 
@@ -231,7 +250,16 @@ export function Palette({ role }: { role: string }) {
       onClick={close}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 80, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '12vh 20px 20px' }}
     >
-      <div className="card" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 520, width: '100%', padding: 0, overflow: 'hidden', maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="command palette"
+        onKeyDown={(event) => trapTab(panelRef.current, event)}
+        className="card"
+        onClick={(event) => event.stopPropagation()}
+        style={{ maxWidth: 520, width: '100%', padding: 0, overflow: 'hidden', maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}
+      >
         <input
           ref={inputRef}
           value={q}
