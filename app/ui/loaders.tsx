@@ -42,27 +42,6 @@ export function Skeleton({ w = '100%', h = 12, r = 6, style, lines }: {
   return <AsciiSkeleton variant="scan" {...shape} style={{ ...shape.style, ...style }} />;
 }
 
-export function SkelCard({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="card">
-      <Skeleton w="55%" h={14} style={{ marginBottom: 12 }} />
-      {Array.from({ length: lines }).map((_, index) => (
-        <Skeleton key={index} w={`${90 - index * 18}%`} h={10} style={{ marginBottom: 8 }} />
-      ))}
-    </div>
-  );
-}
-
-export function SkelRow({ cols = 4 }: { cols?: number }) {
-  return (
-    <div className="skelrow">
-      {Array.from({ length: cols }).map((_, index) => (
-        <Skeleton key={index} h={10} w={`${100 / cols - 4}%`} />
-      ))}
-    </div>
-  );
-}
-
 /** Content gate: stays false for `ms` after mount, so a fast fetch doesn't
  *  swap a skeleton for real content in a single frame. Pair with the data
  *  check: `{!ready && <Skeleton/>}{ready && data && …}`. */
