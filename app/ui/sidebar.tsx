@@ -182,8 +182,8 @@ function UserMenu({ name, role, onClose }: { name: string; role: string; onClose
   const router = useRouter();
   const isAdmin = role === 'admin';
   return (
-    <div
-      className="profilemenu dock-menu" role="menu"
+    <nav
+      className="profilemenu dock-menu" aria-label="account menu"
       onClick={(event) => { event.stopPropagation(); onClose(); }}
     >
       <div className="dock-menu-head">
@@ -194,19 +194,19 @@ function UserMenu({ name, role, onClose }: { name: string; role: string; onClose
         </div>
       </div>
       <div className="sep" />
-      <Link href="/account" role="menuitem">settings</Link>
-      <Link href="/notifications" role="menuitem">notifications</Link>
-      <Link href="/keys" role="menuitem">ssh keys</Link>
-      <Link href="/billing" role="menuitem">billing</Link>
-      <Link href="/tokens" role="menuitem">api tokens</Link>
+      <Link href="/account">settings</Link>
+      <Link href="/notifications">notifications</Link>
+      <Link href="/keys">ssh keys</Link>
+      <Link href="/billing">billing</Link>
+      <Link href="/tokens">api tokens</Link>
       <div className="sep" />
-      <Link href="/terms" role="menuitem">terms</Link>
-      <Link href="/privacy" role="menuitem">privacy</Link>
+      <Link href="/terms">terms</Link>
+      <Link href="/privacy">privacy</Link>
       <div className="sep" />
-      <button role="menuitem" onClick={() => signOut({ callbackUrl: '/signin' }).then(() => router.push('/signin'))}>
+      <button onClick={() => signOut({ callbackUrl: '/signin' }).then(() => router.push('/signin'))}>
         sign out
       </button>
-    </div>
+    </nav>
   );
 }
 
@@ -220,7 +220,7 @@ function DockFoot({ open, name, role, menuOpen, setMenuOpen }: {
         <button
           className={`profilebtn dock-profile${open ? '' : ' dock-avatar'}`}
           onClick={() => setMenuOpen(!menuOpen)}
-          aria-haspopup="menu"
+          aria-haspopup="true"
           aria-expanded={menuOpen}
           aria-label="account menu"
         >
@@ -253,6 +253,19 @@ const GEOM = {
   dock: { left: 14, top: 14, bottom: 14, width: 68, radius: 18 },
   open: { left: 0, top: 0, bottom: 0, width: 236, radius: 0 },
 } as const;
+
+/** Phone-only entry point to the full-height navigation drawer. */
+function MobileNavTrigger({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button className="dock-mobile-trigger" onClick={onOpen} aria-label="open navigation">
+      <Icon name="menu" size={18} />
+    </button>
+  );
+}
+
+function DockBackdrop({ onClose }: { onClose: () => void }) {
+  return <div className="dock-backdrop" onClick={onClose} aria-hidden />;
+}
 
 export function Sidebar({ name, role }: { name: string; role: string }) {
   const pathname = usePathname();
@@ -290,20 +303,27 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
       const aside = document.querySelector('.dock');
       if (aside && !aside.contains(event.target as Node)) setMenuOpen(false);
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [menuOpen]);
 
   useEffect(() => {
     const onToggle = () => toggle();
-    const onShow = () => toggle();
+    const onShow = () => setDockMode('open');
     window.addEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
     window.addEventListener(DOCK_SHOW_EVENT, onShow);
     return () => {
       window.removeEventListener(SIDEBAR_TOGGLE_EVENT, onToggle);
       window.removeEventListener(DOCK_SHOW_EVENT, onShow);
     };
-  }, [toggle]);
+  }, [toggle, setDockMode]);
 
   const toggleGroup = (id: string) => {
     setClosedGroups((prev) => {
@@ -321,6 +341,7 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
 
   return (
     <>
+      {!open && <MobileNavTrigger onOpen={() => setDockMode('open')} />}
       <motion.aside
         className={`dock${open ? ' open' : ''}${menuOpen ? ' menu-open' : ''}`}
         initial={false}
@@ -356,13 +377,7 @@ export function Sidebar({ name, role }: { name: string; role: string }) {
         <DockFoot open={open} name={name} role={role} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       </motion.aside>
 
-      {open && (
-        <div
-          className="dock-backdrop"
-          onClick={() => { setMenuOpen(false); setDockMode('dock'); }}
-          aria-hidden
-        />
-      )}
+      {open && <DockBackdrop onClose={() => { setMenuOpen(false); setDockMode('dock'); }} />}
     </>
   );
 }

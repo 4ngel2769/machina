@@ -16,13 +16,15 @@ export function QuotaEditor({ data, onSaved }: Props) {
   const edit = useQuotaEdit(onSaved);
   const rows = data.rows;
   return (
-    <table className="quotatable">
-      <thead>
-        <tr><th>account</th><th>usage</th><th>state</th><th /></tr>
-      </thead>
-      <tbody>
-        <QuotaRows rows={rows} edit={edit} />
-      </tbody>
-    </table>
+    <div className="tablewrap">
+      <table className="quotatable">
+        <thead>
+          <tr><th>account</th><th>usage</th><th>state</th><th /></tr>
+        </thead>
+        <tbody>
+          <QuotaRows rows={rows} edit={edit} />
+        </tbody>
+      </table>
+    </div>
   );
 }

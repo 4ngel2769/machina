@@ -2,6 +2,7 @@
   --bg: #0b0b0c;
   --surface: #131315;
   --surface-2: #1a1a1d;
+  --surface-3: #202024;
   --line: #242428;
   --text: #e8e8ea;
   --text-2: #a2a2ab;
@@ -384,8 +385,6 @@ td[onclick]:hover, [data-copy]:hover { color: var(--text); }
 .kv { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; font-size: 13px; }
 .kv dt { color: var(--text-3); }
 .kv dd { margin: 0; }
-.empty { padding: 22px 10px; text-align: center; color: var(--text-3); }
-
 /* detail-page tabs */
 .tabs { display: flex; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--line); }
 .tabs button {
@@ -619,27 +618,38 @@ kbd {
 .shortcutbar { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; color: var(--text-3); font-size: 11px; }
 
 /* ------------------------------------------------------------- responsive */
+/* The rail is a desktop affordance. On a phone it would sit over the first
+   82px of content, so it becomes a drawer reached from this trigger. */
+.dock-mobile-trigger { display: none; }
 @media (max-width: 860px) {
-  /* the dock becomes a full-height overlay panel; the icon rail only shows
-     in dock mode on desktop, so force the open geometry via width */
-  .dock { border-radius: 0; border-left: none; box-shadow: none; }
+  .dock:not(.open) { display: none; }
+  .dock.open { border-radius: 0; border-left: none; box-shadow: none; }
   .dock-backdrop { display: block; }
-  /* mobile: content never reserves dock gutter */
-  .layout { padding-left: 14px; }
+  .layout { padding-left: 14px; padding-top: 54px; }
+  .dock-mobile-trigger {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: fixed; z-index: 41; top: 10px; left: 14px;
+    width: 40px; height: 40px; padding: 0;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); color: var(--text-2); cursor: pointer;
+  }
 }
 @media (min-width: 861px) {
   .dock-backdrop { display: none; }
 }
 @media (max-width: 720px) {
-  .layout { padding: 0 14px; }
+  .layout { padding: 54px 14px 0; }
   h1 { font-size: 19px; margin-top: 20px; }
   .card { padding: 14px; margin: 12px 0; }
   .kv { grid-template-columns: 1fr; gap: 2px 0; }
   .kv dt { margin-top: 8px; }
+  .grid2, .grid3 { grid-template-columns: 1fr; }
   /* tables scroll horizontally at every width via .card > table */
   .toaststack { top: 56px; right: 10px; left: 10px; width: auto; }
   .termwrap, .consolwrap { height: 320px; }
   .tabs { overflow-x: auto; }
+  button, .tabs button, .snav-link, .chip, .snapacts button,
+  .dock-collapse, .profilebtn { min-height: 40px; }
 }
 
 /* profile dropdown trigger */
@@ -695,8 +705,6 @@ kbd {
 .snaprow { display: flex; gap: 8px; flex-wrap: wrap; }
 .snaprow input { flex: 1 1 160px; min-width: 0; }
 .snaprow button { flex: none; }
-input.bad { border-color: var(--danger); }
-
 /* notices are inline, sentence-case, and never steal focus */
 .notice {
   border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.5;
