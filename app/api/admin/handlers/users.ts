@@ -69,12 +69,16 @@ export async function createUser(body: AdminBody, { admin }: AdminCtx) {
 export async function setPassword(body: AdminBody, { admin }: AdminCtx) {
   if (!body.userId) return err('userId required');
   const pw = body.password ?? '';
-  if (pw.length < 8 || pw.length > 72) return err('password: 8-72 chars (72 is bcrypt cap)');
+  if (pw.length < 8 || Buffer.byteLength(pw, 'utf8') > 72) return err('password: 8-72 bytes (72 is bcrypt cap)');
   const userRows = await getDb().select().from(users).where(eq(users.id, body.userId));
   if (!userRows[0]) return err('user not found', 404);
-  await getDb().update(users).set({ passwordHash: hashPassword(pw) }).where(eq(users.id, body.userId));
-  // Existing sessions are JWTs and stay valid until they expire; this only
-  // changes what the login form accepts from here on.
+  const db = rawDb();
+  db.transaction(() => {
+    db.prepare(`update users set password_hash=?, session_epoch=session_epoch+1 where id=?`)
+      .run(hashPassword(pw), body.userId);
+    db.prepare(`update api_tokens set revoked_at=? where user_id=? and revoked_at is null`)
+      .run(now(), body.userId);
+  })();
   await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.setPassword', target: userRows[0].name });
   return json({ ok: true });
 }
