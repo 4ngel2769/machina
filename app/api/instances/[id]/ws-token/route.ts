@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { json, err, jsonBody } from '@/lib/api';
+import { json, err, jsonBody, guardMutation } from '@/lib/api';
 import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { instances } from '@/lib/db/schema';
@@ -25,6 +25,8 @@ function channelOf(raw: string | undefined): WsChannel | null {
  * verifies the token again + checks instance status=running at relay time.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
+  const denied = guardMutation(req);
+  if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
   const { id } = await ctx.params;
