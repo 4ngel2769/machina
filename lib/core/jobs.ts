@@ -104,4 +104,3 @@ export async function inFlightForInstance(instanceId: string): Promise<boolean> 
   );
   return rows.length > 0;
 }
-
