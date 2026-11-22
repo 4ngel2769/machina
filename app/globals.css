@@ -617,28 +617,72 @@ kbd {
 }
 .shortcutbar { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; color: var(--text-3); font-size: 11px; }
 
-/* ------------------------------------------------------------- responsive */
-/* The rail is a desktop affordance. On a phone it would sit over the first
-   82px of content, so it becomes a drawer reached from this trigger. */
-.dock-mobile-trigger { display: none; }
+/* ------------------------------------------------------------- mobile dock */
+/* The desktop rail sits over phone content, so phones get a bottom dock:
+   a translucent capsule whose buttons open popovers and which slides away
+   while the page scrolls down. */
+.mobiledock { display: none; }
 @media (max-width: 860px) {
-  .dock:not(.open) { display: none; }
-  .dock.open { border-radius: 0; border-left: none; box-shadow: none; }
-  .dock-backdrop { display: block; }
-  .layout { padding-left: 14px; padding-top: 54px; }
-  .dock-mobile-trigger {
-    display: inline-flex; align-items: center; justify-content: center;
-    position: fixed; z-index: 41; top: 10px; left: 14px;
-    width: 40px; height: 40px; padding: 0;
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--radius); color: var(--text-2); cursor: pointer;
+  .dock, .dock-backdrop { display: none; }
+  .layout { padding-left: 14px; padding-bottom: 104px; }
+
+  .mobiledock {
+    display: block; position: fixed; z-index: 60;
+    left: 50%; bottom: max(12px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    transition: transform .28s cubic-bezier(.22,1,.36,1), opacity .2s ease;
+  }
+  .mobiledock.hidden {
+    transform: translate(-50%, calc(100% + 28px));
+    opacity: 0; pointer-events: none;
+  }
+  .mobile-dock-backdrop { position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.42); }
+  .mobile-dock-bar {
+    display: flex; align-items: stretch; gap: 2px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 22px;
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 12px 40px rgba(0,0,0,.55);
+  }
+  .mobile-dock-item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; min-width: 56px; min-height: 50px; padding: 4px 6px;
+    border: none; border-radius: 15px; background: transparent;
+    color: var(--text-3); cursor: pointer;
+  }
+  .mobile-dock-item span { font-size: 9px; line-height: 1; letter-spacing: .02em; }
+  .mobile-dock-item.active, .mobile-dock-item.open { color: var(--accent); background: var(--accent-dim); }
+
+  .mobile-popup {
+    position: absolute; left: 50%; bottom: calc(100% + 10px);
+    transform: translateX(-50%); min-width: 232px; padding: 8px;
+    border: 1px solid var(--line); border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 16px 44px rgba(0,0,0,.6);
+  }
+  .mobile-popup-title {
+    padding: 4px 10px 8px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--text-3);
+  }
+  .mobile-popup-items { display: flex; flex-direction: column; gap: 2px; }
+  .mobile-popup-link {
+    display: flex; align-items: center; gap: 10px; min-height: 44px;
+    padding: 0 10px; border-radius: 10px; font-size: 13px; color: var(--text-2);
+  }
+  .mobile-popup-link.active { color: var(--accent); background: var(--accent-dim); }
+  .mobile-account .profilemenu {
+    position: static; min-width: 232px; padding: 0;
+    background: transparent; border: none; box-shadow: none;
   }
 }
 @media (min-width: 861px) {
   .dock-backdrop { display: none; }
 }
 @media (max-width: 720px) {
-  .layout { padding: 54px 14px 0; }
+  .layout { padding: 0 14px 104px; }
   h1 { font-size: 19px; margin-top: 20px; }
   .card { padding: 14px; margin: 12px 0; }
   .kv { grid-template-columns: 1fr; gap: 2px 0; }
