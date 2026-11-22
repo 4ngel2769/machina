@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Img, Inst, Plan, Sample } from './types';
 import { useInstanceMutations } from './mutations';
 import { useGroups } from './groups';
@@ -23,14 +23,15 @@ function fetchSpark(instance: Inst, setSpark: React.Dispatch<React.SetStateActio
   fetch(`/api/instances/${instance.id}/metrics?range=1h`, { cache: 'no-store' })
     .then((metricsResponse) => (metricsResponse.ok ? metricsResponse.json() : { points: [] }))
     .then((metrics) => setSpark((previous) => ({ ...previous, [instance.id]: metrics.points ?? [] })))
-    .catch(ignore('catalog fetch failure leaves plans empty'));
+    .catch(ignore('metrics fetch failure leaves the sparkline empty'));
 }
 
-async function loadInstances(setInsts: React.Dispatch<React.SetStateAction<Inst[]>>) {
+async function loadInstances(setInsts: React.Dispatch<React.SetStateAction<Inst[]>>, withSpark: boolean) {
   const response = await fetch('/api/instances', { cache: 'no-store' });
   if (!response.ok) return;
   const instances: Inst[] = await response.json();
   setInsts(instances);
+  if (!withSpark) return;
   for (const instance of instances) fetchSpark(instance, setSparkRef.current);
 }
 
@@ -82,6 +83,7 @@ export function useInstancesPage() {
   const [userName, setUserName] = useState('');
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [spark, setSpark] = useState<Record<string, Sample[]>>({});
+  const pollTick = useRef(0);
   const [loading, setLoading] = useState(true);
   const [planId, setPlanId] = useState('');
   const [imageId, setImageId] = useState('');
@@ -98,7 +100,7 @@ export function useInstancesPage() {
   const load = useCallback(async () => {
     setSparkRef.current = setSpark;
     await Promise.all([
-      loadInstances(setInsts),
+      loadInstances(setInsts, true),
       loadCatalog(setPlans, setImgs, setImgPickable, setAssignedImage),
       loadSession(setRole, setUserName),
       loadRequests(setRequests),
@@ -106,7 +108,19 @@ export function useInstancesPage() {
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { const t = setInterval(() => void load(), 5000); return () => clearInterval(t); }, [load]);
+  // Catalog and session never change without a navigation. Polling them every
+  // 5s was four extra requests per tab; sparklines are every sixth tick.
+  useEffect(() => {
+    const t = setInterval(() => {
+      pollTick.current += 1;
+      setSparkRef.current = setSpark;
+      void Promise.all([
+        loadInstances(setInsts, pollTick.current % 6 === 0),
+        loadRequests(setRequests),
+      ]);
+    }, 5000);
+    return () => clearInterval(t);
+  }, []);
 
   const { busy, create, requestInstance, act } = useInstanceMutations(load);
 
