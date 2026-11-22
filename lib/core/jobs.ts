@@ -4,7 +4,7 @@
 import { getDb, rawDb } from '@/lib/db';
 import { jobs } from '@/lib/db/schema';
 import { newJobId, now } from './util';
-import { eq, inArray, asc, and, or } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 
 export type JobType =
   | 'instance.create'
@@ -105,9 +105,3 @@ export async function inFlightForInstance(instanceId: string): Promise<boolean> 
   return rows.length > 0;
 }
 
-export async function anyInFlight(): Promise<number> {
-  const rows = await getDb().select({ id: jobs.id }).from(jobs).where(
-    or(eq(jobs.status, 'queued'), eq(jobs.status, 'running')),
-  ).orderBy(asc(jobs.createdAt));
-  return rows.length;
-}
