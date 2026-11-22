@@ -65,6 +65,18 @@ export async function settleAll(): Promise<number> {
   return rows.length;
 }
 
+/** One grouped read for the hours already accrued this month per instance. */
+export function monthlyHoursByInstance(instanceIds: string[], monthStart: number): Map<string, number> {
+  if (!instanceIds.length) return new Map();
+  const placeholders = instanceIds.map(() => '?').join(',');
+  const rows = rawDb().prepare(`
+    select instance_id as inst, coalesce(sum(weight),0) as h from usage
+    where instance_id in (${placeholders}) and ts >= ? and running = 1
+    group by instance_id
+  `).all(...instanceIds, monthStart) as { inst: string; h: number }[];
+  return new Map(rows.map((row) => [row.inst, row.h]));
+}
+
 /**
  * Settle one user: aggregate unsettled running hours per instance, cap at the
  * plan's monthly cap, debit the balance, write a ledger row per settle.
@@ -83,14 +95,11 @@ export async function settleUser(userId: string): Promise<number> {
     group by i.id
   `).all(cutoff, userId) as { inst: string; uid: string; rate: number; cap: number; last: number; hours: number }[];
 
+  const monthlyHours = monthlyHoursByInstance(rows.map((usageRow) => usageRow.inst), startOfMonthTs());
   let total = 0;
   for (const usageRow of rows) {
     // Monthly cap: hours already accrued this month (settled + unsettled).
-    const monthStart = startOfMonthTs();
-    const billed = (db.prepare(`
-      select coalesce(sum(u.weight),0) as h from usage u
-      where u.instance_id = ? and u.ts >= ? and u.running = 1
-    `).get(usageRow.inst, monthStart) as { h: number } | undefined)?.h ?? usageRow.hours;
+    const billed = monthlyHours.get(usageRow.inst) ?? usageRow.hours;
     const leftHours = Math.max(0, usageRow.cap / 60 - billed);
     const chargeable = Math.min(usageRow.hours, leftHours);
     const cents = Math.round(chargeable * usageRow.rate);
@@ -136,14 +145,11 @@ export function pendingChargesCents(userId: string): { cents: number; hours: num
     group by i.id
   `).all(now() - 1000, userId) as { inst: string; rate: number; cap: number; hours: number }[];
 
-  const monthStart = startOfMonthTs();
+  const monthlyHours = monthlyHoursByInstance(rows.map((row) => row.inst), startOfMonthTs());
   let cents = 0;
   let hours = 0;
   for (const row of rows) {
-    const billed = (db.prepare(`
-      select coalesce(sum(u.weight),0) as h from usage u
-      where u.instance_id = ? and u.ts >= ? and u.running = 1
-    `).get(row.inst, monthStart) as { h: number } | undefined)?.h ?? row.hours;
+    const billed = monthlyHours.get(row.inst) ?? row.hours;
     const leftHours = Math.max(0, row.cap / 60 - billed);
     const chargeable = Math.min(row.hours, leftHours);
     cents += Math.round(chargeable * row.rate);
