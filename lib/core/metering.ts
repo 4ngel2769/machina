@@ -54,11 +54,14 @@ export async function samplePass(): Promise<number> {
 export async function settleAll(): Promise<number> {
   const db = rawDb();
   const rows = db.prepare(`select distinct user_id from instances`).all() as { user_id: string }[];
-  for (const userRow of rows) {
-    try { void settleUser(userRow.user_id); } catch (e) {
-      logInfo(`[metering] settle ${userRow.user_id} failed:`, (e as Error).message);
-    }
-  }
+  // settleUser is async. A try/catch around the call could never see its
+  // rejection, and the error became an unhandled rejection instead of a log.
+  const results = await Promise.allSettled(rows.map((userRow) => settleUser(userRow.user_id)));
+  results.forEach((result, index) => {
+    if (result.status !== 'rejected') return;
+    const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+    logInfo(`[metering] settle ${rows[index]?.user_id} failed:`, reason);
+  });
   return rows.length;
 }
 
