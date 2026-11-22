@@ -11,6 +11,7 @@ import { config } from '@/lib/config';
 import { macFromId, IpAllocator } from '@/lib/core/driver';
 import { ensureUserNet, type UserNet } from '@/lib/core/usernet';
 import { checkQuota } from '@/lib/core/quota';
+import { withKeyLock } from '@/lib/core/mutex';
 import { logAudit } from '@/lib/services/audit';
 
 export type ProvisionArgs = {
@@ -108,10 +109,8 @@ function instanceValues(
   };
 }
 
-/** Shared provisioning entry point used by direct (admin) create and by
- *  request approval. Validates plan/image, budget, caps, uniqueness, IP
- *  allocation, inserts the instance row and enqueues the create job. */
-export async function provisionInstance(args: ProvisionArgs): Promise<{ id: string; name: string; ip: string }> {
+/** Validate and commit one create. Callers must serialize per user. */
+async function provisionUnlocked(args: ProvisionArgs): Promise<{ id: string; name: string; ip: string }> {
   const db = getDb();
   const [plan] = await db.select().from(plans).where(and(eq(plans.id, args.planId), eq(plans.active, 1)));
   if (!plan) throw new Error('plan invalid');
@@ -158,4 +157,14 @@ export async function provisionInstance(args: ProvisionArgs): Promise<{ id: stri
       ...(args.copyFromPath ? { copyFromPath: args.copyFromPath } : {}),
     } });
   return { id: instanceId, name: args.name, ip };
+}
+
+/**
+ * Shared provisioning entry point. Quota, IP and MAC checks are separate
+ * statements around slow I/O, so two creates for one user can otherwise both
+ * pass before either row exists. The per-user lock makes the whole sequence
+ * atomic for that account; the database uniqueness rules still cover the rest.
+ */
+export async function provisionInstance(args: ProvisionArgs): Promise<{ id: string; name: string; ip: string }> {
+  return withKeyLock(`vm:${args.userId}`, () => provisionUnlocked(args));
 }
