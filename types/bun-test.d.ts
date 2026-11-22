@@ -17,6 +17,7 @@ declare module 'bun:test' {
     toBeNull(): void;
     toBeDefined(): void;
     toContain(expected: string): void;
+    toMatch(expected: RegExp): void;
     toMatchObject(expected: object): void;
     toHaveBeenCalled(): void;
     toHaveBeenCalledTimes(expected: number): void;

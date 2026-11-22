@@ -39,7 +39,7 @@ export function decrypt(blob: string): string {
 }
 
 export function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
+  return bcrypt.hashSync(password, 12);
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
@@ -52,8 +52,15 @@ export function randToken(bytes = 24): string {
 
 export function randPassword(): string {
   const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const limit = 256 - (256 % alphabet.length);
   let out = '';
-  for (const byte of crypto.randomBytes(16)) out += alphabet[byte % alphabet.length];
+  while (out.length < 16) {
+    for (const byte of crypto.randomBytes(16)) {
+      if (byte >= limit) continue;
+      out += alphabet[byte % alphabet.length];
+      if (out.length === 16) break;
+    }
+  }
   return out;
 }
 
@@ -67,13 +74,29 @@ function dataDir(): string {
 
 /** Throttled in-memory rate limiter, single-process. */
 const buckets = new Map<string, { n: number; reset: number }>();
+
+/** Expired keys are swept on insert, so a caller rotating a header cannot
+ *  grow the map without bound. */
+function sweepBuckets(now: number): void {
+  for (const [key, bucket] of buckets) {
+    if (bucket.reset < now) buckets.delete(key);
+  }
+}
+
 export function rateLimit(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
   const bucket = buckets.get(key);
   if (!bucket || bucket.reset < now) {
+    if (buckets.size > 5000) sweepBuckets(now);
     buckets.set(key, { n: 1, reset: now + windowMs });
     return true;
   }
   bucket.n += 1;
   return bucket.n <= limit;
+}
+
+/** Clear a bucket after a success. Failed guesses must not count against a
+ *  user who eventually got the password right. */
+export function resetRateLimit(key: string): void {
+  buckets.delete(key);
 }
