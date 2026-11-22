@@ -1,9 +1,12 @@
 /**
- * Sign-in page with a same-origin callback URL.
+ * Sign-in page. The credential check lives in lib/auth.ts; this surface only
+ * collects input and renders a deliberately uniform failure. Nothing here
+ * reveals whether a username exists, how many attempts remain, or why a
+ * sign-in was refused.
  */
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { ThinkingOrb } from 'thinking-orbs';
@@ -21,59 +24,84 @@ function safeCallback(raw: string | null): string {
   }
 }
 
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+      {off && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
 function SignInForm() {
   const params = useSearchParams();
   const dest = safeCallback(params.get('callbackUrl'));
   const [name, setName] = useState('');
   const [pass, setPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [attempts, setAttempts] = useState(0);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy || !name || !pass) return;
     setBusy(true);
     setError('');
-    const res = await signIn('credentials', { username: name, password: pass, redirect: false });
-    if (res?.error) {
-      setError('bad credentials');
-      setAttempts((attempt) => attempt + 1);
+    const result = await signIn('credentials', { username: name, password: pass, redirect: false });
+    if (result?.error) {
+      // Clear the secret from the DOM on failure; focus the field for a retry.
+      setPass('');
+      setShowPass(false);
+      setError('Invalid username or password.');
+      passwordRef.current?.focus();
       setBusy(false);
-    } else {
-      window.location.href = dest;
+      return;
     }
+    window.location.href = dest;
   }
 
   return (
     <div className="signin-card pagefade">
-      <div className="signin-brand">
-        <span className="brandmark" />
-        <span>machina</span>
-      </div>
-      <div className="signin-sub">rent small VMs</div>
+      <div className="signin-brand"><span className="brandmark" />machina</div>
+      <div className="signin-eyebrow">private cloud console</div>
+      <h1 className="signin-title">Sign in</h1>
+      <p className="signin-sub">One gate for tenants and operators. Access is logged.</p>
 
       <form onSubmit={submit}>
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="u">username</label>
-          <input id="u" value={name} onChange={(change) => setName(change.target.value)} autoComplete="username" autoFocus />
+        <label className="signin-label" htmlFor="sin-user">username</label>
+        <div className="signin-field">
+          <input id="sin-user" value={name} onChange={(change) => setName(change.target.value)}
+            autoComplete="username" autoCapitalize="off" spellCheck={false} autoFocus />
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label htmlFor="p">password</label>
-          <input id="p" type="password" value={pass} onChange={(change) => setPass(change.target.value)}
-            autoComplete="current-password" />
+
+        <label className="signin-label" htmlFor="sin-pass">password</label>
+        <div className="signin-field">
+          <input ref={passwordRef} id="sin-pass" value={pass}
+            onChange={(change) => setPass(change.target.value)}
+            type={showPass ? 'text' : 'password'} autoComplete="current-password"
+            spellCheck={false} />
+          <button type="button" className="signin-toggle" aria-label={showPass ? 'hide password' : 'show password'}
+            aria-pressed={showPass} onClick={() => setShowPass((was) => !was)}>
+            <EyeIcon off={showPass} />
+          </button>
         </div>
-        {error && <div className="errbox shake" key={attempts} style={{ marginBottom: 12 }}>{error}</div>}
-        <button className="primary" type="submit" disabled={busy || !name || !pass} style={{ width: '100%' }}>
-          {busy
-            ? <span className="busybtn" style={{ justifyContent: 'center', width: '100%', display: 'inline-flex' }}>
-                <ThinkingOrb state="connecting" size={20} theme="dark" aria-label="signing in" />
-                signing in…
-              </span>
-            : 'sign in'}
+
+        {error && <div className="errbox shake" role="alert" aria-live="assertive">{error}</div>}
+
+        <button className="primary signin-submit" type="submit" disabled={busy || !name || !pass}>
+          {busy ? (
+            <span className="busybtn">
+              <ThinkingOrb state="connecting" size={20} theme="dark" aria-label="signing in" />
+              signing in…
+            </span>
+          ) : 'sign in'}
         </button>
       </form>
 
-      <div className="signin-foot">internal platform · access controlled</div>
+      <div className="signin-foot">internal platform · sessions expire after 12 hours</div>
     </div>
   );
 }
