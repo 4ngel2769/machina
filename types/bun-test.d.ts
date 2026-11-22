@@ -11,12 +11,28 @@ declare module 'bun:test' {
 
   interface Matchers {
     readonly not: Matchers;
+    readonly rejects: Matchers;
     toBe(expected: unknown): void;
     toEqual(expected: unknown): void;
     toBeNull(): void;
     toBeDefined(): void;
     toContain(expected: string): void;
+    toMatchObject(expected: object): void;
+    toHaveBeenCalled(): void;
+    toHaveBeenCalledTimes(expected: number): void;
+    toThrow(expected?: string | RegExp): void;
   }
+
+  export interface MockedFunction<Args extends unknown[], Result> {
+    (...args: Args): Result;
+    mockClear(): void;
+    readonly mock: { readonly calls: Args[] };
+  }
+
+  export const mock: {
+    <Args extends unknown[], Result>(implementation: (...args: Args) => Result): MockedFunction<Args, Result>;
+    module(name: string, factory: () => Record<string, unknown>): void;
+  };
 
   export function describe(name: string, body: () => void): void;
   export function test(name: string, body: TestBody): void;
