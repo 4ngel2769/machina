@@ -5,9 +5,7 @@ import { NextRequest } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { json, err, guardMutation, jsonBody } from '@/lib/api';
 import { z } from 'zod';
-import { rawDb, getDb } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { rawDb } from '@/lib/db';
 import { hashPassword, verifyPassword, rateLimit } from '@/lib/core/crypto';
 import { now } from '@/lib/core/util';
 import { logAudit } from '@/lib/services/audit';
@@ -30,7 +28,7 @@ function passwordFields(body: { current?: string; next?: string }) {
   const current = typeof body.current === 'string' ? body.current : '';
   const next = typeof body.next === 'string' ? body.next : '';
   if (!current || !next) return { refused: err('current and next required') };
-  if (next.length < 8 || next.length > 72) return { refused: err('password: 8-72 chars (72 is bcrypt cap)') };
+  if (next.length < 8 || Buffer.byteLength(next, 'utf8') > 72) return { refused: err('password: 8-72 bytes (72 is bcrypt cap)') };
   return { current, next };
 }
 
@@ -39,7 +37,10 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
   const user = await requireUser();
   if (!user) return err('unauthorized', 401);
-  if (!rateLimit(`pw:${user.id}`, 5, 10 * 60_000)) return err('too many attempts', 429);
+  const ip = req.headers.get('cf-connecting-ip') ?? req.headers.get('x-real-ip') ?? 'unknown';
+  if (!rateLimit(`pw:${user.id}`, 5, 10 * 60_000) || !rateLimit(`pw:ip:${ip}`, 20, 10 * 60_000)) {
+    return err('too many attempts', 429);
+  }
 
   const body = await jsonBody(req, z.object({ current: z.string().optional(), next: z.string().optional() }).passthrough());
   const fields = passwordFields(body);
@@ -49,7 +50,13 @@ export async function POST(req: NextRequest) {
   const refused = verifyCurrent(user.id, current);
   if (refused) return refused;
 
-  await getDb().update(users).set({ passwordHash: hashPassword(next) }).where(eq(users.id, user.id));
+  const db = rawDb();
+  db.transaction(() => {
+    db.prepare(`update users set password_hash=?, session_epoch=session_epoch+1 where id=?`)
+      .run(hashPassword(next), user.id);
+    db.prepare(`update api_tokens set revoked_at=? where user_id=? and revoked_at is null`)
+      .run(now(), user.id);
+  })();
   await logAudit({ actorId: user.id, actorName: user.name, action: 'auth.changePassword' });
   return json({ ok: true, at: now(), note: 'password persists across restarts' });
 }

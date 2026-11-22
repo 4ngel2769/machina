@@ -216,4 +216,14 @@ export const MIGRATIONS_2: { version: string; sql: string }[] = [
       create unique index if not exists user_nets_v6_idx on user_nets(v6_subnet);
     `,
   },
+  {
+    version: '20261122_0016',
+    sql: `
+      -- Bumped whenever a password changes. JWTs carry the epoch they were
+      -- minted with; requireUser refuses any that no longer match. Existing
+      -- rows and pre-migration tokens share epoch 0, so nobody is logged out
+      -- by the upgrade itself.
+      alter table users add column session_epoch integer not null default 0;
+    `,
+  },
 ];

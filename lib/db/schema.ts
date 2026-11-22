@@ -8,6 +8,8 @@ export const users = sqliteTable('users', {
   name: text('name').notNull(),
   role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
   passwordHash: text('password_hash'),
+  // Bumped on password change; JWTs carrying an older epoch are refused.
+  sessionEpoch: integer('session_epoch').default(0).notNull(),
   // Running balance in cents; only mutated by admin grants and hourly metering.
   balanceCents: integer('balance_cents').default(0).notNull(),
   // OS assignment: imagePickable=1 means user can choose OS; 0 means admin assigns.
