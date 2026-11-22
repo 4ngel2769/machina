@@ -5,17 +5,40 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { headers } from 'next/headers';
 import { rawDb } from '@/lib/db';
-import { verifyPassword, rateLimit } from '@/lib/core/crypto';
+import { verifyPassword, hashPassword, rateLimit, resetRateLimit } from '@/lib/core/crypto';
 import { resolveToken, TOKEN_PREFIX } from '@/lib/services/apitoken';
 
-/** Client address for the login throttle: first x-forwarded-for hop. */
-function requestIp(req: unknown): string {
-  const hasHeaders = typeof req === 'object' && req !== null && 'headers' in req;
-  const headers = hasHeaders ? new Headers((req as Request).headers) : new Headers();
-  return headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+/**
+ * Client address for the IP-level throttle. Cloudflare overwrites
+ * CF-Connecting-IP on every request, so the caller cannot forge it; nginx
+ * sets X-Real-IP on direct access. X-Forwarded-For is a last resort and is
+ * deliberately not trusted as the only limit — the account key below is the
+ * authoritative one.
+ */
+function firstHeader(source: Headers, names: string[]): string {
+  for (const name of names) {
+    const value = source.get(name)?.trim();
+    if (value) return value;
+  }
+  return 'unknown';
 }
 
-type UserRow = { id: string; name: string; role: string; password_hash: string | null };
+function requestIp(req: unknown): string {
+  const hasHeaders = typeof req === 'object' && req !== null && 'headers' in req;
+  const source = hasHeaders ? new Headers((req as Request).headers) : new Headers();
+  const trusted = firstHeader(source, ['cf-connecting-ip', 'x-real-ip']);
+  if (trusted !== 'unknown') return trusted;
+  return source.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+}
+
+/** A real bcrypt hash. Unknown names are compared against it so a missing
+ *  user costs the same as a wrong password and cannot be timed out. */
+const DUMMY_HASH = hashPassword('machina-login-timing-dummy');
+
+type UserRow = {
+  id: string; name: string; role: string;
+  password_hash: string | null; session_epoch: number;
+};
 
 /** Username and password out of the provider's bag, or null when either missing. */
 function readCreds(
@@ -28,7 +51,7 @@ function readCreds(
 }
 
 function findUser(name: string): UserRow | undefined {
-  return rawDb().prepare('select id, name, role, password_hash from users where name=?').get(name) as
+  return rawDb().prepare('select id, name, role, password_hash, session_epoch from users where name=?').get(name) as
     | UserRow
     | undefined;
 }
@@ -43,17 +66,22 @@ const authConfig = NextAuth({
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      /** Username + password against the users table. Per-name+IP attempt
-       *  throttling (in-memory, single process) blunts brute force; success
-       *  clears the bucket. */
+      /** Throttle per account AND per client address. The account key cannot
+       *  be reset by spoofing a proxy header; the IP key catches distributed
+       *  guessing. Both buckets are cleared on success. */
       authorize(creds, req) {
-        const credsBag = readCreds(creds);
-        if (!credsBag) return null;
-        if (!rateLimit(`auth:${credsBag.name}@${requestIp(req)}`, 8, 5 * 60_000)) return null; // >8 tries / 5min == locked out
-        const row = findUser(credsBag.name);
-        if (!row?.password_hash) return null;
-        if (!verifyPassword(credsBag.password, row.password_hash)) return null;
-        return { id: row.id, name: row.name, role: row.role };
+        const bag = readCreds(creds);
+        if (!bag) return null;
+        const accountKey = `auth:account:${bag.name.toLowerCase()}`;
+        const ipKey = `auth:ip:${requestIp(req)}`;
+        if (!rateLimit(accountKey, 8, 5 * 60_000) || !rateLimit(ipKey, 40, 5 * 60_000)) return null;
+        const row = findUser(bag.name);
+        // One comparison either way: an unknown name must not return early.
+        const matched = verifyPassword(bag.password, row?.password_hash ?? DUMMY_HASH);
+        if (!row?.password_hash || !matched) return null;
+        resetRateLimit(accountKey);
+        resetRateLimit(ipKey);
+        return { id: row.id, name: row.name, role: row.role, sessionEpoch: row.session_epoch };
       },
     }),
   ],
@@ -62,6 +90,7 @@ const authConfig = NextAuth({
       if (user) {
         token.id = (user as { id: string }).id;
         token.role = (user as { role?: string }).role ?? 'user';
+        token.epoch = (user as { sessionEpoch?: number }).sessionEpoch ?? 0;
       }
       return token;
     },
@@ -69,6 +98,7 @@ const authConfig = NextAuth({
       if (session.user) {
         (session.user as { id?: string }).id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        (session.user as { epoch?: number }).epoch = Number(token.epoch ?? 0);
       }
       return session;
     },
@@ -91,18 +121,27 @@ async function userFromToken(secret: string): Promise<TokenUser | null> {
   return row ?? null;
 }
 
+/** Validate a session cookie against the row it was minted from. */
+async function userFromSession(): Promise<TokenUser | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const id = String((session.user as { id: string }).id);
+  const epoch = Number((session.user as { epoch?: number }).epoch ?? 0);
+  // The database is the authority for role and session validity: a demoted
+  // admin or a password change takes effect before the JWT would expire.
+  const row = rawDb().prepare('select id, name, role, session_epoch from users where id=?').get(id) as
+    | { id: string; name: string; role: string; session_epoch: number }
+    | undefined;
+  if (!row || Number(row.session_epoch ?? 0) !== epoch) return null;
+  return { id: row.id, name: row.name, role: row.role };
+}
+
 /** Session guard for API routes and pages. Accepts a next-auth session OR a
  *  machina_ bearer token; the token path exists so scripts and integrations
  *  can call the same routes without a cookie jar. */
 export async function requireUser(): Promise<{ id: string; name: string; role: string } | null> {
-  const session = await auth();
-  if (session?.user?.id) {
-    return {
-      id: String((session.user as { id: string }).id),
-      name: String(session.user.name ?? ''),
-      role: String((session.user as { role?: string }).role ?? 'user'),
-    };
-  }
+  const sessionUser = await userFromSession();
+  if (sessionUser) return sessionUser;
   const headerList = await headers();
   const authHeader = headerList.get('authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return null;
