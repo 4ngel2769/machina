@@ -1,80 +1,55 @@
 /** Instance ops: createInstance (preset plan) and createCustomInstance (hand-built spec). */
 
 import { getDb, rawDb } from '@/lib/db';
-import { users, plans, images, instances } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { users } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { json, err } from '@/lib/api';
-import { newInstanceId, now } from '@/lib/core/util';
-import { macFromId, IpAllocator } from '@/lib/core/driver';
-import { encrypt, randPassword, randToken } from '@/lib/core/crypto';
-import { config } from '@/lib/config';
-import { enqueue } from '@/lib/core/jobs';
 import { provisionInstance } from '@/lib/core/provision';
 import { validateCustomSpec, createCustomPlan, deleteCustomPlan } from '@/lib/core/plans';
 import { logAudit } from '@/lib/services/audit';
+import type { NextResponse } from 'next/server';
 import type { AdminBody, AdminCtx } from './types';
 
-/** The plan, image and IP an admin create needs, or the refusal. */
-async function resolveCreateTarget(body: AdminBody) {
-  if (!body.targetUserId) return err('targetUserId required');
-  if (!body.name) return err('name required');
-  const [targetUser] = await getDb().select().from(users).where(eq(users.id, body.targetUserId));
-  if (!targetUser) return err('target user not found', 404);
-  const planId = body.planId || 'micro';
-  const [plan] = await getDb().select().from(plans).where(and(eq(plans.id, planId), eq(plans.active, 1)));
-  if (!plan) return err('plan invalid', 400);
-  const imageId = body.imageId || targetUser.assignedImageId || 'ubuntu-24.04';
-  const [image] = await getDb().select().from(images).where(eq(images.id, imageId));
-  if (!image || image.status !== 'ready') return err('image not ready', 400);
-  return { targetUser, plan, image };
-}
+type CreateTarget = { targetUserId: string; name: string; planId: string };
 
-/** Name checks plus the provisioning row insert; returns the row id or a refusal. */
-async function insertProvisioning(body: AdminBody, targetUser: { id: string }, plan: { id: string; vcpu: number; ramMb: number; diskGb: number; hourlyRateCents: number; monthlyCapMin: number; bandwidthGb: number | null }, image: { id: string }) {
-  const raw = rawDb();
+/** Validate the admin create body before touching the database. */
+function validateCreateTarget(body: AdminBody): CreateTarget | NextResponse {
+  if (!body.targetUserId) return err('targetUserId required');
   const name = (body.name ?? '').trim();
   if (!/^[a-z0-9-]{3,32}$/.test(name)) return err('name: 3-32 chars of a-z 0-9 -');
-  const dupe = raw.prepare(`select 1 from instances where user_id=? and name=?`).get(targetUser.id, name);
-  if (dupe) return err('name already used', 409);
-  const taken = (raw.prepare(`select ip from instances where ip is not null`).all() as { ip: string }[]).map((row) => row.ip);
-  const id = newInstanceId();
-  const ip = new IpAllocator(taken).next();
-  if (!ip) return err('no free IP in range', 503);
-  const rootPassword = randPassword();
-  const vncPass = randToken(4).slice(0, 8).replace(/[^a-zA-Z0-9]/g, 'x');
-  await getDb().insert(instances).values({
-    id,
-    domainName: `machina-${id.slice(3, 16)}`,
-    userId: targetUser.id,
-    planId: plan.id,
-    imageId: image.id,
-    name,
-    status: 'provisioning',
-    mac: macFromId(id),
-    ip,
-    vncSocket: `${config.storageDir}/vnc/${id}.vnc`,
-    vncPass,
-    rootPassEnc: encrypt(rootPassword),
-    rateHourlyCents: plan.hourlyRateCents,
-    monthlyCapMin: plan.monthlyCapMin,
-    bandwidthGb: plan.bandwidthGb ?? 0,
-    createdAt: now(),
-    updatedAt: now(),
-  });
-  const jobId = await enqueue({ type: 'instance.create', instanceId: id, userId: targetUser.id,
-    payload: { planSnapshot: { vcpu: plan.vcpu, ramMb: plan.ramMb, diskGb: plan.diskGb } } });
-  return { id, jobId, ip, name };
+  return { targetUserId: body.targetUserId, name, planId: body.planId || 'micro' };
 }
 
+/**
+ * Admin create for a preset plan. The target user's quota still applies; an
+ * admin bypasses no guard except the one that decides who may ask. The old
+ * inline insert put these VMs on the legacy shared net and skipped quota,
+ * balance and host-capacity checks entirely.
+ */
 export async function createInstance(body: AdminBody, { admin }: AdminCtx) {
-  // Admin creates an instance for a target user.
-  const target = await resolveCreateTarget(body);
+  const target = validateCreateTarget(body);
   if (target instanceof Response) return target;
-  const { targetUser, plan, image } = target;
-  const created = await insertProvisioning(body, targetUser, plan, image);
-  if (created instanceof Response) return created;
+
+  const [targetUser] = await getDb().select().from(users).where(eq(users.id, target.targetUserId));
+  if (!targetUser) return err('target user not found', 404);
+  const imageId = body.imageId || targetUser.assignedImageId || undefined;
+
+  let created: { id: string; name: string; ip: string };
+  try {
+    created = await provisionInstance({
+      userId: targetUser.id,
+      name: target.name,
+      planId: target.planId,
+      actorName: admin.name,
+      actorRole: 'admin',
+      ...(imageId ? { imageId } : {}),
+    });
+  } catch (error) {
+    return err(error instanceof Error ? error.message : String(error), 400);
+  }
+
   await logAudit({ actorId: admin.id, actorName: admin.name, action: 'admin.createInstance',
-    target: created.id, detail: { forUser: targetUser.name, planId: plan.id, imageId: image.id } });
+    target: created.id, detail: { forUser: targetUser.name, planId: target.planId, imageId: body.imageId ?? null } });
   return json({ ...created, status: 'provisioning' }, 201);
 }
 
