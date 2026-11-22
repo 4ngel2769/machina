@@ -8,14 +8,13 @@
 
 import { rawDb, getDb } from '@/lib/db';
 import { instances, users } from '@/lib/db/schema';
-import { config } from '@/lib/config';
-import { domState, listDomains, destroyDomain, undefineDomain } from './driver';
-import { diskVolFromId, deleteVolume } from './disks';
+import { eq } from 'drizzle-orm';
+import { listDomains } from './driver';
+import { diskVolFromId } from './disks';
 import { enqueue, inFlightForInstance } from './jobs';
 import { checkQuotas } from './netmeter';
 import { now } from './util';
 import { notify } from '@/lib/services/notify';
-import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { storagePaths } from '@/lib/config';
@@ -67,7 +66,7 @@ async function syncStatuses(doms: Map<string, string>): Promise<number> {
     const mappedState = mapDomState(liveState);
     if (mappedState !== instanceRow.status) {
       await db.update(instances).set({ status: mappedState, updatedAt: now() }).where(
-        (await import('drizzle-orm')).eq(instances.id, instanceRow.id),
+        eq(instances.id, instanceRow.id),
       );
       fixed += 1;
     }
@@ -79,15 +78,19 @@ async function syncStatuses(doms: Map<string, string>): Promise<number> {
 async function suspendBrokeUsers(): Promise<number> {
   const db = getDb();
   let suspended = 0;
-  for (const instanceRow of await db.select().from(instances)) {
-    if (instanceRow.status !== 'running' || instanceRow.autoSuspended) continue;
-    const user = (await db.select().from(users)).find((userRow) => userRow.id === instanceRow.userId);
+  // One user read per pass, not one per running instance. The old lookup
+  // scanned the whole users table inside the loop for every VM.
+  const usersById = new Map((await db.select().from(users)).map((userRow) => [userRow.id, userRow]));
+  const running = await db.select().from(instances).where(eq(instances.status, 'running'));
+  for (const instanceRow of running) {
+    if (instanceRow.autoSuspended) continue;
+    const user = usersById.get(instanceRow.userId);
     if (!user) continue;
     if (user.balanceCents <= 0) {
       await enqueue({ type: 'instance.stop', instanceId: instanceRow.id, userId: instanceRow.userId,
         payload: { force: true, reason: 'auto-suspend (balance exhausted)' } });
       await db.update(instances).set({ autoSuspended: 1, status: 'suspended', updatedAt: now() }).where(
-        (await import('drizzle-orm')).eq(instances.id, instanceRow.id));
+        eq(instances.id, instanceRow.id));
       logInfo(`[reconciler] auto-suspend ${instanceRow.id} (user ${instanceRow.userId} broke)`);
       notify(instanceRow.userId, 'warn', `${instanceRow.name ?? instanceRow.id} auto-suspended`, 'balance exhausted — top up to restart', `/instances/${instanceRow.id}`);
       suspended += 1;
@@ -139,12 +142,3 @@ async function cleanOrphans(): Promise<number> {
   return removed;
 }
 
-/** Explicit post-delete safety net: guarantee stale domain gone + disk gone. */
-export async function hardCleanup(instanceId: string, domainName: string): Promise<void> {
-  const live = await domState(domainName).catch(() => null);
-  if (live) await destroyDomain(domainName);
-  await undefineDomain(domainName);
-  await deleteVolume(diskVolFromId(instanceId));
-  void config;
-  void fs;
-}
