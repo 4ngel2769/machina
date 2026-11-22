@@ -42,11 +42,12 @@ export async function GET() {
       .orderBy(desc(instances.createdAt))
     : await db.select(cols).from(instances).innerJoin(plans, eq(plans.id, instances.planId))
       .where(eq(instances.userId, user.id)).orderBy(desc(instances.createdAt));
-  const jobs = rawDb().prepare(`select instance_id, status, type from jobs
-     where status in ('queued','running')`).all() as { instance_id: string; status: string; type: string }[];
+  const jobs = new Map((rawDb().prepare(`select instance_id, status, type from jobs
+     where status in ('queued','running')`).all() as { instance_id: string; status: string; type: string }[])
+    .map((job) => [job.instance_id, job]));
   return json(rows.map((row) => ({
     ...row,
-    activeJob: jobs.find((job) => job.instance_id === row.id) ?? null,
+    activeJob: jobs.get(row.id) ?? null,
   })));
 }
 
